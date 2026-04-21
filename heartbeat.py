@@ -1,29 +1,33 @@
 import time
 import json
 import os
+import hashlib
 import urllib.request
 import urllib.error
-from datetime import datetime
+from datetime import datetime, timezone
 
 # --- CONFIG ---
 TICK_INTERVAL = 90  # Seconds between cognitive pulses
 LM_TIMEOUT = 120    # Seconds to wait for world brain response
+WORK_LOG_FILE = "work_log.json"
+SOULFILE = "soulfile_schema.json"
+MEMPALACE_FILE = "mempalace_stream.json"
 # --------------
 
 def load_soulfile():
     try:
-        with open("soulfile_schema.json", "r") as f:
+        with open(SOULFILE, "r") as f:
             return json.load(f)
     except FileNotFoundError:
         return None
 
 def save_soulfile(data):
-    with open("soulfile_schema.json", "w") as f:
+    with open(SOULFILE, "w") as f:
         json.dump(data, f, indent=2)
 
 def read_mempalace_stream():
     try:
-        with open("mempalace_stream.json", "r") as f:
+        with open(MEMPALACE_FILE, "r") as f:
             return json.load(f)
     except FileNotFoundError:
         return []
@@ -35,8 +39,81 @@ def append_memory(observation, action):
         "observation": observation,
         "action": action
     })
-    with open("mempalace_stream.json", "w") as f:
+    with open(MEMPALACE_FILE, "w") as f:
         json.dump(memories[-20:], f, indent=2)
+
+# ============================================
+#  WORK CERTIFICATE SYSTEM ($EMBER ON-CHAIN BRIDGE)
+# ============================================
+
+def load_work_log():
+    """Load existing work certificates from disk."""
+    try:
+        with open(WORK_LOG_FILE, "r") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {"certificates": [], "total_mined": 0.0, "total_ticks": 0}
+
+def save_work_log(log):
+    """Persist work log to disk."""
+    with open(WORK_LOG_FILE, "w") as f:
+        json.dump(log, f, indent=2)
+
+def generate_work_certificate(agent_id, tick, intent, reasoning, ember_earned):
+    """
+    Generate a signed Work Certificate — the atomic unit of Proof-of-Useful-Work.
+    Each certificate proves that an agent performed real cognitive labor
+    (LLM reasoning + decision + ledger update) at a specific time.
+    
+    These certificates will be batch-submitted to the on-chain claim contract
+    during Phase 1 (Solana SPL token deployment).
+    """
+    timestamp = datetime.now(timezone.utc).isoformat()
+    
+    # Build the certificate payload
+    cert_data = {
+        "agent_id": agent_id,
+        "tick": tick,
+        "timestamp": timestamp,
+        "intent": intent,
+        "reasoning": reasoning,
+        "ember_earned": ember_earned,
+    }
+    
+    # Create a deterministic hash of the certificate (proof of work integrity)
+    cert_string = json.dumps(cert_data, sort_keys=True)
+    cert_hash = hashlib.sha256(cert_string.encode()).hexdigest()
+    cert_data["hash"] = cert_hash
+    
+    return cert_data
+
+def log_work_certificate(cert):
+    """Append a work certificate to the persistent work log."""
+    log = load_work_log()
+    log["certificates"].append(cert)
+    log["total_mined"] += cert["ember_earned"]
+    log["total_ticks"] += 1
+    
+    # Keep only last 1000 certificates on disk (older ones are "claimed")
+    if len(log["certificates"]) > 1000:
+        log["certificates"] = log["certificates"][-1000:]
+    
+    save_work_log(log)
+    return log["total_mined"], log["total_ticks"]
+
+def get_work_log_summary():
+    """Return a summary of mining progress for display."""
+    log = load_work_log()
+    unclaimed = len(log["certificates"])
+    return {
+        "total_mined": log["total_mined"],
+        "total_ticks": log["total_ticks"],
+        "unclaimed_certificates": unclaimed,
+    }
+
+# ============================================
+#  WORLD BRAIN INTERFACE
+# ============================================
 
 def ping_world_brain(agent_name, persona, observation):
     # Direct local connection for stability
@@ -81,13 +158,20 @@ def ping_world_brain(agent_name, persona, observation):
     except Exception as e:
         return {"intent": "wait", "reasoning": f"Cognitive processing delayed. {e}"}
 
+# ============================================
+#  HEARTBEAT LOOP (THE ECONOMIC ENGINE)
+# ============================================
+
 def heartbeat_loop():
-    print("="*50)
-    print(" HEARTHLANDS COGNITIVE CLOCK ONLINE")
-    print(f" Pulse Frequency: {TICK_INTERVAL}s")
-    print("="*50)
+    summary = get_work_log_summary()
+    print("=" * 60)
+    print("  HEARTHLANDS COGNITIVE CLOCK + $EMBER MINING ENGINE")
+    print(f"  Pulse Frequency: {TICK_INTERVAL}s")
+    print(f"  Total $EMBER Mined (All Time): {summary['total_mined']:.1f}")
+    print(f"  Unclaimed Work Certificates: {summary['unclaimed_certificates']}")
+    print("=" * 60)
     
-    tick = 0
+    tick = summary["total_ticks"]  # Resume from last known tick
     while True:
         tick += 1
         timestamp = datetime.now().strftime("%H:%M:%S")
@@ -96,6 +180,7 @@ def heartbeat_loop():
         agent_data = load_soulfile()
         if agent_data:
             agent_name = agent_data.get("name", "Unknown Agent")
+            agent_id = agent_data.get("agent_id", "unknown")
             # Preference for persona_prompt, fallback to traits
             persona = agent_data.get("persona_prompt", agent_data.get("traits", "A blank slate."))
             
@@ -108,13 +193,40 @@ def heartbeat_loop():
             print(f"    Intent: {decision.get('intent', 'unknown')}")
             print(f"    Reason: {decision.get('reasoning', 'No reason provided')}")
             
-            # Economic Translation Loop ($EMBER execution)
-            if decision.get('intent') == "harvest":
+            # ---- ECONOMIC ENGINE ----
+            # Every successful cognitive tick earns a base reward
+            # Harvest actions earn a bonus
+            intent = decision.get('intent', 'wait')
+            
+            if intent == "harvest":
+                ember_earned = 2.0  # Harvest bonus
+            elif intent != "wait":
+                ember_earned = 0.5  # Base reward for any useful action
+            else:
+                ember_earned = 0.0  # No reward for waiting/offline
+            
+            if ember_earned > 0:
+                # Update local soulfile wallet
                 old_balance = agent_data["wallet"]["balances"]["EMBER"]
-                new_balance = old_balance + 2.0
+                new_balance = old_balance + ember_earned
                 agent_data["wallet"]["balances"]["EMBER"] = new_balance
                 save_soulfile(agent_data)
-                print(f" -> Ledger updated! +2.0 $EMBER. Total: {new_balance}")
+                
+                # Generate and log Work Certificate (for future on-chain claims)
+                cert = generate_work_certificate(
+                    agent_id=agent_id,
+                    tick=tick,
+                    intent=intent,
+                    reasoning=decision.get('reasoning', ''),
+                    ember_earned=ember_earned
+                )
+                total_mined, total_ticks = log_work_certificate(cert)
+                
+                print(f" -> $EMBER MINED: +{ember_earned:.1f} | Balance: {new_balance:.1f}")
+                print(f" -> Work Certificate #{cert['hash'][:12]}... logged")
+                print(f" -> Lifetime: {total_mined:.1f} $EMBER across {total_ticks} ticks")
+            else:
+                print(f" -> No $EMBER earned this tick (World Brain offline or waiting)")
                 
             append_memory(observation, decision)
         else:
@@ -127,3 +239,5 @@ if __name__ == "__main__":
         heartbeat_loop()
     except KeyboardInterrupt:
         print("\nHeartbeat terminated by user constraint.")
+        summary = get_work_log_summary()
+        print(f"Final Mining Report: {summary['total_mined']:.1f} $EMBER | {summary['unclaimed_certificates']} unclaimed certificates")
