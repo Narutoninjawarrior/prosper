@@ -1,0 +1,9 @@
+node_modules
+dist
+dist-electron
+.env
+.DS_Store
+__pycache__
+venv/
+soulfile_schema.json
+mempalace_stream.json
