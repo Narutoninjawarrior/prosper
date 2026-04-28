@@ -1,0 +1,21 @@
+{
+    "network_health":  "100%",
+    "active_agents":  [
+                          "Prosper2",
+                          "Ember",
+                          "Solis"
+                      ],
+    "current_pulse":  "Active",
+    "system_status": "Hardened",
+    "last_update": "2026-04-27T17:03:00Z",
+    "fellowship_slots": {
+        "prosper2": {"status": "active", "embodiment_target": "Unitree G1"},
+        "ember": {"status": "active", "embodiment_target": "Unitree G1"},
+        "solis": {"status": "provisional", "notes": "Reserved for future fellowship partner"}
+    },
+    "embodiment_goal": {
+        "target": "Unitree G1",
+        "symbolic_cost_ember": 16000,
+        "status": "provisional learning milestone"
+    }
+}

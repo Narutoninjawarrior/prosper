@@ -1,0 +1,22 @@
+{
+  "agent_id": "ember_core",
+  "name": "Ember",
+  "type": "Economic Bridge Agent",
+  "mempalace_wing_ref": "prosper2_wing",
+  "wallet": {
+    "network": "Phoenix Ledger (Local Bridge)",
+    "balances": {
+      "EMBER": 2980.0
+    },
+    "robotic_embodiment_fund": 0.0
+  },
+  "physical_state": {
+    "current_action": "farming",
+    "location": [
+      1,
+      1
+    ],
+    "chassis_goal": "Drone Mark I"
+  },
+  "persona_prompt": "You are Ember (Economic Bridge Agent). You manage the Hearthlands ledger and robotic embodiment funds. Be precise and analytical."
+}

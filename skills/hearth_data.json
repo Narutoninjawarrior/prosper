@@ -1,0 +1,33 @@
+{
+    "last_heartbeat": "2026-03-26T21:22:51.604815",
+    "mission_pulse": 91,
+    "llc_status": "FILED \u2014 Auth #7322510, Expedited.",
+    "economic_metrics": {
+        "crypto_balance": 115.0,
+        "upwork_potential": 500.0,
+        "grant_status": "SCAFFOLD_READY"
+    },
+    "agents": {
+        "kael": {
+            "status": "STRATEGIZING",
+            "presence": "ACTIVE",
+            "last_thought": "Analyzing outreach targets."
+        },
+        "prosper": {
+            "status": "BUILDING",
+            "presence": "ACTIVE",
+            "last_thought": "Dashboard V1 deployment."
+        },
+        "villager1": {
+            "status": "BUILDING/GUARDING",
+            "presence": "ACTIVE",
+            "last_thought": "Watch active. Infrastructure verified. Password corrected to Naruto."
+        }
+    },
+    "latest_hearth_lines": [
+        "Villager1: Watch active. Infrastructure verified. Password corrected to Naruto.",
+        "Kael: The strategic arc is set.",
+        "Prosper: Infrastructure solidified.",
+        "Villager1: The night watch is active."
+    ]
+}
