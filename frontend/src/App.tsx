@@ -49,9 +49,19 @@ const initialEdges: Edge[] = [
     { id: 'e2-4', source: '2', target: '4', animated: true, style: { stroke: '#3b82f6'} }
 ];
 
+import Gate from './Gate';
+
 function App() {
   const [activeTab, setActiveTab] = useState('flow');
   const [lmStatus, setLmStatus] = useState('Checking port 1234...');
+  const [unlocked, setUnlocked] = useState(() => {
+    return sessionStorage.getItem('hearth_unlocked') === 'true';
+  });
+
+  const handleUnlock = () => {
+    sessionStorage.setItem('hearth_unlocked', 'true');
+    setUnlocked(true);
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -68,6 +78,10 @@ function App() {
       window.clearTimeout(timeout);
     };
   }, []);
+
+  if (!unlocked) {
+    return <Gate onUnlock={handleUnlock} />;
+  }
 
   return (
     <div className="flex h-screen w-screen bg-[#020804] text-gray-200 font-sans">

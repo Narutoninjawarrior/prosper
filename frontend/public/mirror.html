@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fellowship of the Hearth - Living Cathedral</title>
+  <style>
+    :root {
+      --ink: #102018;
+      --night: #07130c;
+      --deep: #0d1c14;
+      --forest: #164b33;
+      --moss: #2a6b49;
+      --fern: #58b57c;
+      --gold: #d4af37;
+      --parchment: #f2e8d5;
+      --paper: #faf5ea;
+      --line: rgba(84, 142, 106, 0.34);
+      --shadow: 0 30px 90px rgba(0, 0, 0, 0.35);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body { min-height: 100%; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      font-family: Georgia, "Times New Roman", serif;
+      background:
+        radial-gradient(circle at top left, rgba(212, 175, 55, 0.16), transparent 24%),
+        radial-gradient(circle at 85% 15%, rgba(88, 181, 124, 0.18), transparent 18%),
+        linear-gradient(135deg, #07130c 0%, #0a1a12 35%, #10251a 100%);
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(rgba(255,255,255,0.015), rgba(255,255,255,0.015)),
+        repeating-linear-gradient(
+          90deg,
+          transparent 0,
+          transparent 24px,
+          rgba(255,255,255,0.018) 25px
+        );
+      mix-blend-mode: soft-light;
+      opacity: 0.35;
+    }
+
+    .page {
+      position: relative;
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 32px 20px 48px;
+    }
+
+    .frame {
+      background:
+        linear-gradient(180deg, rgba(250, 245, 234, 0.98), rgba(241, 231, 210, 0.95)),
+        radial-gradient(circle at top, rgba(212, 175, 55, 0.22), transparent 28%);
+      border: 1px solid rgba(201, 160, 61, 0.55);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .frame::before,
+    .frame::after {
+      content: "";
+      position: absolute;
+      inset: 12px;
+      border: 1px solid rgba(30, 73, 52, 0.26);
+      border-radius: 22px;
+      pointer-events: none;
+    }
+
+    .frame::after {
+      inset: 20px;
+      border-style: dashed;
+      opacity: 0.55;
+    }
+
+    header {
+      padding: 28px 28px 18px;
+      background:
+        linear-gradient(180deg, rgba(23, 75, 51, 0.95), rgba(14, 38, 26, 0.98)),
+        radial-gradient(circle at top right, rgba(212, 175, 55, 0.16), transparent 34%);
+      color: var(--paper);
+      position: relative;
+    }
+
+    header::after {
+      content: "";
+      position: absolute;
+      inset: auto 28px 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.65), transparent);
+    }
+
+    .eyebrow {
+      letter-spacing: 0.35em;
+      text-transform: uppercase;
+      font: 700 11px/1.2 Arial, Helvetica, sans-serif;
+      color: rgba(242, 232, 213, 0.72);
+      margin-bottom: 12px;
+    }
+
+    .title-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      align-items: end;
+      flex-wrap: wrap;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2rem, 4vw, 4.1rem);
+      line-height: 0.95;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+
+    .subtitle {
+      max-width: 42rem;
+      margin-top: 14px;
+      font: 400 15px/1.7 "Trebuchet MS", Arial, sans-serif;
+      color: rgba(242, 232, 213, 0.86);
+    }
+
+    .status-pill {
+      border: 1px solid rgba(212, 175, 55, 0.38);
+      background: rgba(212, 175, 55, 0.12);
+      color: var(--parchment);
+      border-radius: 999px;
+      padding: 10px 14px;
+      font: 700 12px/1 Arial, Helvetica, sans-serif;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 18px;
+      padding: 18px;
+      background:
+        linear-gradient(180deg, rgba(246, 239, 224, 0.92), rgba(241, 230, 209, 0.96));
+    }
+
+    .hero,
+    .panel {
+      border-radius: 22px;
+      border: 1px solid var(--line);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.8), rgba(250,245,234,0.94)),
+        radial-gradient(circle at top right, rgba(212,175,55,0.08), transparent 36%);
+      box-shadow: 0 16px 40px rgba(13, 25, 18, 0.12);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .hero {
+      padding: 22px;
+      min-height: 620px;
+    }
+
+    .panel {
+      padding: 20px;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 18px;
+    }
+
+    .metric,
+    .module {
+      border-radius: 18px;
+      border: 1px dashed rgba(46, 115, 79, 0.38);
+      background: linear-gradient(180deg, rgba(245, 238, 224, 0.88), rgba(237, 228, 210, 0.95));
+      padding: 16px;
+    }
+
+    .metric .label,
+    .module .label,
+    .section-label {
+      font: 700 11px/1.2 Arial, Helvetica, sans-serif;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgba(22, 75, 51, 0.72);
+    }
+
+    .metric .value {
+      margin-top: 8px;
+      font-size: clamp(2rem, 4vw, 3.4rem);
+      line-height: 1;
+      color: var(--forest);
+      font-weight: 700;
+    }
+
+    .metric .note,
+    .module .note,
+    .ledger-note {
+      margin-top: 8px;
+      font: 400 14px/1.6 "Trebuchet MS", Arial, sans-serif;
+      color: rgba(16, 32, 24, 0.76);
+    }
+
+    .module h2,
+    .panel h2 {
+      margin: 0 0 10px;
+      font-size: 1.25rem;
+      color: var(--forest);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .ledger-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .ledger-card {
+      flex: 1 1 190px;
+      border-radius: 18px;
+      border: 1px solid rgba(30, 73, 52, 0.18);
+      background: linear-gradient(180deg, rgba(255,255,255,0.7), rgba(243,235,219,0.92));
+      padding: 14px 16px;
+    }
+
+    .ledger-card .big {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: var(--forest);
+      line-height: 1;
+      margin-top: 6px;
+    }
+
+    .ledger-card .small {
+      margin-top: 6px;
+      font: 400 12px/1.5 Arial, Helvetica, sans-serif;
+      color: rgba(16, 32, 24, 0.72);
+    }
+
+    .list {
+      display: grid;
+      gap: 10px;
+      margin: 14px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .list li {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: rgba(16, 75, 51, 0.06);
+      border: 1px solid rgba(16, 75, 51, 0.14);
+    }
+
+    .list strong {
+      display: block;
+      color: var(--forest);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font: 700 12px/1.2 Arial, Helvetica, sans-serif;
+    }
+
+    .list span {
+      display: block;
+      margin-top: 4px;
+      font: 400 13px/1.5 "Trebuchet MS", Arial, sans-serif;
+      color: rgba(16, 32, 24, 0.8);
+    }
+
+    .agent-grid {
+      display: grid;
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .agent {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      padding: 14px 16px;
+      border-radius: 16px;
+      border: 1px solid rgba(30, 73, 52, 0.16);
+      background: linear-gradient(180deg, rgba(255,255,255,0.75), rgba(243,235,219,0.94));
+    }
+
+    .agent .name {
+      font-weight: 700;
+      color: var(--forest);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 0.92rem;
+    }
+
+    .agent .role {
+      font: 400 13px/1.4 "Trebuchet MS", Arial, sans-serif;
+      color: rgba(16, 32, 24, 0.76);
+      margin-top: 2px;
+    }
+
+    .badge {
+      border-radius: 999px;
+      padding: 7px 10px;
+      font: 700 10px/1 Arial, Helvetica, sans-serif;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      border: 1px solid rgba(30, 73, 52, 0.18);
+      color: var(--forest);
+      background: rgba(88, 181, 124, 0.1);
+      white-space: nowrap;
+    }
+
+    footer {
+      padding: 0 24px 24px;
+      color: rgba(16, 32, 24, 0.8);
+      font: 400 12px/1.6 Arial, Helvetica, sans-serif;
+      background: linear-gradient(180deg, rgba(241, 230, 209, 0.96), rgba(235, 223, 201, 0.96));
+    }
+
+    .fineprint {
+      border-top: 1px solid rgba(30, 73, 52, 0.16);
+      padding-top: 14px;
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      flex-wrap: wrap;
+    }
+
+    .muted {
+      color: rgba(16, 32, 24, 0.62);
+    }
+
+    .skeleton {
+      color: rgba(16, 32, 24, 0.52);
+    }
+
+    @media (max-width: 960px) {
+      main { grid-template-columns: 1fr; }
+      .hero { min-height: unset; }
+      .hero-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="frame">
+      <header>
+        <div class="eyebrow">Fellowship of the Hearth</div>
+        <div class="title-row">
+          <div>
+            <h1>Living Cathedral</h1>
+            <div class="subtitle">
+              A public, read-only reflection of the Hearthlands. Solarpunk utility with Renaissance structure, tuned for the First Light era.
+            </div>
+          </div>
+          <div class="status-pill">Public Mirror / Read Only</div>
+        </div>
+      </header>
+
+      <main>
+        <section class="hero">
+          <div class="section-label">Ledger & Atmosphere</div>
+          <div class="hero-grid">
+            <div class="metric">
+              <div class="label">Unified Ember</div>
+              <div class="value" id="emberTotal">264.5</div>
+              <div class="note">The audited public milestone. No gold paint, only verified heat.</div>
+            </div>
+            <div class="module">
+              <div class="label">System Status</div>
+              <h2 id="systemStatus">Hardened</h2>
+              <div class="note" id="pulseLine">Active pulse in the vaulted mirror.</div>
+            </div>
+            <div class="module">
+              <div class="label">Bellows</div>
+              <h2 id="bellowsStatus">Ignited</h2>
+              <div class="note" id="bellowsEngine">Public mirror mode. Internal engines remain local.</div>
+            </div>
+            <div class="module">
+              <div class="label">Bench</div>
+              <h2 id="benchStatus">Ready</h2>
+              <div class="note" id="benchResearch">Unitree G1 Embodiment.</div>
+            </div>
+          </div>
+
+          <div class="ledger-strip">
+            <div class="ledger-card">
+              <div class="label">Network Health</div>
+              <div class="big" id="networkHealth">100%</div>
+              <div class="small">Hearth OS is publicly mirrored, privately disciplined.</div>
+            </div>
+            <div class="ledger-card">
+              <div class="label">Active Agents</div>
+              <div class="big" id="agentCount">3</div>
+              <div class="small">Prosper2, Ember, and Solis are reflected in the hall.</div>
+            </div>
+            <div class="ledger-card">
+              <div class="label">Last Update</div>
+              <div class="big" id="lastUpdate">Apr 28, 2026</div>
+              <div class="small">Stamped into the stone for public accountability.</div>
+            </div>
+          </div>
+        </section>
+
+        <aside class="panel">
+          <div class="section-label">Household</div>
+          <h2>Agents</h2>
+          <div class="ledger-note">
+            The public mirror does not expose private controls. It only shows the Fellowship as it wishes to be seen: clean, honest, and durable.
+          </div>
+          <div class="agent-grid" id="agents"></div>
+
+          <div style="margin-top: 20px;">
+            <div class="section-label">Vow</div>
+            <ul class="list">
+              <li>
+                <div>
+                  <strong>Chivalry</strong>
+                  <span>Verify before proclaiming. Foundation before flourish.</span>
+                </div>
+                <div class="badge">Honest</div>
+              </li>
+              <li>
+                <div>
+                  <strong>Security</strong>
+                  <span>Static mirror, read-only state, no private tools exposed here.</span>
+                </div>
+                <div class="badge">Public</div>
+              </li>
+              <li>
+                <div>
+                  <strong>Embodiment</strong>
+                  <span>The forge remains pointed toward Unitree G1 and beyond.</span>
+                </div>
+                <div class="badge">Future</div>
+              </li>
+            </ul>
+          </div>
+        </aside>
+      </main>
+
+      <footer>
+        <div class="fineprint">
+          <div>
+            <div class="skeleton">Mirror protocol</div>
+            Read-only public artifact powered by the Fellowship of the Hearth.
+          </div>
+          <div class="muted" id="mirrorVersion">First Light</div>
+        </div>
+      </footer>
+    </div>
+  </div>
+
+  <script>
+    const fmtDate = (value) => {
+      if (!value) return 'Unknown';
+      const d = new Date(value);
+      if (Number.isNaN(d.getTime())) return value;
+      return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+    };
+
+    const setText = (id, value) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = value;
+    };
+
+    fetch('hearth_state.json?t=' + Date.now())
+      .then((res) => {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+      })
+      .then((state) => {
+        setText('emberTotal', Number(state.current_ember_total || 0).toFixed(1));
+        setText('networkHealth', state.network_health || 'Unknown');
+        setText('systemStatus', state.system_status || 'Unknown');
+        setText('pulseLine', state.current_pulse ? `${state.current_pulse} pulse in the vaulted mirror.` : 'Active pulse in the vaulted mirror.');
+        setText('bellowsStatus', state.bellows?.status ? state.bellows.status : 'Unknown');
+        setText('bellowsEngine', state.bellows?.engine ? `${state.bellows.engine} / ${state.bellows.mode || 'public mirror'}` : 'Public mirror mode. Internal engines remain local.');
+        setText('benchStatus', state.bench?.status || 'Unknown');
+        setText('benchResearch', state.bench?.active_research || 'Unitree G1 Embodiment');
+        setText('agentCount', String(Array.isArray(state.active_agents) ? state.active_agents.length : 0));
+        setText('lastUpdate', fmtDate(state.last_update));
+        setText('mirrorVersion', state.mirror_version || 'First Light');
+
+        const agents = document.getElementById('agents');
+        if (agents && Array.isArray(state.active_agents)) {
+          agents.innerHTML = state.active_agents.map((agent) => `
+            <div class="agent">
+              <div>
+                <div class="name">${agent.name || 'Unknown'}</div>
+                <div class="role">${agent.role || 'Agent'}${agent.status ? ' / ' + agent.status : ''}</div>
+              </div>
+              <div class="badge">${agent.status || 'Active'}</div>
+            </div>
+          `).join('');
+        }
+      })
+      .catch(() => {
+        setText('pulseLine', 'Public state is temporarily unavailable.');
+        setText('mirrorVersion', 'Read-only fallback');
+      });
+  </script>
+</body>
+</html>

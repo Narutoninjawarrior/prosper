@@ -7,3 +7,5 @@ __pycache__
 venv/
 soulfile_schema.json
 mempalace_stream.json
+treasury-keypair.json
+TREASURY_MINT_RESULT.json
