@@ -90,21 +90,12 @@ def generate_work_certificate(agent_id, tick, intent, reasoning, ember_earned):
 
 def log_work_certificate(cert):
     """Append a work certificate to the persistent work log via the Harmonic Hearth."""
-    def update_func(state):
-        log = state.get("work_log", {"certificates": [], "total_mined": 0.0, "total_ticks": 0})
-        log["certificates"].append(cert)
-        log["total_mined"] += cert["ember_earned"]
-        log["total_ticks"] += 1
-        
-        if len(log["certificates"]) > 1000:
-            log["certificates"] = log["certificates"][-1000:]
-        
-        state["work_log"] = log
-        return state
-
-    new_state = hearth.update_state(update_func)
-    log = new_state["work_log"]
-    return log["total_mined"], log["total_ticks"]
+    cert["type"] = "work_certificate"
+    hearth.secure_write(cert)
+    
+    # Calculate totals for display
+    summary = load_work_log()
+    return summary["total_mined"], summary["total_ticks"]
 
 def get_work_log_summary():
     """Return a summary of mining progress for display."""

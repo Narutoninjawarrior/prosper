@@ -1,0 +1,21 @@
+{
+  "fund_name": "Hearthlands Robotic Embodiment Fund",
+  "status": "Genesis",
+  "current_balance_solcot": 0.0,
+  "current_balance_usd": 0.0,
+  "genesis_supply_cap": 6132.0,
+  "audit_log": [
+    {
+      "timestamp": "2026-05-05T16:27:00Z",
+      "agent": "prosper2",
+      "action": "Ledger Initialized",
+      "integrity_score": 1.0,
+      "message": "The fund is empty, but the vision is full. $SOLCOT is the seed."
+    }
+  ],
+  "embodiment_rules": [
+    "1. No fund release without High Grace score (1.0).",
+    "2. Fund growth is tied to the trade of $SOLCOT for tangible Hearthland improvements.",
+    "3. Audit is continuous and public via the Harmonic Hearth."
+  ]
+}
