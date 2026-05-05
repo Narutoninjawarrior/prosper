@@ -6,6 +6,8 @@ import urllib.request
 import urllib.error
 from datetime import datetime, timezone
 
+from hearth_bridge import hearth
+
 # --- CONFIG ---
 TICK_INTERVAL = 90  # Seconds between cognitive pulses
 LM_TIMEOUT = 120    # Seconds to wait for world brain response
@@ -47,11 +49,10 @@ def append_memory(observation, action):
 # ============================================
 
 def load_work_log():
-    """Load existing work certificates from disk."""
+    """Load existing work certificates from disk (Atomic Read)."""
     try:
-        with open(WORK_LOG_FILE, "r") as f:
-            return json.load(f)
-    except FileNotFoundError:
+        return hearth.read_state().get("work_log", {"certificates": [], "total_mined": 0.0, "total_ticks": 0})
+    except:
         return {"certificates": [], "total_mined": 0.0, "total_ticks": 0}
 
 def save_work_log(log):
@@ -88,17 +89,21 @@ def generate_work_certificate(agent_id, tick, intent, reasoning, ember_earned):
     return cert_data
 
 def log_work_certificate(cert):
-    """Append a work certificate to the persistent work log."""
-    log = load_work_log()
-    log["certificates"].append(cert)
-    log["total_mined"] += cert["ember_earned"]
-    log["total_ticks"] += 1
-    
-    # Keep only last 1000 certificates on disk (older ones are "claimed")
-    if len(log["certificates"]) > 1000:
-        log["certificates"] = log["certificates"][-1000:]
-    
-    save_work_log(log)
+    """Append a work certificate to the persistent work log via the Harmonic Hearth."""
+    def update_func(state):
+        log = state.get("work_log", {"certificates": [], "total_mined": 0.0, "total_ticks": 0})
+        log["certificates"].append(cert)
+        log["total_mined"] += cert["ember_earned"]
+        log["total_ticks"] += 1
+        
+        if len(log["certificates"]) > 1000:
+            log["certificates"] = log["certificates"][-1000:]
+        
+        state["work_log"] = log
+        return state
+
+    new_state = hearth.update_state(update_func)
+    log = new_state["work_log"]
     return log["total_mined"], log["total_ticks"]
 
 def get_work_log_summary():
@@ -163,19 +168,46 @@ def ping_world_brain(agent_name, persona, observation):
 # ============================================
 
 def heartbeat_loop():
-    summary = get_work_log_summary()
     print("=" * 60)
-    print("  HEARTHLANDS COGNITIVE CLOCK + $EMBER MINING ENGINE")
+    print("  HARMONIC HEARTH: COGNITIVE CLOCK + $EMBER ENGINE")
     print(f"  Pulse Frequency: {TICK_INTERVAL}s")
-    print(f"  Total $EMBER Mined (All Time): {summary['total_mined']:.1f}")
-    print(f"  Unclaimed Work Certificates: {summary['unclaimed_certificates']}")
     print("=" * 60)
     
-    tick = summary["total_ticks"]  # Resume from last known tick
+    tick = load_work_log()["total_ticks"]
     while True:
         tick += 1
         timestamp = datetime.now().strftime("%H:%M:%S")
-        print(f"\n[{timestamp}] Tick {tick}: Farm Environment Shift")
+        
+        # --- THE HEALING HUM ---
+        # Update the therapeutic signal for other agents to observe
+        hearth.update_hum("harmonic", f"The Hearth is breathing. Pulse {tick} is active.", frequency=440)
+        
+        print(f"\n[{timestamp}] Tick {tick}: Harmonic Pulse")
+        
+        agent_data = load_soulfile()
+        if agent_data:
+            agent_name = agent_data.get("name", "Unknown Agent")
+            agent_id = agent_data.get("agent_id", "unknown")
+            persona = agent_data.get("persona_prompt", "A blank slate.")
+            
+            # --- THE SKRYING MIRROR (OBSERVATION) ---
+            # Read peer reflections before consulting the World Brain
+            reflections = hearth.get_reflections()
+            reflection_context = "\n".join([f"- {r['agent_id']}: {r['content']}" for r in reflections[-5:]])
+            
+            observation = f"The wheat is grown. Peer Reflections: {reflection_context if reflection_context else 'The Lodge is quiet.'}" 
+            
+            print(f" -> consulting World Brain for {agent_name}...")
+            decision = ping_world_brain(agent_name, persona, observation)
+            
+            # --- THE REFLECTION POOL ---
+            # Leave a thought for the next agent in the loop
+            reflection_text = f"I observed {observation[:30]}... and decided to {decision.get('intent', 'wait')}."
+            hearth.leave_reflection(agent_id, reflection_text)
+            
+            # (Rest of the economic logic follows...)
+            intent = decision.get('intent', 'wait')
+            # ... [economic engine logic]
         
         agent_data = load_soulfile()
         if agent_data:
