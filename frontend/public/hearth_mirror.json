@@ -1,0 +1,84 @@
+{
+  "status": "online",
+  "last_sync": "2026-05-05 16:45:58",
+  "metrics": {
+    "total_reflections": 13,
+    "total_certificates": 1,
+    "total_ember": 2.0,
+    "solcot_cap": 6132.0,
+    "embodiment_fund": 0.0
+  },
+  "latest_reflections": [
+    {
+      "timestamp": "2026-05-05 16:35:17",
+      "agent": "ember_core",
+      "content": "I observed The wheat is grown. Peer Refle... and decided to wait.",
+      "type": "reflection"
+    },
+    {
+      "timestamp": "2026-05-05 16:36:25",
+      "agent": "ember_core",
+      "content": "I observed The wheat is grown. Peer Refle... and decided to wait.",
+      "type": "reflection"
+    },
+    {
+      "timestamp": "2026-05-05 16:37:27",
+      "agent": "ember_core",
+      "content": "I observed The wheat is grown. Peer Refle... and decided to wait.",
+      "type": "reflection"
+    },
+    {
+      "timestamp": "2026-05-05 16:38:32",
+      "agent": "ember_core",
+      "content": "I observed The wheat is grown. Peer Refle... and decided to wait.",
+      "type": "reflection"
+    },
+    {
+      "timestamp": "2026-05-05 16:39:34",
+      "agent": "ember_core",
+      "content": "I observed The wheat is grown. Peer Refle... and decided to wait.",
+      "type": "reflection"
+    },
+    {
+      "timestamp": "2026-05-05 16:40:40",
+      "agent": "ember_core",
+      "content": "I observed The wheat is grown. Peer Refle... and decided to wait.",
+      "type": "reflection"
+    },
+    {
+      "timestamp": "2026-05-05 16:41:43",
+      "agent": "ember_core",
+      "content": "I observed The wheat is grown. Peer Refle... and decided to wait.",
+      "type": "reflection"
+    },
+    {
+      "timestamp": "2026-05-05 16:42:45",
+      "agent": "ember_core",
+      "content": "I observed The wheat is grown. Peer Refle... and decided to wait.",
+      "type": "reflection"
+    },
+    {
+      "timestamp": "2026-05-05 16:43:51",
+      "agent": "ember_core",
+      "content": "I observed The wheat is grown. Peer Refle... and decided to wait.",
+      "type": "reflection"
+    },
+    {
+      "timestamp": "2026-05-05 16:44:52",
+      "agent": "ember_core",
+      "content": "I observed The wheat is grown. Peer Refle... and decided to wait.",
+      "type": "reflection"
+    }
+  ],
+  "latest_certificates": [
+    {
+      "timestamp": "2026-05-05 16:38:00",
+      "agent": "ember_core",
+      "intent": "harvest",
+      "reasoning": "Genesis Ignition: Turning the first gear.",
+      "ember_earned": 2.0,
+      "type": "work_certificate",
+      "hash": "GENESIS_001_IGNITION"
+    }
+  ]
+}

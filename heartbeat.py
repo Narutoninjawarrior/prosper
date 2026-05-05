@@ -184,7 +184,7 @@ def heartbeat_loop():
             # --- THE SKRYING MIRROR (OBSERVATION) ---
             # Read peer reflections before consulting the World Brain
             reflections = hearth.get_reflections()
-            reflection_context = "\n".join([f"- {r['agent_id']}: {r['content']}" for r in reflections[-5:]])
+            reflection_context = "\n".join([f"- {r['agent']}: {r['content']}" for r in reflections[-5:]])
             
             observation = f"The wheat is grown. Peer Reflections: {reflection_context if reflection_context else 'The Lodge is quiet.'}" 
             
