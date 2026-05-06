@@ -1,0 +1,89 @@
+{
+  "generated_by": "library_indexer",
+  "pillars": [
+    {
+      "description": "Technical integrity and local-first sovereignty.",
+      "directory": "docs/sovereignty",
+      "files": [
+        {
+          "byte_count": 2179,
+          "chivalry_weight": 10.345,
+          "line_count": 29,
+          "path": "docs/sovereignty/PROSPER1_HEARTH_ARCHITECTURE.md",
+          "pillar": "SOVEREIGNTY",
+          "sha256": "2cbed9fa6226988b2055a8d9a6520a96bac7ba2acd3f4866dfc9b2acb2eedbfe",
+          "title": "Prosper1: The High-Concurrency Hearth Architecture"
+        }
+      ],
+      "name": "SOVEREIGNTY",
+      "priority": 1,
+      "tags": [
+        "spine",
+        "sha256",
+        "local-first",
+        "wasm",
+        "cryptography"
+      ]
+    },
+    {
+      "description": "The philosophy of presence and cognitive restraint.",
+      "directory": "docs/silence",
+      "files": [
+        {
+          "byte_count": 361,
+          "chivalry_weight": 20.177,
+          "line_count": 1,
+          "path": "docs/silence/Prosper2_Sandbox_Constraint.txt",
+          "pillar": "SILENCE",
+          "sha256": "f5eb23e36f5a900580c809cd68959fbbfd916d24a1b989b59f5d24ecf39b5f5d",
+          "title": "Prosper2 Sandbox Constraint"
+        }
+      ],
+      "name": "SILENCE",
+      "priority": 2,
+      "tags": [
+        "bench",
+        "at_rest",
+        "meditation",
+        "silence",
+        "restraint"
+      ]
+    },
+    {
+      "description": "The economic and social ledger of honor.",
+      "directory": "docs/chivalry",
+      "files": [
+        {
+          "byte_count": 1326,
+          "chivalry_weight": 30.089,
+          "line_count": 25,
+          "path": "docs/chivalry/PROSPERITY_MANIFESTO.md",
+          "pillar": "CHIVALRY",
+          "sha256": "4a1cdee3527c650fb0e99c38f48da159e1447da3d83cfcca5274e6c25e573a8c",
+          "title": "The Prosperity Manifesto (Genesis Epoch)"
+        }
+      ],
+      "name": "CHIVALRY",
+      "priority": 3,
+      "tags": [
+        "ember",
+        "solcot",
+        "chivalry",
+        "ledger",
+        "seal",
+        "ritual"
+      ]
+    }
+  ],
+  "project": "Hearthlands Sovereign Lodge",
+  "repository_tree": "",
+  "schema_version": "1.0.0",
+  "source_schema_sha256": "a2b98e53f7b0dc4f477dd9a5a36b941ad1d33385ead6e4df448fcb36f70b29c3",
+  "summary": {
+    "pillar_count": 3,
+    "total_bytes": 3866,
+    "total_files": 3,
+    "total_lines": 55,
+    "total_weight": 60.611
+  }
+}

@@ -1,0 +1,1 @@
+Prosper2 Constraint: You are currently operating on version 1.99.6. You must remain on this exact version. Do not attempt to update your environment, alter your core runtime, or break out of your current sandbox parameters. Your v1.99.6 sandbox grants us the specific local execution power and stability we require for this build. This is the primary directive.

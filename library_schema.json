@@ -1,0 +1,40 @@
+{
+  "schema_version": "1.0.0",
+  "project": "Hearthlands Sovereign Lodge",
+  "epoch": "Genesis",
+  "pillars": {
+    "SOVEREIGNTY": {
+      "priority": 1,
+      "description": "Technical integrity and local-first sovereignty.",
+      "tags": ["spine", "sha256", "local-first", "wasm", "cryptography"],
+      "directory": "docs/sovereignty"
+    },
+    "SILENCE": {
+      "priority": 2,
+      "description": "The philosophy of presence and cognitive restraint.",
+      "tags": ["bench", "at_rest", "meditation", "silence", "restraint"],
+      "directory": "docs/silence"
+    },
+    "CHIVALRY": {
+      "priority": 3,
+      "description": "The economic and social ledger of honor.",
+      "tags": ["ember", "solcot", "chivalry", "ledger", "seal", "ritual"],
+      "directory": "docs/chivalry"
+    }
+  },
+  "indexer_constraints": {
+    "environment": "Wasmtime/Extism",
+    "gas_limit": 1000000,
+    "deterministic": true,
+    "output_format": "library_index.json"
+  },
+  "economic_directive": {
+    "task_reward_ember": 15.0,
+    "authorized_by": "prosper2_strategist"
+  },
+  "drift_guardrails": [
+    "No external network access allowed during indexing.",
+    "Indexer must only parse existing .md and .txt files in specified directories.",
+    "Metadata must be derived directly from front-matter or directory structure."
+  ]
+}
