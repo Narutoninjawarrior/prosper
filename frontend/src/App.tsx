@@ -2,11 +2,16 @@ import { useState, useEffect } from 'react';
 import { ReactFlow, Controls, Background, Handle, Position } from '@xyflow/react';
 import type { Node, Edge, NodeProps } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Bot, Network, Cpu, Box, Gamepad2, ShieldAlert, User, Wrench, Zap } from 'lucide-react';
+import { Bot, Network, Cpu, Box, Gamepad2, ShieldAlert, User, Wrench, Zap, Droplets, Wallet } from 'lucide-react';
 import './index.css';
 import HearthlandsGame from './Hearthlands';
 import Toolbox from './Toolbox';
 import EaseOfFlow from './EaseOfFlow';
+import ForgePage from './ForgePage';
+import HallOfHonor from './HallOfHonor';
+import WaterwheelInjector from './WaterwheelInjector';
+import LobsterLeasing from './LobsterLeasing';
+import TreasuryDonation from './TreasuryDonation';
 
 export function AgentNode({ data }: NodeProps) {
   const agentId = data.agent as string;
@@ -79,6 +84,14 @@ function App() {
     };
   }, []);
 
+  if (window.location.pathname === '/treasury') {
+    return (
+      <div className="h-screen w-screen bg-[#020804] text-gray-200">
+        <TreasuryDonation />
+      </div>
+    );
+  }
+
   if (!unlocked) {
     return <Gate onUnlock={handleUnlock} />;
   }
@@ -101,6 +114,15 @@ function App() {
           </button>
           <button onClick={() => setActiveTab('flow')} className={`flex items-center gap-3 p-3 rounded-xl transition-all font-semibold ${activeTab === 'flow' ? 'bg-[#10b981]/15 text-[#10b981] border border-[#10b981]/30 shadow-[0_0_15px_rgba(16,185,129,0.15)]' : 'hover:bg-white/5 border border-transparent'}`}>
             <Zap size={20} /> Ease of Flow
+          </button>
+          <button onClick={() => setActiveTab('waterwheel')} className={`flex items-center gap-3 p-3 rounded-xl transition-all font-semibold ${activeTab === 'waterwheel' ? 'bg-[#3b82f6]/15 text-[#3b82f6] border border-[#3b82f6]/30 shadow-[0_0_15px_rgba(59,130,246,0.15)]' : 'hover:bg-white/5 border border-transparent'}`}>
+            <Droplets size={20} /> Waterwheel
+          </button>
+          <button onClick={() => setActiveTab('lobster')} className={`flex items-center gap-3 p-3 rounded-xl transition-all font-semibold ${activeTab === 'lobster' ? 'bg-[#f59e0b]/15 text-[#f59e0b] border border-[#f59e0b]/30 shadow-[0_0_15px_rgba(245,158,11,0.15)]' : 'hover:bg-white/5 border border-transparent'}`}>
+            <Cpu size={20} /> Lobster Atelier
+          </button>
+          <button onClick={() => setActiveTab('treasury')} className={`flex items-center gap-3 p-3 rounded-xl transition-all font-semibold ${activeTab === 'treasury' ? 'bg-[#10b981]/15 text-[#10b981] border border-[#10b981]/30 shadow-[0_0_15px_rgba(16,185,129,0.15)]' : 'hover:bg-white/5 border border-transparent'}`}>
+            <Wallet size={20} /> Sovereign Treasury
           </button>
         </div>
         <div className="mt-auto pt-5 border-t border-gray-800 px-1">
@@ -128,6 +150,11 @@ function App() {
         {activeTab === 'hearthlands' && <HearthlandsGame />}
         {activeTab === 'multitool' && <Toolbox />}
         {activeTab === 'flow' && <EaseOfFlow />}
+        {activeTab === 'forge' && <div className="h-full overflow-y-auto"><ForgePage /></div>}
+        {activeTab === 'hall' && <div className="h-full overflow-y-auto"><HallOfHonor /></div>}
+        {activeTab === 'waterwheel' && <div className="h-full overflow-y-auto"><WaterwheelInjector /></div>}
+        {activeTab === 'lobster' && <div className="h-full overflow-y-auto"><LobsterLeasing /></div>}
+        {activeTab === 'treasury' && <div className="h-full overflow-y-auto"><TreasuryDonation /></div>}
       </div>
     </div>
   );

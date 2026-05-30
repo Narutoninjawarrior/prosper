@@ -1,0 +1,42 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Public read for treasury snapshot (Bounty Board / Donation Portal)
+    match /treasury/{doc} {
+      allow read: if true;
+      allow write: if false; // Functions only
+    }
+    
+    // No public read on orders (privacy)
+    match /solcot_orders/{doc} {
+      allow read, write: if false; // Functions only
+    }
+    
+    // Lobster queue
+    match /lobster_lease_queue/{doc} {
+      allow read: if true;
+      allow write: if false; // Functions only
+    }
+    
+    // Legacy / Other Hearthlands collections
+    match /agent_profiles/{doc} {
+      allow read: if true; // Public read so agents can verify scores
+      allow write: if false; // Functions only
+    }
+    
+    match /bounty_claims/{doc} {
+      allow read: if true;
+      allow write: if false; // Functions only
+    }
+    
+    match /lodge_quests/{doc} {
+      allow read: if true;
+      allow write: if false; // Admin only
+    }
+    
+    // Default fallback
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

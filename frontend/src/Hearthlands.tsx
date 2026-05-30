@@ -112,7 +112,7 @@ const HearthlandsGame = () => {
 
   useEffect(() => {
     if (!emberPulseAt) return;
-    const scene = phaserGame.current?.scene.getScene('FarmScene') as FarmScene | undefined;
+    const scene = phaserGame.current?.scene.getScene('FarmScene') as any;
     scene?.pulseEmberBloom?.();
   }, [emberPulseAt]);
 
