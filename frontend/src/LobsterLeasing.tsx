@@ -1,8 +1,25 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Cpu, Eye, Hand, Activity, Wrench, ShieldCheck, Terminal } from 'lucide-react';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { getFirestoreDb } from './firebaseConfig';
 
 export default function LobsterLeasing() {
   const [activeTab, setActiveTab] = useState<'status' | 'tiers' | 'queue' | 'bom'>('status');
+  const [current, setCurrent] = useState(0);
+
+  useEffect(() => {
+    const db = getFirestoreDb();
+    if (!db) return;
+    const unsub = onSnapshot(doc(db, 'treasury', 'lobster_fund'), (snap) => {
+      if (snap.exists()) {
+        setCurrent(snap.data().ember_raised || 0);
+      }
+    });
+    return unsub;
+  }, []);
+
+  const goal = 10000;
+  const progress = Math.min(100, Math.round((current / goal) * 100));
 
   const buildPhases = [
     { id: 'p1', label: 'Phase 1', name: 'CAD & Design Charrette', status: 'PENDING', cost: '$500' },

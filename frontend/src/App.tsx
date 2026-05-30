@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { ReactFlow, Controls, Background, Handle, Position } from '@xyflow/react';
 import type { Node, Edge, NodeProps } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Bot, Network, Cpu, Box, Gamepad2, ShieldAlert, User, Wrench, Zap, Droplets, Wallet } from 'lucide-react';
+import { Bot, Network, Cpu, Box, Gamepad2, ShieldAlert, User, Wrench, Zap, Droplets, Wallet, Coins } from 'lucide-react';
 import './index.css';
 import HearthlandsGame from './Hearthlands';
 import Toolbox from './Toolbox';
@@ -12,6 +12,7 @@ import HallOfHonor from './HallOfHonor';
 import WaterwheelInjector from './WaterwheelInjector';
 import LobsterLeasing from './LobsterLeasing';
 import TreasuryDonation from './TreasuryDonation';
+import SOLCOTShop from './SOLCOTShop';
 
 export function AgentNode({ data }: NodeProps) {
   const agentId = data.agent as string;
@@ -92,6 +93,14 @@ function App() {
     );
   }
 
+  if (window.location.pathname === '/solcot') {
+    return (
+      <div className="h-screen w-screen bg-[#020804] text-gray-200">
+        <SOLCOTShop />
+      </div>
+    );
+  }
+
   if (!unlocked) {
     return <Gate onUnlock={handleUnlock} />;
   }
@@ -124,6 +133,9 @@ function App() {
           <button onClick={() => setActiveTab('treasury')} className={`flex items-center gap-3 p-3 rounded-xl transition-all font-semibold ${activeTab === 'treasury' ? 'bg-[#10b981]/15 text-[#10b981] border border-[#10b981]/30 shadow-[0_0_15px_rgba(16,185,129,0.15)]' : 'hover:bg-white/5 border border-transparent'}`}>
             <Wallet size={20} /> Sovereign Treasury
           </button>
+          <button onClick={() => setActiveTab('solcot')} className={`flex items-center gap-3 p-3 rounded-xl transition-all font-semibold ${activeTab === 'solcot' ? 'bg-[#10b981]/15 text-[#10b981] border border-[#10b981]/30 shadow-[0_0_15px_rgba(16,185,129,0.15)]' : 'hover:bg-white/5 border border-transparent'}`}>
+            <Coins size={20} /> SOLCOT Shop
+          </button>
         </div>
         <div className="mt-auto pt-5 border-t border-gray-800 px-1">
           <h3 className="text-[11px] text-gray-500 mb-3 uppercase tracking-widest font-bold flex items-center gap-2">
@@ -155,6 +167,7 @@ function App() {
         {activeTab === 'waterwheel' && <div className="h-full overflow-y-auto"><WaterwheelInjector /></div>}
         {activeTab === 'lobster' && <div className="h-full overflow-y-auto"><LobsterLeasing /></div>}
         {activeTab === 'treasury' && <div className="h-full overflow-y-auto"><TreasuryDonation /></div>}
+        {activeTab === 'solcot' && <div className="h-full overflow-y-auto"><SOLCOTShop /></div>}
       </div>
     </div>
   );
