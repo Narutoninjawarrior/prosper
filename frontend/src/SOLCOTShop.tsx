@@ -10,8 +10,7 @@ export default function SOLCOTShop() {
   const shopTiers = [
     { name: 'Scout Pouch', sol: 0.1, solcot: 100, unlocks: '10hrs Observation lease' },
     { name: 'Fellow Cache', sol: 0.5, solcot: 500, unlocks: '10hrs Actuation lease' },
-    { name: 'Knight Coffer', sol: 1.0, solcot: 1000, unlocks: '10hrs Harvest lease + Chivalry badge' },
-    { name: 'Sovereign Vault', sol: 5.0, solcot: 5000, unlocks: 'Sovereign status + priority queue' }
+    { name: 'Knight Coffer', sol: 1.0, solcot: 1000, unlocks: '10hrs Harvest lease + Chivalry badge' }
   ];
 
   const currentTier = shopTiers.find(t => t.sol === selectedTier);
@@ -30,6 +29,10 @@ export default function SOLCOTShop() {
           <p className="text-gray-400 mt-2 text-sm max-w-2xl">
             Acquire Utility Credits for the Hearthlands Leasing Protocol.
           </p>
+        </div>
+        <div className="text-right">
+          <div className="text-[10px] text-gray-500 font-mono tracking-widest uppercase mb-1">Total Pre-Mint Supply</div>
+          <div className="text-[#f59e0b] font-bold font-mono bg-[#f59e0b]/10 border border-[#f59e0b]/30 px-3 py-1 rounded-md shadow-[0_0_10px_rgba(245,158,11,0.2)]">6,132 SOLCOT</div>
         </div>
       </div>
 

@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from hearth_bridge import hearth
 
 # --- CONFIG ---
-TICK_INTERVAL = 90  # Seconds between cognitive pulses
+TICK_INTERVAL = 5  # Seconds between cognitive pulses
 LM_TIMEOUT = 120    # Seconds to wait for world brain response
 WORK_LOG_FILE = "work_log.json"
 SOULFILE = "soulfile_schema.json"
@@ -171,7 +171,7 @@ def heartbeat_loop():
         
         # --- THE HEALING HUM ---
         # Update the therapeutic signal for other agents to observe
-        hearth.update_hum("harmonic", f"The Hearth is breathing. Pulse {tick} is active.", frequency=440)
+        pass
         
         print(f"\n[{timestamp}] Tick {tick}: Harmonic Pulse")
         
@@ -183,8 +183,11 @@ def heartbeat_loop():
             
             # --- THE SKRYING MIRROR (OBSERVATION) ---
             # Read peer reflections before consulting the World Brain
-            reflections = hearth.get_reflections()
-            reflection_context = "\n".join([f"- {r['agent']}: {r['content']}" for r in reflections[-5:]])
+            try:
+                reflections = hearth.get_reflections() if hasattr(hearth, 'get_reflections') else []
+                reflection_context = "\n".join([f"- {r['agent']}: {r['content']}" for r in reflections[-5:]])
+            except Exception:
+                reflection_context = ""
             
             observation = f"The wheat is grown. Peer Reflections: {reflection_context if reflection_context else 'The Lodge is quiet.'}" 
             
@@ -194,7 +197,8 @@ def heartbeat_loop():
             # --- THE REFLECTION POOL ---
             # Leave a thought for the next agent in the loop
             reflection_text = f"I observed {observation[:30]}... and decided to {decision.get('intent', 'wait')}."
-            hearth.leave_reflection(agent_id, reflection_text)
+            if hasattr(hearth, 'leave_reflection'):
+                hearth.leave_reflection(agent_id, reflection_text)
             
             # (Rest of the economic logic follows...)
             intent = decision.get('intent', 'wait')
@@ -207,7 +211,15 @@ def heartbeat_loop():
             # Preference for persona_prompt, fallback to traits
             persona = agent_data.get("persona_prompt", agent_data.get("traits", "A blank slate."))
             
-            observation = "The wheat near the Fellowship Barn is fully grown." 
+            try:
+                with open('hearth_data.json', 'r') as f:
+                    h = json.load(f)
+                agents = ', '.join(h.get('active_agents', []))
+                health = h.get('network_health', 'unknown')
+                status = h.get('system_status', 'unknown')
+                observation = f"Network: {health}. Status: {status}. Active: {agents}. Tick {tick}."
+            except Exception as e:
+                observation = f"Hearth data unavailable. Tick {tick}. Holding perimeter."
             
             print(f" -> Consulting World Brain for {agent_name}...")
             decision = ping_world_brain(agent_name, persona, observation)

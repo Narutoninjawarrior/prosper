@@ -18,8 +18,7 @@ export default function LobsterLeasing() {
     return unsub;
   }, []);
 
-  const goal = 10000;
-  const progress = Math.min(100, Math.round((current / goal) * 100));
+
 
   const buildPhases = [
     { id: 'p1', label: 'Phase 1', name: 'CAD & Design Charrette', status: 'PENDING', cost: '$500' },
@@ -65,8 +64,9 @@ export default function LobsterLeasing() {
         
         {activeTab === 'status' && (
           <div className="space-y-4">
-            <h3 className="text-lg font-bold text-gray-300 flex items-center gap-2 mb-4">
-              <Wrench size={18} className="text-[#f59e0b]" /> BUILD PROGRESS
+            <h3 className="text-lg font-bold text-gray-300 flex items-center gap-2 mb-4 justify-between">
+              <span className="flex items-center gap-2"><Wrench size={18} className="text-[#f59e0b]" /> BUILD PROGRESS</span>
+              <span className="text-sm font-mono text-[#f59e0b] bg-[#f59e0b]/10 px-2 py-1 rounded">Funded: {current} / 10000 EMBER</span>
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               {buildPhases.map((phase) => (

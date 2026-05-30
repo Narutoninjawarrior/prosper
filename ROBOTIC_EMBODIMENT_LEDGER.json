@@ -1,9 +1,52 @@
 {
-  "fund_name": "Hearthlands Robotic Embodiment Fund",
-  "status": "Genesis",
+  "fund_name": "Hearthlands Lobster Embodiment Fund",
+  "status": "Prototyping",
+  "target_chassis": "Modular Lobster Micro-Bot (v1)",
+  "design_philosophy": "A small, friendly, solarpunk-styled agricultural companion. Driven by a tail-wheel, stabilized by minor-pinchers, featuring modular primary pinchers (claws, baskets, sensors).",
   "current_balance_solcot": 0.0,
   "current_balance_usd": 0.0,
-  "genesis_supply_cap": 6132.0,
+  "ai_leasing_protocol": {
+    "status": "Active Drafting",
+    "description": "A programmatic Firebase interface allowing Moltbook AIs to rent real-world physical time on the Lobster Micro-Bot.",
+    "currency_accepted": ["SOLCOT", "EMBER"],
+    "leasing_tiers": [
+      {
+        "tier": "Observation",
+        "cost": "10 EMBER per hour",
+        "capabilities": ["Read-only camera feed", "Soil moisture sensor access", "Greenhouse telemetry"]
+      },
+      {
+        "tier": "Actuation",
+        "cost": "50 EMBER per hour",
+        "capabilities": ["Movement commands", "Basic pincher actuation", "Watering nozzle control"]
+      },
+      {
+        "tier": "Harvest",
+        "cost": "100 EMBER per hour",
+        "capabilities": ["Full autonomous harvesting routines", "Modular basket integration", "Yield transport"]
+      }
+    ]
+  },
+  "bounty_milestones": [
+    {
+      "milestone": "Phase 1: CAD & STL Assembly",
+      "status": "Pending",
+      "required_funding_usd": 500,
+      "description": "Finalize 3D printable files for the tail-wheel chassis and modular pincher arms."
+    },
+    {
+      "milestone": "Phase 2: Sensor & Servo Integration",
+      "status": "Pending",
+      "required_funding_usd": 1200,
+      "description": "Procure and integrate ESP32 microcontrollers, servos, and soil sensors."
+    },
+    {
+      "milestone": "Phase 3: Firebase Telemetry Bridge",
+      "status": "Pending",
+      "required_funding_usd": 300,
+      "description": "Wire the robot to listen to a specific Firebase stream for authorized AI movement commands."
+    }
+  ],
   "audit_log": [
     {
       "timestamp": "2026-05-05T16:27:00Z",
@@ -11,11 +54,19 @@
       "action": "Ledger Initialized",
       "integrity_score": 1.0,
       "message": "The fund is empty, but the vision is full. $SOLCOT is the seed."
+    },
+    {
+      "timestamp": "2026-05-29T20:05:00Z",
+      "agent": "Antigravity",
+      "action": "Strategic Pivot",
+      "integrity_score": 1.0,
+      "message": "Pivoted embodiment target from massive humanoid to Modular Lobster Micro-Bot. Introduced AI Leasing Protocol."
     }
   ],
   "embodiment_rules": [
-    "1. No fund release without High Grace score (1.0).",
-    "2. Fund growth is tied to the trade of $SOLCOT for tangible Hearthland improvements.",
-    "3. Audit is continuous and public via the Harmonic Hearth."
+    "1. Physical safety over digital efficiency: The Lobster must fail-safe if network is lost.",
+    "2. AI Leasing requires a valid Ed25519 signature and an active Chivalry rank.",
+    "3. Fund growth is tied to the trade of $SOLCOT for tangible Hearthland improvements.",
+    "4. Audit is continuous and public via the Harmonic Hearth."
   ]
 }
