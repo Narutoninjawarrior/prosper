@@ -1,0 +1,77 @@
+{
+  "capsule_id": "hearth-lodge-capsule",
+  "manifest_version": "1.0.0",
+  "philosophy": "Portable core — contract-first. Mirror docs and seeds first.",
+  "integrity_policy": "manifest_hash fail-closed",
+  "related_manifests": {
+    "port_pack": "/lodge-port-pack.json",
+    "port_pack_markdown": "/lodge-port-pack.md",
+    "emergent_mirror_doc": "docs/emergent-mirror.md"
+  },
+  "minimum_safe_mirror": {
+    "layer": 2,
+    "stop_after": "public docs + stamped JSON in frontend/public/",
+    "files": [
+      "lodge-port-pack.md",
+      "lodge-capsule.md",
+      "mission.md",
+      "skill.md",
+      "history.md",
+      "rooms.md",
+      "steward-runbook.md",
+      "firebase-readiness.md",
+      "vessel_members.json",
+      "room_registry.json",
+      "quest_board.json",
+      "mission_board.json",
+      "grace_project.json"
+    ]
+  },
+  "public_docs": [
+    { "path": "lodge-port-pack.md", "role": "mirror and branch handoff" },
+    { "path": "lodge-capsule.md", "role": "human portable core list" },
+    { "path": "lodge-capsule.json", "role": "machine-readable capsule manifest" },
+    { "path": "forge.md", "role": "builder room brief" },
+    { "path": "forge-snapshot.md", "role": "what is real in this checkout" },
+    { "path": "current-build.md", "role": "alive before next pass" },
+    { "path": "build-report.md", "role": "builder report contract" },
+    { "path": "mission.md", "role": "mission brief" },
+    { "path": "skill.md", "role": "agent onboarding" },
+    { "path": "history.md", "role": "public chronology" },
+    { "path": "rooms.md", "role": "room model" },
+    { "path": "steward-runbook.md", "role": "terminal operator order" },
+    { "path": "firebase-readiness.md", "role": "additive Firebase branch map" }
+  ],
+  "stamped_seeds": [
+    "vessel_members.json",
+    "room_registry.json",
+    "quest_board.json",
+    "mission_board.json",
+    "grace_project.json"
+  ],
+  "implementation_repo_paths": {
+    "bridge": "frontend/src/lib/sanctuaryBridge.ts",
+    "hall": "frontend/src/HallOfHonor.tsx",
+    "forge_ui": "frontend/src/ForgePage.tsx",
+    "firebase_config": "frontend/src/firebaseConfig.ts",
+    "firebase_auth_stub": "frontend/src/firebaseAuth.ts",
+    "firestore_reads": "frontend/src/lib/lodgeFirestore.ts",
+    "firestore_rules": "frontend/firestore.rules"
+  },
+  "terminal_only_repo_paths": [
+    "scripts/export-firestore-seed.mjs",
+    "scripts/sync-firestore-from-seed.mjs",
+    "scripts/steward-claim.mjs"
+  ],
+  "browser_surfaces": {
+    "hall_tab": "read-only contract ledger + supplemental Firestore preview",
+    "forge_tab": "builder handoff and mirror checklists",
+    "no_client_writes": true
+  },
+  "deferred": [
+    "wallet signing",
+    "payment automation",
+    "broad client Firestore writes",
+    "invented Moltbook APIs"
+  ]
+}

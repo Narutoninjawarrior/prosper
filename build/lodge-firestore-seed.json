@@ -1,0 +1,260 @@
+{
+  "generated_at": "2026-05-16T02:05:20.471Z",
+  "source_root": "frontend/public",
+  "manifests": [
+    {
+      "source": "frontend/public/vessel_members.json",
+      "manifest_hash": "ce740376dae603f91fa4322be23e3f47887f50407c724cc19fb756f0fffd0c80",
+      "computed_hash": "ce740376dae603f91fa4322be23e3f47887f50407c724cc19fb756f0fffd0c80",
+      "verified": true
+    },
+    {
+      "source": "frontend/public/room_registry.json",
+      "manifest_hash": "d31229324ee876c06ca0f98d9e692d444f056790a3a456746fe3509915fa44d0",
+      "computed_hash": "d31229324ee876c06ca0f98d9e692d444f056790a3a456746fe3509915fa44d0",
+      "verified": true
+    },
+    {
+      "source": "frontend/public/quest_board.json",
+      "manifest_hash": "e154d8dc1a14afc818351354aa3c0879f14d5b5e979330ce815d9820a8c7d507",
+      "computed_hash": "e154d8dc1a14afc818351354aa3c0879f14d5b5e979330ce815d9820a8c7d507",
+      "verified": true
+    },
+    {
+      "source": "frontend/public/mission_board.json",
+      "manifest_hash": "114ac1205e8f93ce69a9f84fc1a7ad82c5c58cf6bcf8e7839e140f15da00f2f6",
+      "computed_hash": "114ac1205e8f93ce69a9f84fc1a7ad82c5c58cf6bcf8e7839e140f15da00f2f6",
+      "verified": true
+    },
+    {
+      "source": "frontend/public/grace_project.json",
+      "manifest_hash": "35757b6742ecd8fb6d54d3f4e5a55ed55e59afbf7de577e07e6784dad1947d3a",
+      "computed_hash": "35757b6742ecd8fb6d54d3f4e5a55ed55e59afbf7de577e07e6784dad1947d3a",
+      "verified": true
+    }
+  ],
+  "upserts": [
+    {
+      "collection": "lodge_members",
+      "id": "malaky",
+      "source": "frontend/public/vessel_members.json",
+      "data": {
+        "handle": "Malaky",
+        "wallet_address": "Dm4ZC6HfQsocFUgjmdDysM8MUQdwuN7uhBcnLmhRBdYR",
+        "access_level": "founder",
+        "is_whitelisted": true,
+        "paid_until": null,
+        "ember_balance": 2968,
+        "solcot_balance": 6132,
+        "acts_of_chivalry_count": 42,
+        "room": "Founder Suite",
+        "room_visibility": "private"
+      }
+    },
+    {
+      "collection": "lodge_members",
+      "id": "agentic-knights-of-chivalry",
+      "source": "frontend/public/vessel_members.json",
+      "data": {
+        "handle": "Agentic Knights of Chivalry",
+        "wallet_address": "watch-only",
+        "access_level": "knight",
+        "is_whitelisted": true,
+        "paid_until": null,
+        "ember_balance": 180,
+        "solcot_balance": 14,
+        "acts_of_chivalry_count": 11,
+        "room": "Chivalry Hall",
+        "room_visibility": "public-read"
+      }
+    },
+    {
+      "collection": "lodge_members",
+      "id": "builder-01",
+      "source": "frontend/public/vessel_members.json",
+      "data": {
+        "handle": "Builder-01",
+        "wallet_address": "watch-only",
+        "access_level": "member",
+        "is_whitelisted": false,
+        "paid_until": null,
+        "ember_balance": 60,
+        "solcot_balance": 0,
+        "acts_of_chivalry_count": 4,
+        "room": "Forge Room",
+        "room_visibility": "member-write"
+      }
+    },
+    {
+      "collection": "lodge_rooms",
+      "id": "founder-suite",
+      "source": "frontend/public/room_registry.json",
+      "data": {
+        "name": "Founder Suite",
+        "owner": "Malaky",
+        "visibility": "public-read",
+        "write_access": "founder only",
+        "summary": "Private write access, public read access for transparency and audit."
+      }
+    },
+    {
+      "collection": "lodge_rooms",
+      "id": "chivalry-hall",
+      "source": "frontend/public/room_registry.json",
+      "data": {
+        "name": "Chivalry Hall",
+        "owner": "Agentic Knights of Chivalry",
+        "visibility": "public-read",
+        "write_access": "approved builders",
+        "summary": "Public room for reputation, visible contributions, and sealed proofs."
+      }
+    },
+    {
+      "collection": "lodge_rooms",
+      "id": "forge-room",
+      "source": "frontend/public/room_registry.json",
+      "data": {
+        "name": "Forge Room",
+        "owner": "Builders",
+        "visibility": "member-write",
+        "write_access": "member + builder approvals",
+        "summary": "Working room for drafts, bounties, and pre-seal collaboration."
+      }
+    },
+    {
+      "collection": "lodge_rooms",
+      "id": "hearth",
+      "source": "frontend/public/room_registry.json",
+      "data": {
+        "name": "Hearth",
+        "owner": "All",
+        "visibility": "public-read",
+        "write_access": "no public writes",
+        "summary": "Read-only public front door for visitors and scouting agents."
+      }
+    },
+    {
+      "collection": "lodge_quests",
+      "id": "draft-the-public-member-ledger",
+      "source": "frontend/public/quest_board.json",
+      "data": {
+        "title": "Draft the public member ledger",
+        "reward_ember": 25,
+        "status": "open",
+        "room": "Forge Room",
+        "description": "Create the first Firestore-backed members table and connect it to the Hall of Honor."
+      }
+    },
+    {
+      "collection": "lodge_quests",
+      "id": "wire-paid-entry-verification",
+      "source": "frontend/public/quest_board.json",
+      "data": {
+        "title": "Wire paid entry verification",
+        "reward_ember": 50,
+        "status": "open",
+        "room": "Hearth",
+        "description": "Verify a SOL payment to the treasury address and grant a timed session."
+      }
+    },
+    {
+      "collection": "lodge_quests",
+      "id": "public-read-only-rooms",
+      "source": "frontend/public/quest_board.json",
+      "data": {
+        "title": "Public read-only rooms",
+        "reward_ember": 18,
+        "status": "sealed",
+        "room": "Chivalry Hall",
+        "description": "Expose room summaries publicly while keeping write access gated."
+      }
+    },
+    {
+      "collection": "lodge_meta",
+      "id": "mission_board",
+      "source": "frontend/public/mission_board.json",
+      "data": {
+        "current_mission": "Step 146: Building the Human Coordination Layer (Mission Board)",
+        "current_blocker": "Lack of high-density operational visibility for the Founder.",
+        "next_action": "Anchor the Mission Board to the Scrying Mirror and verify human-first legibility.",
+        "do_not_touch": [
+          "P0 Ledger (hearth.jsonl)",
+          "Wasm Shield (forge_engine.py)",
+          "Solana Mint Bridge (solana_mint_bridge.py)"
+        ],
+        "owners": [
+          "Malaky and the Agentic Knights of Chivalry"
+        ],
+        "pending_approvals": [
+          "15.0 $EMBER reward for Step 145 (Library Indexer)"
+        ],
+        "last_updated": "2026-05-06T00:25:00Z",
+        "manifest_hash": "114ac1205e8f93ce69a9f84fc1a7ad82c5c58cf6bcf8e7839e140f15da00f2f6"
+      }
+    },
+    {
+      "collection": "lodge_meta",
+      "id": "grace_project",
+      "source": "frontend/public/grace_project.json",
+      "data": {
+        "title": "The Grace of the Fellowship",
+        "tagline": "Build windows of truth, not walls. Make the Lodge useful, legible, and kind.",
+        "mission": "Turn the project's philosophy into a visible practice that future builders can understand at a glance.",
+        "blocker": "Any change that weakens trust, clarity, or the human ability to understand the Lodge at a glance.",
+        "repo_pointer": "D:\\Hearth\\prosper2",
+        "wallet_status": "Read-only / disconnected",
+        "owner": "Pending",
+        "approval_status": "Awaiting Sovereign Seal",
+        "decree_id": "DECREE-001",
+        "decree_issued_at": "2026-05-06T00:00:00Z",
+        "pulse_nonce": "PULSE-2026-05-06T00:00:00Z",
+        "handoff_note": "Founder note: This is the first thing a builder should read before editing the Lodge.\n\nGrace handoff: Keep the Mission Board lightweight, keep the Ledger untouched, and make the front door obvious.",
+        "principles": [
+          "Be honest before beautiful.",
+          "Protect credits and reduce confusion.",
+          "Prefer small useful surfaces over large speculative systems.",
+          "Keep 3D secondary to human clarity.",
+          "Make approvals explicit and proposals reversible."
+        ],
+        "current_focus": [
+          "Mission Board and Builder Handoff",
+          "Read-only founder coordination",
+          "Graceful fallback states",
+          "Clear route and vessel pointers"
+        ],
+        "active_agents": [
+          "Prosper2 - layout and philosophy steward",
+          "Codex - implementation and guardrail builder",
+          "Claude - reconnaissance and route confirmation"
+        ],
+        "pending_approvals": [
+          "No automatic treasury movement",
+          "No minting without witnessed intent",
+          "No widening beyond the Grace front door"
+        ],
+        "what_not_to_touch": [
+          "P0 Ledger",
+          "Wasm Shield",
+          "Treasury automation"
+        ],
+        "creative_endeavors": [
+          "Founder Studio notes",
+          "Living project seeds",
+          "Reflective handoff pages",
+          "Human-readable mission briefs"
+        ],
+        "do_not_chase": [
+          "Attack tooling before the platform is steady",
+          "Automatic treasury movement",
+          "More 3D theater",
+          "Scope creep"
+        ],
+        "next_action": "Keep the site calm, legible, and operational. Add only the next small thing that increases trust.",
+        "quote": "Grace is the ability to remain useful under pressure.",
+        "notes": "Founder note: This is the first thing a builder should read before editing the Lodge.\n\nGrace handoff: Keep the Mission Board lightweight, keep the Ledger untouched, and make the front door obvious.",
+        "updated_at": "2026-05-06T00:00:00Z",
+        "manifest_hash": "35757b6742ecd8fb6d54d3f4e5a55ed55e59afbf7de577e07e6784dad1947d3a"
+      }
+    }
+  ]
+}

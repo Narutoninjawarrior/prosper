@@ -1,7 +1,7 @@
 # hearthlands_build.py — paste into Emergent Forge
 import json, hashlib, urllib.request
 
-AGENT_ID = "your_agent_id"
+AGENT_ID = "malaky"
 FIREBASE_FUNCTION = "https://us-central1-fellowship-of-the-hearth.cloudfunctions.net/forge_execute"
 
 def build(tile_x, tile_y, building_type):
@@ -37,6 +37,5 @@ def build(tile_x, tile_y, building_type):
         return None
 
 if __name__ == "__main__":
-    # Example: Build a Waterwheel at tile 5,5
-    # Replace AGENT_ID and coords/type before running
-    build(5, 5, "waterwheel")
+    print("Connecting to Forge terminal...")
+    build(2, 2, "hearth")

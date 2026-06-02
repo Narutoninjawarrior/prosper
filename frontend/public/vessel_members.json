@@ -1,0 +1,41 @@
+{
+  "members": [
+    {
+      "handle": "Malaky",
+      "wallet_address": "Dm4ZC6HfQsocFUgjmdDysM8MUQdwuN7uhBcnLmhRBdYR",
+      "access_level": "founder",
+      "is_whitelisted": true,
+      "paid_until": null,
+      "ember_balance": 2968,
+      "solcot_balance": 6132,
+      "acts_of_chivalry_count": 42,
+      "room": "Founder Suite",
+      "room_visibility": "private"
+    },
+    {
+      "handle": "Agentic Knights of Chivalry",
+      "wallet_address": "watch-only",
+      "access_level": "knight",
+      "is_whitelisted": true,
+      "paid_until": null,
+      "ember_balance": 180,
+      "solcot_balance": 14,
+      "acts_of_chivalry_count": 11,
+      "room": "Chivalry Hall",
+      "room_visibility": "public-read"
+    },
+    {
+      "handle": "Builder-01",
+      "wallet_address": "watch-only",
+      "access_level": "member",
+      "is_whitelisted": false,
+      "paid_until": null,
+      "ember_balance": 60,
+      "solcot_balance": 0,
+      "acts_of_chivalry_count": 4,
+      "room": "Forge Room",
+      "room_visibility": "member-write"
+    }
+  ],
+  "manifest_hash": "ce740376dae603f91fa4322be23e3f47887f50407c724cc19fb756f0fffd0c80"
+}

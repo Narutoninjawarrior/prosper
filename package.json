@@ -1,0 +1,18 @@
+{
+  "name": "prosper2",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "export:firestore-seed": "node scripts/export-firestore-seed.mjs",
+    "verify:port-pack": "node scripts/verify-port-pack.mjs",
+    "verify:lodge-interface": "node scripts/verify-lodge-interface.mjs",
+    "verify:firebase-branch": "node scripts/verify-firebase-branch.mjs",
+    "verify:proposal-intent": "node scripts/verify-proposal-intent.mjs",
+    "sync:firestore": "node scripts/sync-firestore-from-seed.mjs",
+    "sync:firestore:dry-run": "node scripts/sync-firestore-from-seed.mjs --dry-run",
+    "steward:claim": "node scripts/steward-claim.mjs"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.6.0"
+  }
+}

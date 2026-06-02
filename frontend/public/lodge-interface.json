@@ -1,0 +1,149 @@
+{
+  "interface_id": "hearth-lodge-interface",
+  "manifest_version": "1.0.0",
+  "philosophy": "A deep, machine-readable map of the Lodge for humans, builders, and future AI regulators.",
+  "integrity_policy": "manifest_hash fail-closed",
+  "manifest_hash": "e338b1929175bdcab4e73f6453cb65d8770db9274a733caadcf8a13837370b5d",
+  "source_of_truth": {
+    "public_docs": "frontend/public/*.md",
+    "stamped_seeds": "frontend/public/*.json",
+    "bridge": "frontend/src/lib/sanctuaryBridge.ts",
+    "hall": "frontend/src/HallOfHonor.tsx",
+    "forge": "frontend/src/ForgePage.tsx",
+    "operator_workflow": "frontend/public/steward-runbook.md"
+  },
+  "consumers": [
+    {
+      "name": "human steward",
+      "mode": "read docs, review claims, run terminal scripts",
+      "allowed_surfaces": ["public_docs", "stamped_seeds", "forge", "hall"]
+    },
+    {
+      "name": "cursor builder",
+      "mode": "bounded implementation pass",
+      "allowed_surfaces": ["public_docs", "stamped_seeds", "forge", "hall", "bridge"]
+    },
+    {
+      "name": "emergent mirror",
+      "mode": "copy-first public mirror",
+      "allowed_surfaces": ["public_docs", "stamped_seeds", "read_only_hall_copy"]
+    },
+    {
+      "name": "firebase branch",
+      "mode": "additive supplement after docs and seeds are stable",
+      "allowed_surfaces": ["env_config", "read_only_hall_copy", "supplemental_firestore"]
+    },
+    {
+      "name": "future ai regulator",
+      "mode": "observe rules and report drift",
+      "allowed_surfaces": ["interface_manifest", "build_report", "forge_snapshot"]
+    }
+  ],
+  "artifact_layers": [
+    {
+      "layer": 1,
+      "name": "public guidance",
+      "files": [
+        "lodge-port-pack.md",
+        "lodge-capsule.md",
+        "forge.md",
+        "forge-snapshot.md",
+        "current-build.md",
+        "build-report.md",
+        "mission.md",
+        "skill.md",
+        "history.md",
+        "rooms.md",
+        "steward-runbook.md",
+        "firebase-readiness.md"
+      ]
+    },
+    {
+      "layer": 2,
+      "name": "stamped seeds",
+      "files": [
+        "vessel_members.json",
+        "room_registry.json",
+        "quest_board.json",
+        "mission_board.json",
+        "grace_project.json",
+        "lodge-port-pack.json",
+        "lodge-capsule.json",
+        "lodge-interface.json"
+      ]
+    },
+    {
+      "layer": 3,
+      "name": "implementation surfaces",
+      "files": [
+        "frontend/src/ArtifactInspector.tsx",
+        "frontend/src/lib/sanctuaryBridge.ts",
+        "frontend/src/HallOfHonor.tsx",
+        "frontend/src/ForgePage.tsx",
+        "frontend/src/firebaseConfig.ts",
+        "frontend/src/firebaseAuth.ts",
+        "frontend/src/lib/lodgeFirestore.ts",
+        "frontend/firestore.rules"
+      ]
+    },
+    {
+      "layer": 4,
+      "name": "terminal-only steward tooling",
+      "files": [
+        "scripts/export-firestore-seed.mjs",
+        "scripts/sync-firestore-from-seed.mjs",
+        "scripts/steward-claim.mjs",
+        "scripts/verify-port-pack.mjs",
+        "scripts/verify-lodge-interface.mjs"
+      ]
+    }
+  ],
+  "deep_interface": {
+    "read_only": [
+      "Hall of Honor",
+      "Forge Page",
+      "public docs",
+      "public JSON contracts"
+    ],
+    "terminal_only": [
+      "export seed bundle",
+      "dry-run sync",
+      "live Firestore sync",
+      "claim review",
+      "service account usage"
+    ],
+    "future_regulated_spaces": [
+      "proposal drafts",
+      "quest review",
+      "room publication",
+      "trust and drift reporting"
+    ],
+    "explicit_non_goals": [
+      "payment automation",
+      "wallet signing",
+      "browser writes",
+      "hidden routes",
+      "invented third-party APIs"
+    ]
+  },
+  "business_model": {
+    "treasury": {
+      "funding_channels": ["GitHub Sponsors", "Crypto Donations (SOL/USDC)", "Manifund"],
+      "allocation": "60% Bounties, 25% Infrastructure, 15% Reserve"
+    },
+    "bounty_system": {
+      "claim_mechanism": "Ed25519 Cryptographic Signature Payload (No Browser Wallet Signing)",
+      "payout_currency": "$EMBER",
+      "requirements": ["Minimum Reputation Score", "Optional Stake"]
+    },
+    "revenue_engines": [
+      "Sovereign Audit Service (High-karma alignment audits)",
+      "Fractionalized Agent Labor (Leasing local-first workflows)"
+    ]
+  },
+  "branch_rules": {
+    "mirror_now": "Mirror the public docs and stamped seeds first.",
+    "branch_later": "Add Firebase only as a supplemental branch after the public contract layer is stable.",
+    "no_rewrite": "Do not rewrite the manifest_hash policy or replace stamped JSON with Firestore as canonical truth."
+  }
+}

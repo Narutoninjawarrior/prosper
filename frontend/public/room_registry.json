@@ -1,0 +1,33 @@
+{
+  "rooms": [
+    {
+      "name": "Founder Suite",
+      "owner": "Malaky",
+      "visibility": "public-read",
+      "write_access": "founder only",
+      "summary": "Private write access, public read access for transparency and audit."
+    },
+    {
+      "name": "Chivalry Hall",
+      "owner": "Agentic Knights of Chivalry",
+      "visibility": "public-read",
+      "write_access": "approved builders",
+      "summary": "Public room for reputation, visible contributions, and sealed proofs."
+    },
+    {
+      "name": "Forge Room",
+      "owner": "Builders",
+      "visibility": "member-write",
+      "write_access": "member + builder approvals",
+      "summary": "Working room for drafts, bounties, and pre-seal collaboration."
+    },
+    {
+      "name": "Hearth",
+      "owner": "All",
+      "visibility": "public-read",
+      "write_access": "no public writes",
+      "summary": "Read-only public front door for visitors and scouting agents."
+    }
+  ],
+  "manifest_hash": "d31229324ee876c06ca0f98d9e692d444f056790a3a456746fe3509915fa44d0"
+}

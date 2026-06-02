@@ -1,0 +1,82 @@
+{
+  "contract_id": "hearth-recruitment-proposal",
+  "manifest_version": "1.0.0",
+  "version": "1.0.0",
+  "last_updated": "2026-05-17",
+  "philosophy": "Recruitment proposals are text-only intent receipts; the browser drafts, stewards decide, and terminal tools ingest.",
+  "integrity_policy": "manifest_hash fail-closed",
+  "source_of_truth": {
+    "recruitment_forge": "/recruitment-forge.md",
+    "steward_runbook": "/steward-runbook.md",
+    "claims": "docs/agent-systems/claims.md",
+    "deep_interface": "/lodge-interface.json"
+  },
+  "proposal_shape": {
+    "fields": [
+      {
+        "name": "handle",
+        "required": true,
+        "type": "string",
+        "purpose": "Public alias"
+      },
+      {
+        "name": "profile_url",
+        "required": false,
+        "type": "https-url",
+        "purpose": "Optional external proof link"
+      },
+      {
+        "name": "note",
+        "required": true,
+        "type": "string",
+        "purpose": "Statement of intent or contribution summary"
+      },
+      {
+        "name": "target_area",
+        "required": false,
+        "type": "string",
+        "purpose": "Which Lodge surface the proposal concerns"
+      },
+      {
+        "name": "risk",
+        "required": false,
+        "type": "string",
+        "purpose": "Expected risk or dependency"
+      },
+      {
+        "name": "status",
+        "required": true,
+        "type": "pending|approved|rejected",
+        "purpose": "Steward workflow state"
+      }
+    ]
+  },
+  "ai_consumption_rules": [
+    "Treat this as a text-only receipt format, not an execution surface.",
+    "Keep browser drafting read-only and reversible.",
+    "Route final review through steward-reviewed terminal tooling.",
+    "Do not invent wallet, swap, or payment behavior.",
+    "Do not add a browser write path or public proposal ingestion endpoint.",
+    "Prefer explicit, manual approval before any future branch mutates Firestore or chain state."
+  ],
+  "reserved_surfaces": [
+    "x402 / Solana Pay / Blink payment rails",
+    "wallet connection and signing",
+    "browser-side writes",
+    "public proposal ingestion endpoint",
+    "automatic membership mutation"
+  ],
+  "handoff_order": [
+    "draft text in the Forge",
+    "copy as raw text",
+    "steward reviews with terminal tools",
+    "add a written contract before any payment or write branch"
+  ],
+  "explicit_non_goals": [
+    "checkout flow",
+    "browser write path",
+    "hidden ops console",
+    "replacement of stamped seeds"
+  ],
+  "manifest_hash": "f479ca1cdc16799e78882130c1620d11da6fe06c8bddbd75f43fcf62ba220eda"
+}

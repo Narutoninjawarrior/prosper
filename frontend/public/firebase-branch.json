@@ -1,0 +1,144 @@
+{
+  "branch_id": "hearth-firebase-branch",
+  "manifest_version": "1.0.0",
+  "version": "1.0.0",
+  "last_updated": "2026-05-16",
+  "philosophy": "Firebase is an additive branch, not a replacement for stamped JSON seeds or the deep interface contract.",
+  "integrity_policy": "manifest_hash fail-closed",
+  "manifest_hash": "7cfa8dd58250b6c459ef0a398b42d1210a4358e135869968f45bfd5c636d7b6d",
+  "source_of_truth": {
+    "deep_interface": "/lodge-interface.json",
+    "firebase_readiness": "/firebase-readiness.md",
+    "steward_runbook": "/steward-runbook.md",
+    "seed_sync": "docs/agent-systems/seed-sync.md",
+    "claims": "docs/agent-systems/claims.md"
+  },
+  "ai_consumption_rules": [
+    "Read the deep interface and this branch manifest before proposing Firebase changes.",
+    "Treat stamped JSON seeds as canonical; Firestore is supplemental unless a future written rule says otherwise.",
+    "Do not invent client writes, wallet logic, payment logic, or Solana swaps.",
+    "Prefer narrow, additive changes with explicit rules and rollback paths.",
+    "Report drift, missing env, and policy mismatches before suggesting implementation.",
+    "Keep browser surfaces read-only until a written write path exists."
+  ],
+  "phases": [
+    {
+      "phase": 0,
+      "name": "Read-only browser wiring",
+      "goal": "Expose Firebase config and supplemental reads without writes.",
+      "surfaces": [
+        "frontend/.env.example",
+        "frontend/src/firebaseConfig.ts",
+        "frontend/src/firebaseAuth.ts",
+        "frontend/src/lib/lodgeFirestore.ts",
+        "frontend/firestore.rules"
+      ]
+    },
+    {
+      "phase": 1,
+      "name": "Supplemental registry reads",
+      "goal": "Render Firestore members, rooms, quests, and approved claims as a supplement to the verified seeds.",
+      "surfaces": [
+        "frontend/src/HallOfHonor.tsx",
+        "frontend/public/firebase-readiness.md"
+      ]
+    },
+    {
+      "phase": 2,
+      "name": "Steward sync",
+      "goal": "Use the export → dry-run → live sync pipeline from the repo root.",
+      "surfaces": [
+        "scripts/export-firestore-seed.mjs",
+        "scripts/sync-firestore-from-seed.mjs",
+        "docs/agent-systems/seed-sync.md",
+        "frontend/public/steward-runbook.md"
+      ]
+    },
+    {
+      "phase": 3,
+      "name": "Manual claims",
+      "goal": "Keep `lodge_claims` steward-reviewed and public only when approved.",
+      "surfaces": [
+        "scripts/steward-claim.mjs",
+        "docs/agent-systems/claims.md",
+        "frontend/firestore.rules"
+      ]
+    },
+    {
+      "phase": 4,
+      "name": "Regulated future branch",
+      "goal": "Reserve future writes, payments, wallet work, and swaps for a written branch later.",
+      "surfaces": [
+        "future write path",
+        "future wallet path",
+        "future swap path",
+        "future regulated surfaces"
+      ]
+    }
+  ],
+  "collections": [
+    {
+      "name": "lodge_members",
+      "purpose": "Supplemental live member registry",
+      "read_model": "public read"
+    },
+    {
+      "name": "lodge_rooms",
+      "purpose": "Supplemental live room registry",
+      "read_model": "public read"
+    },
+    {
+      "name": "lodge_quests",
+      "purpose": "Supplemental live quest board",
+      "read_model": "public read"
+    },
+    {
+      "name": "lodge_meta",
+      "purpose": "Supplemental operational metadata for the branch",
+      "read_model": "public read"
+    },
+    {
+      "name": "lodge_claims",
+      "purpose": "Manual steward-reviewed recruitment claims",
+      "read_model": "approved only"
+    },
+    {
+      "name": "lodge_activity",
+      "purpose": "Optional future activity / presence stream",
+      "read_model": "reserved"
+    }
+  ],
+  "env": {
+    "browser": [
+      "VITE_FIREBASE_API_KEY",
+      "VITE_FIREBASE_AUTH_DOMAIN",
+      "VITE_FIREBASE_PROJECT_ID",
+      "VITE_FIREBASE_STORAGE_BUCKET",
+      "VITE_FIREBASE_MESSAGING_SENDER_ID",
+      "VITE_FIREBASE_APP_ID"
+    ],
+    "node": [
+      "GOOGLE_APPLICATION_CREDENTIALS"
+    ]
+  },
+  "rules": {
+    "seed_authority": "stamped JSON + manifest_hash remain canonical",
+    "firestore_role": "supplemental live data only",
+    "client_writes": "denied until a written write path exists",
+    "claims": "manual approval-gated reads only"
+  },
+  "regulated_surfaces": [
+    "$EMBER / $SOLCOT <-> SOL swaps",
+    "wallet connection",
+    "payment automation",
+    "browser-side writes",
+    "AI action execution",
+    "Moltbook automation"
+  ],
+  "explicit_non_goals": [
+    "replace stamped seeds with Firestore",
+    "guess private APIs",
+    "invent wallet flows",
+    "turn the Hall into an ops console"
+  ]
+}

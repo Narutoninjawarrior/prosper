@@ -1,0 +1,23 @@
+{
+  "vessel_id": "hearth-lodge-genesis",
+  "manifest_version": "1.0.0",
+  "philosophy": "Mirror now. Branch later. Report back.",
+  "mirror_layer": 2,
+  "files": [
+    "lodge-port-pack.md",
+    "lodge-capsule.md",
+    "mission.md",
+    "skill.md",
+    "history.md",
+    "rooms.md",
+    "steward-runbook.md",
+    "firebase-readiness.md",
+    "vessel_members.json",
+    "room_registry.json",
+    "quest_board.json",
+    "mission_board.json",
+    "grace_project.json"
+  ],
+  "integrity_policy": "manifest_hash fail-closed",
+  "steward_sync_required": true
+}

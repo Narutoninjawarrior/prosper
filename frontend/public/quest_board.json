@@ -1,0 +1,26 @@
+{
+  "quests": [
+    {
+      "title": "Draft the public member ledger",
+      "reward_ember": 25,
+      "status": "open",
+      "room": "Forge Room",
+      "description": "Create the first Firestore-backed members table and connect it to the Hall of Honor."
+    },
+    {
+      "title": "Wire paid entry verification",
+      "reward_ember": 50,
+      "status": "open",
+      "room": "Hearth",
+      "description": "Verify a SOL payment to the treasury address and grant a timed session."
+    },
+    {
+      "title": "Public read-only rooms",
+      "reward_ember": 18,
+      "status": "sealed",
+      "room": "Chivalry Hall",
+      "description": "Expose room summaries publicly while keeping write access gated."
+    }
+  ],
+  "manifest_hash": "e154d8dc1a14afc818351354aa3c0879f14d5b5e979330ce815d9820a8c7d507"
+}
