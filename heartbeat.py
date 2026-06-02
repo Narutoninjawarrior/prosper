@@ -130,7 +130,8 @@ def ping_world_brain(agent_name, persona, observation):
             {"role": "user", "content": user_prompt}
         ],
         "temperature": 0.2, # Low temperature forces stricter JSON
-        "max_tokens": 100
+        "max_tokens": 100,
+        "response_format": {"type": "json_object"}
     }
     
     req = urllib.request.Request(
