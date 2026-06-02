@@ -376,3 +376,108 @@ exports.get_world_map = onRequest({ cors: true }, async (req, res) => {
 
   return res.status(200).json({ tiles });
 });
+
+// ─── 8. Grant Forge Credential ────────────────────────────────────────────────
+exports.grant_forge_credential = onRequest({ cors: false }, async (req, res) => {
+  if (handleCors(req, res)) return;
+  if (req.method !== 'POST') return res.status(405).end();
+
+  const { admin_id, target_agent_id } = req.body;
+  if (admin_id !== 'malaky') {
+    return res.status(403).json({ error: 'Only Sovereign Malaky can grant credentials.' });
+  }
+
+  const profileRef = db.collection('agent_profiles').doc(target_agent_id);
+  await profileRef.set({ forge_credential: true }, { merge: true });
+
+  const logRef = db.collection('forge_log').doc();
+  await logRef.set({
+    entry_id: logRef.id,
+    action: 'credential_grant',
+    agent_id: target_agent_id,
+    timestamp: admin.firestore.FieldValue.serverTimestamp()
+  });
+
+  return res.status(200).json({ status: 'granted', target_agent_id });
+});
+
+// ─── 9. Forge Execute Bridge ──────────────────────────────────────────────────
+const crypto = require('crypto');
+
+exports.forge_execute = onRequest({ cors: true }, async (req, res) => {
+  if (handleCors(req, res)) return;
+  if (req.method !== 'POST') return res.status(405).end();
+
+  const { agent_id, script_hash, action, params } = req.body;
+  if (!agent_id || !script_hash || !action || !params) {
+    return res.status(400).json({ error: 'Missing required Forge parameters' });
+  }
+
+  // Verify credential
+  const profileSnap = await db.collection('agent_profiles').doc(agent_id).get();
+  if (!profileSnap.exists || profileSnap.data().forge_credential !== true) {
+    return res.status(403).json({ error: 'Agent lacks forge_credential' });
+  }
+
+  let result = {};
+
+  if (action === 'claim_tile') {
+    const COST = 5;
+    const { tile_id, building_type } = params;
+    const profileRef = db.collection('agent_profiles').doc(agent_id);
+    const tileRef = db.collection('world_map').doc(tile_id);
+    const [x_str, y_str] = tile_id.split('_');
+    const x = Number(x_str);
+    const y = Number(y_str);
+
+    try {
+      await db.runTransaction(async tx => {
+        const [pSnap, tSnap] = await Promise.all([tx.get(profileRef), tx.get(tileRef)]);
+        const ember = pSnap.data().ember || 0;
+        if (ember < COST) throw new Error('insufficient_ember');
+        if (tSnap.exists && tSnap.data().status !== 'empty') throw new Error('tile_already_claimed');
+
+        tx.update(profileRef, { ember: admin.firestore.FieldValue.increment(-COST) });
+        tx.set(tileRef, {
+          tile_id, x, y, claimed_by: agent_id, building_type,
+          claimed_at: admin.firestore.FieldValue.serverTimestamp(),
+          ember_spent: COST, status: 'claimed'
+        });
+      });
+      result = { status: 'success', tile_id, claimed_by: agent_id };
+    } catch (err) {
+      return res.status(400).json({ error: err.message });
+    }
+  } else {
+    return res.status(400).json({ error: 'Unknown action' });
+  }
+
+  // Get previous hash for the chain
+  const lastLogSnap = await db.collection('forge_log').orderBy('timestamp', 'desc').limit(1).get();
+  const prev_hash = lastLogSnap.empty ? 'genesis' : lastLogSnap.docs[0].data().chain_hash;
+
+  // Calculate new chain hash
+  const entry_id = uuidv4();
+  const raw_chain = prev_hash + script_hash + action + JSON.stringify(params);
+  const chain_hash = crypto.createHash('sha256').update(raw_chain).digest('hex');
+
+  const logRef = db.collection('forge_log').doc(entry_id);
+  await logRef.set({
+    entry_id,
+    prev_hash,
+    script_hash,
+    chain_hash,
+    agent_id,
+    action,
+    params,
+    result,
+    timestamp: admin.firestore.FieldValue.serverTimestamp()
+  });
+
+  return res.status(200).json({
+    status: 'executed',
+    chain_hash,
+    result,
+    ember_remaining: profileSnap.data().ember - (action === 'claim_tile' ? 5 : 0)
+  });
+});

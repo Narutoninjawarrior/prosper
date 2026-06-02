@@ -12,7 +12,7 @@ import { OrbitControls, Grid, Environment, Html, Float, Text } from '@react-thre
 import { useEffect, useRef, useState, Suspense } from 'react';
 import * as THREE from 'three';
 import { getFirestoreDb } from './firebaseConfig';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, collection } from 'firebase/firestore';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface ForgeNode {
@@ -25,6 +25,15 @@ interface ForgeNode {
   placed_by:   string;
   ts:          number;
   label?:      string;
+}
+
+interface WorldMapTile {
+  tile_id:       string;
+  x:             number;
+  y:             number;
+  building_type: string;
+  claimed_by:    string;
+  status:        string;
 }
 
 interface WorldState {
@@ -152,8 +161,38 @@ function EmberCounter({ count }: { count: number }) {
   );
 }
 
+// ─── Map Tiles ────────────────────────────────────────────────────────────────
+function ForgeTile({ tile }: { tile: WorldMapTile }) {
+  const [hovered, setHovered] = useState(false);
+  const color = TYPE_COLORS[tile.building_type] || '#475569';
+  
+  return (
+    <mesh
+      position={[tile.x, 0.01, tile.y]}
+      rotation={[-Math.PI / 2, 0, 0]}
+      onPointerOver={() => setHovered(true)}
+      onPointerOut={() => setHovered(false)}
+    >
+      <planeGeometry args={[0.95, 0.95]} />
+      <meshStandardMaterial color={color} roughness={0.8} />
+      {hovered && (
+        <Html distanceFactor={8} position={[0, 0, 0.5]} center>
+          <div style={{
+            background: 'rgba(2,8,4,0.9)', border: `1px solid ${color}`,
+            borderRadius: 4, padding: '4px 8px', color,
+            fontFamily: 'monospace', fontSize: 10, whiteSpace: 'nowrap',
+            pointerEvents: 'none'
+          }}>
+            {tile.building_type.toUpperCase()} · {tile.claimed_by}
+          </div>
+        </Html>
+      )}
+    </mesh>
+  );
+}
+
 // ─── Scene (inner — has access to R3F context) ────────────────────────────────
-function ForgeScene({ nodes }: { nodes: ForgeNode[] }) {
+function ForgeScene({ nodes, tiles }: { nodes: ForgeNode[], tiles: WorldMapTile[] }) {
   return (
     <>
       <HearthLights />
@@ -167,10 +206,13 @@ function ForgeScene({ nodes }: { nodes: ForgeNode[] }) {
         maxDistance={30}
         maxPolarAngle={Math.PI / 2}
       />
+      {tiles.map(tile => (
+        <ForgeTile key={tile.tile_id} tile={tile} />
+      ))}
       {nodes.map(node => (
         <ForgeObject key={node.id} node={node} />
       ))}
-      {nodes.length === 0 && (
+      {nodes.length === 0 && tiles.length === 0 && (
         <Text position={[0, 2, 0]} fontSize={0.35} color="#10b981" anchorX="center">
           {'Forge awaiting first EMBER placement.\nAI agents spend $EMBER to build here.'}
         </Text>
@@ -182,6 +224,7 @@ function ForgeScene({ nodes }: { nodes: ForgeNode[] }) {
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function ThreeForge({ agentId }: { agentId?: string }) {
   const [nodes, setNodes]     = useState<ForgeNode[]>([]);
+  const [tiles, setTiles]     = useState<WorldMapTile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState<string | null>(null);
 
@@ -194,7 +237,7 @@ export default function ThreeForge({ agentId }: { agentId?: string }) {
     }
 
     // Real-time listener on Firestore three_forge/world_state
-    const unsub = onSnapshot(
+    const unsubNodes = onSnapshot(
       doc(db, 'three_forge', 'world_state'),
       snap => {
         if (snap.exists()) {
@@ -210,7 +253,21 @@ export default function ThreeForge({ agentId }: { agentId?: string }) {
         setLoading(false);
       },
     );
-    return unsub;
+
+    // Real-time listener on Firestore world_map
+    const unsubTiles = onSnapshot(
+      collection(db, 'world_map'),
+      snap => {
+        const t: WorldMapTile[] = [];
+        snap.forEach(doc => t.push(doc.data() as WorldMapTile));
+        setTiles(t);
+      },
+      err => {
+        console.error('world_map listener error', err);
+      }
+    );
+
+    return () => { unsubNodes(); unsubTiles(); };
   }, []);
 
   if (loading) {
@@ -249,7 +306,7 @@ export default function ThreeForge({ agentId }: { agentId?: string }) {
           style={{ background: '#020804' }}
         >
           <Suspense fallback={null}>
-            <ForgeScene nodes={nodes} />
+            <ForgeScene nodes={nodes} tiles={tiles} />
           </Suspense>
         </Canvas>
       </div>
