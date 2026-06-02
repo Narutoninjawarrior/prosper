@@ -12,6 +12,7 @@ import HallOfHonor from './HallOfHonor';
 import WaterwheelInjector from './WaterwheelInjector';
 import LobsterLeasing from './LobsterLeasing';
 import TreasuryDonation from './TreasuryDonation';
+import ThreeForge from './ThreeForge';
 import SOLCOTShop from './SOLCOTShop';
 
 export function AgentNode({ data }: NodeProps) {
@@ -121,6 +122,9 @@ function App() {
           <button onClick={() => setActiveTab('multitool')} className={`flex items-center gap-3 p-3 rounded-xl transition-all font-semibold ${activeTab === 'multitool' ? 'bg-[#10b981]/15 text-[#10b981] border border-[#10b981]/30 shadow-[0_0_15px_rgba(16,185,129,0.15)]' : 'hover:bg-white/5 border border-transparent'}`}>
             <Wrench size={20} /> Multi-Tool Hub
           </button>
+          <button onClick={() => setActiveTab('3dforge')} className={`flex items-center gap-3 p-3 rounded-xl transition-all font-semibold ${activeTab === '3dforge' ? 'bg-[#d97706]/15 text-[#d97706] border border-[#d97706]/30 shadow-[0_0_15px_rgba(217,119,6,0.15)]' : 'hover:bg-white/5 border border-transparent'}`}>
+            <Box size={20} /> 3D Forge (MCP)
+          </button>
           <button onClick={() => setActiveTab('flow')} className={`flex items-center gap-3 p-3 rounded-xl transition-all font-semibold ${activeTab === 'flow' ? 'bg-[#10b981]/15 text-[#10b981] border border-[#10b981]/30 shadow-[0_0_15px_rgba(16,185,129,0.15)]' : 'hover:bg-white/5 border border-transparent'}`}>
             <Zap size={20} /> Ease of Flow
           </button>
@@ -162,6 +166,7 @@ function App() {
         {activeTab === 'hearthlands' && <HearthlandsGame />}
         {activeTab === 'multitool' && <Toolbox />}
         {activeTab === 'flow' && <EaseOfFlow />}
+        {activeTab === '3dforge' && <ThreeForge agentId="human" />}
         {activeTab === 'forge' && <div className="h-full overflow-y-auto"><ForgePage /></div>}
         {activeTab === 'hall' && <div className="h-full overflow-y-auto"><HallOfHonor /></div>}
         {activeTab === 'waterwheel' && <div className="h-full overflow-y-auto"><WaterwheelInjector /></div>}
