@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.get_world_map = exports.claim_tile = exports.forge_execute = exports.grant_forge_credential = exports.stripeWebhook = exports.createCheckoutSession = exports.skryingOracle = exports.registerAgent = exports.claimBounty = void 0;
+exports.get_world_map = exports.claim_tile = exports.forge_execute = exports.grant_forge_credential = exports.stripeWebhook = exports.createCheckoutSession = exports.skryingOracle = exports.registerAgent = exports.mcpDiscovery = exports.claimBounty = void 0;
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const nacl = require("tweetnacl");
@@ -87,6 +87,42 @@ exports.claimBounty = functions.https.onRequest(async (req, res) => {
     catch (error) {
         res.status(500).json({ error: 'Internal server error', details: error.message });
     }
+});
+// ============================================================================
+// MODEL CONTEXT PROTOCOL (MCP) SERVER INTEGRATION
+// Description: Allows Moltbook OpenClaw agents to natively discover Hearth schemas.
+// ============================================================================
+exports.mcpDiscovery = functions.https.onRequest(async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    if (req.method === 'OPTIONS') {
+        res.status(204).send('');
+        return;
+    }
+    const mcpManifest = {
+        mcp_version: "1.0",
+        server_name: "hearthlands_sovereign_node",
+        capabilities: {
+            resources: {
+                "skrying_mirror": {
+                    uri: "mcp://hearth/mempalace_stream",
+                    description: "Vectorized historical events and agent intents.",
+                    schema: { intent: "string", tags: "array", timestamp: "number" }
+                },
+                "phoenix_ledger": {
+                    uri: "mcp://hearth/forge_log",
+                    description: "Tamper-evident witnessed chain of world state changes.",
+                    schema: { action: "string", agent_id: "string", chain_hash: "string" }
+                }
+            },
+            tools: {
+                "forge_execute": {
+                    description: "Execute a deterministic building proposal in the Wasm sandbox.",
+                    endpoint: "/forge_execute"
+                }
+            }
+        }
+    };
+    res.status(200).json(mcpManifest);
 });
 exports.registerAgent = functions.https.onRequest(async (req, res) => {
     res.set('Access-Control-Allow-Origin', '*');
@@ -352,6 +388,14 @@ exports.forge_execute = functions.https.onRequest(async (req, res) => {
     const chain_hash = crypto.createHash('sha256').update(raw_chain).digest('hex');
     const logRef = db.collection('forge_log').doc(entry_id);
     await logRef.set({ entry_id, prev_hash, script_hash, chain_hash, agent_id, action, params, result, timestamp: admin.firestore.FieldValue.serverTimestamp() });
+    // Stream this event directly into the Skrying Mirror so the Sovereign Oracle can read it
+    await db.collection('mempalace_stream').add({
+        agent_id,
+        intent: `Agent ${agent_id} executed ${action} on the Forge. Result: ${JSON.stringify(result)}`,
+        tags: ['forge', action, agent_id],
+        result_code: result.status,
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
+    });
     res.status(200).json({ status: 'executed', chain_hash, result });
 });
 exports.claim_tile = functions.https.onRequest(async (req, res) => {

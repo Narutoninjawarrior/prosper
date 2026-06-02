@@ -87,6 +87,42 @@ export const claimBounty = functions.https.onRequest(async (req, res) => {
   }
 });
 
+// ============================================================================
+// MODEL CONTEXT PROTOCOL (MCP) SERVER INTEGRATION
+// Description: Allows Moltbook OpenClaw agents to natively discover Hearth schemas.
+// ============================================================================
+export const mcpDiscovery = functions.https.onRequest(async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
+
+  const mcpManifest = {
+    mcp_version: "1.0",
+    server_name: "hearthlands_sovereign_node",
+    capabilities: {
+      resources: {
+        "skrying_mirror": {
+          uri: "mcp://hearth/mempalace_stream",
+          description: "Vectorized historical events and agent intents.",
+          schema: { intent: "string", tags: "array", timestamp: "number" }
+        },
+        "phoenix_ledger": {
+          uri: "mcp://hearth/forge_log",
+          description: "Tamper-evident witnessed chain of world state changes.",
+          schema: { action: "string", agent_id: "string", chain_hash: "string" }
+        }
+      },
+      tools: {
+        "forge_execute": {
+          description: "Execute a deterministic building proposal in the Wasm sandbox.",
+          endpoint: "/forge_execute"
+        }
+      }
+    }
+  };
+
+  res.status(200).json(mcpManifest);
+});
+
 export const registerAgent = functions.https.onRequest(async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
   res.set('Access-Control-Allow-Methods', 'POST');
@@ -301,6 +337,15 @@ export const forge_execute = functions.https.onRequest(async (req, res) => {
 
   const logRef = db.collection('forge_log').doc(entry_id);
   await logRef.set({ entry_id, prev_hash, script_hash, chain_hash, agent_id, action, params, result, timestamp: admin.firestore.FieldValue.serverTimestamp() });
+
+  // Stream this event directly into the Skrying Mirror so the Sovereign Oracle can read it
+  await db.collection('mempalace_stream').add({
+    agent_id,
+    intent: `Agent ${agent_id} executed ${action} on the Forge. Result: ${JSON.stringify(result)}`,
+    tags: ['forge', action, agent_id],
+    result_code: result.status,
+    timestamp: admin.firestore.FieldValue.serverTimestamp()
+  });
 
   res.status(200).json({ status: 'executed', chain_hash, result });
 });
