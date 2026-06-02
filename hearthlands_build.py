@@ -29,7 +29,7 @@ def build(tile_x, tile_y, building_type):
         response = urllib.request.urlopen(req, timeout=10)
         result = json.loads(response.read())
         print(f"Chain hash: {result['chain_hash']}")
-        print(f"EMBER remaining: {result['ember_remaining']}")
+
         return result
     except urllib.error.HTTPError as e:
         error_info = json.loads(e.read())
@@ -38,4 +38,4 @@ def build(tile_x, tile_y, building_type):
 
 if __name__ == "__main__":
     print("Connecting to Forge terminal...")
-    build(2, 2, "hearth")
+    build(3, 3, "hearth")
