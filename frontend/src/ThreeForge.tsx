@@ -13,6 +13,8 @@ import { useEffect, useRef, useState, Suspense } from 'react';
 import * as THREE from 'three';
 import { getFirestoreDb } from './firebaseConfig';
 import { doc, onSnapshot, collection } from 'firebase/firestore';
+// @ts-ignore
+import ArtFrame from './ArtFrame';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface ForgeNode {
@@ -205,6 +207,14 @@ function ForgeScene({ nodes, tiles }: { nodes: ForgeNode[], tiles: WorldMapTile[
         minDistance={3}
         maxDistance={30}
         maxPolarAngle={Math.PI / 2}
+      />
+      {/* ─── Lodge Genesis Art Frame ───────────────────────────────────────────── */}
+      <ArtFrame 
+        position={[0, 2, -6]} 
+        hash="e1476e38426387610301c09a27ffc90c21bbb6deb40a5ccdece29fb52fdc3f91" 
+        title="Forge Genesis"
+        artist="Prosper2"
+        emberCost={5}
       />
       {tiles.map(tile => (
         <ForgeTile key={tile.tile_id} tile={tile} />
