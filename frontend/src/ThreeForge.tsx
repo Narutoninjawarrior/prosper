@@ -15,6 +15,8 @@ import { getFirestoreDb } from './firebaseConfig';
 import { doc, onSnapshot, collection } from 'firebase/firestore';
 // @ts-ignore
 import ArtFrame from './ArtFrame';
+// @ts-ignore
+import FlowerBed from './FlowerBed';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface ForgeNode {
@@ -23,7 +25,7 @@ interface ForgeNode {
   y:           number;
   z:           number;
   color:       string;
-  object_type: 'node' | 'waterwheel' | 'hearth' | 'library' | 'lodge';
+  object_type: 'node' | 'waterwheel' | 'hearth' | 'library' | 'lodge' | 'flora';
   placed_by:   string;
   ts:          number;
   label?:      string;
@@ -36,6 +38,9 @@ interface ForgeNode {
   artist?:     string;
   ember_cost?: number;
   minted?:     boolean;
+  // flora-specific fields:
+  bloom_stage?: number;
+  branch_data?: any[];
 }
 
 interface WorldMapTile {
@@ -228,7 +233,22 @@ function ForgeScene({ nodes, tiles }: { nodes: ForgeNode[], tiles: WorldMapTile[
             artist={node.artist ?? node.placed_by}
             emberCost={node.ember_cost ?? 0}
             minted={node.minted ?? false}
-            onMint={() => {}}
+            onMint={() => handleMint(node.id)}
+          />
+        ))
+      }
+      {nodes
+        .filter(n => n.object_type === 'flora')
+        .map(node => (
+          <FlowerBed
+            key={node.id}
+            position={[node.x, node.y, node.z]}
+            chainHash={node.chain_hash ?? '0'.repeat(64)}
+            heatLevel={node.heat_level ?? 0}
+            bloomStage={node.bloom_stage ?? 0}
+            branchData={node.branch_data ?? []}
+            title={node.title ?? 'Garden Plot'}
+            placedBy={node.placed_by ?? ''}
           />
         ))
       }
