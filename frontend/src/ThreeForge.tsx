@@ -27,6 +27,15 @@ interface ForgeNode {
   placed_by:   string;
   ts:          number;
   label?:      string;
+  // lodge-specific fields:
+  chain_hash?: string;
+  seed?:       number;
+  algo?:       number;
+  heat_level?: number;
+  title?:      string;
+  artist?:     string;
+  ember_cost?: number;
+  minted?:     boolean;
 }
 
 interface WorldMapTile {
@@ -208,14 +217,21 @@ function ForgeScene({ nodes, tiles }: { nodes: ForgeNode[], tiles: WorldMapTile[
         maxDistance={30}
         maxPolarAngle={Math.PI / 2}
       />
-      {/* ─── Lodge Genesis Art Frame ───────────────────────────────────────────── */}
-      <ArtFrame 
-        position={[0, 2, -6]} 
-        hash="e1476e38426387610301c09a27ffc90c21bbb6deb40a5ccdece29fb52fdc3f91" 
-        title="Forge Genesis"
-        artist="Prosper2"
-        emberCost={5}
-      />
+      {nodes
+        .filter(n => n.object_type === 'lodge')
+        .map(node => (
+          <ArtFrame
+            key={node.id}
+            position={[node.x, node.y, node.z]}
+            hash={node.chain_hash ?? '0'.repeat(64)}
+            title={node.title ?? 'Untitled'}
+            artist={node.artist ?? node.placed_by}
+            emberCost={node.ember_cost ?? 0}
+            minted={node.minted ?? false}
+            onMint={() => {}}
+          />
+        ))
+      }
       {tiles.map(tile => (
         <ForgeTile key={tile.tile_id} tile={tile} />
       ))}
@@ -238,6 +254,23 @@ export default function ThreeForge({ agentId }: { agentId?: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState<string | null>(null);
 
+  const handleMint = async (nodeId: string) => {
+    const db = getFirestoreDb();
+    if (!db) return;
+    const stateRef = doc(db, 'three_forge', 'world_state');
+    try {
+      const snap = await import('firebase/firestore').then(m => m.getDoc(stateRef));
+      if (!snap.exists()) return;
+      const data = snap.data() as WorldState;
+      const updated = data.nodes.map((n: ForgeNode) =>
+        n.id === nodeId ? { ...n, minted: true } : n
+      );
+      await import('firebase/firestore').then(m => m.updateDoc(stateRef, { nodes: updated }));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   useEffect(() => {
     const db = getFirestoreDb();
     if (!db) {
@@ -246,22 +279,53 @@ export default function ThreeForge({ agentId }: { agentId?: string }) {
       return;
     }
 
+    const stateRef = doc(db, 'three_forge', 'world_state');
+
     // Real-time listener on Firestore three_forge/world_state
     const unsubNodes = onSnapshot(
-      doc(db, 'three_forge', 'world_state'),
-      snap => {
+      stateRef,
+      async snap => {
         if (snap.exists()) {
           const data = snap.data() as WorldState;
-          setNodes((data.nodes || []).filter(n => n && typeof n.x === 'number'));
+          const currentNodes = (data.nodes || []).filter(n => n && typeof n.x === 'number');
+          
+          // Patch 4: Place Genesis Frame
+          const hasGenesis = currentNodes.some(n => n.id === 'lodge-e1476e38');
+          if (!hasGenesis) {
+             const GENESIS_NODE: ForgeNode = {
+               id:          'lodge-e1476e38',
+               object_type: 'lodge',
+               x:           0,
+               y:           1.6,
+               z:           -5.8,
+               chain_hash:  'e1476e38426387610301c09a27ffc90c21bbb6deb40a5ccdece29fb52fdc3f91',
+               seed:        3092837451,
+               algo:        2,
+               heat_level:  2980,
+               title:       'Genesis Tile 3_3',
+               artist:      'Prosper2',
+               ember_cost:  5,
+               minted:      false,
+               placed_by:   'malaky',
+               ts:          Date.now(),
+               color:       '#f43f5e'
+             };
+             try {
+               await import('firebase/firestore').then(m => m.updateDoc(stateRef, { nodes: m.arrayUnion(GENESIS_NODE) }));
+             } catch(e) {}
+          }
+          
+          setNodes(currentNodes);
         } else {
           setNodes([]);
         }
         setLoading(false);
       },
       err => {
-        setError(err.message);
+        console.error('ThreeForge nodes snapshot error:', err);
+        setError('Failed to load world state');
         setLoading(false);
-      },
+      }
     );
 
     // Real-time listener on Firestore world_map
