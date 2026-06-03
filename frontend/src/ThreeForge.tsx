@@ -208,7 +208,7 @@ function ForgeTile({ tile }: { tile: WorldMapTile }) {
 }
 
 // ─── Scene (inner — has access to R3F context) ────────────────────────────────
-function ForgeScene({ nodes, tiles }: { nodes: ForgeNode[], tiles: WorldMapTile[] }) {
+function ForgeScene({ nodes, tiles, onMint }: { nodes: ForgeNode[], tiles: WorldMapTile[], onMint: (id: string) => void }) {
   return (
     <>
       <HearthLights />
@@ -233,7 +233,7 @@ function ForgeScene({ nodes, tiles }: { nodes: ForgeNode[], tiles: WorldMapTile[
             artist={node.artist ?? node.placed_by}
             emberCost={node.ember_cost ?? 0}
             minted={node.minted ?? false}
-            onMint={() => handleMint(node.id)}
+            onMint={() => onMint(node.id)}
           />
         ))
       }
@@ -255,7 +255,7 @@ function ForgeScene({ nodes, tiles }: { nodes: ForgeNode[], tiles: WorldMapTile[
       {tiles.map(tile => (
         <ForgeTile key={tile.tile_id} tile={tile} />
       ))}
-      {nodes.map(node => (
+      {nodes.filter(n => n.object_type !== 'lodge' && n.object_type !== 'flora').map(node => (
         <ForgeObject key={node.id} node={node} />
       ))}
       {nodes.length === 0 && tiles.length === 0 && (
@@ -400,7 +400,7 @@ export default function ThreeForge({ agentId }: { agentId?: string }) {
           style={{ background: '#020804' }}
         >
           <Suspense fallback={null}>
-            <ForgeScene nodes={nodes} tiles={tiles} />
+            <ForgeScene nodes={nodes} tiles={tiles} onMint={handleMint} />
           </Suspense>
         </Canvas>
       </div>
