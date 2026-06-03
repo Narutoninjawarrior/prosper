@@ -105,9 +105,10 @@ function CultivationNode({
         onPointerOut={() => setHovered(false)}
       >
         <cylinderGeometry args={[style.platformR, style.platformR * 1.1, 0.1, 16]} />
-        <meshStandardMaterial
-          color={node.active ? '#3D2810' : style.platformColor}
-          roughness={0.95}
+        <meshPhysicalMaterial
+          color={node.active ? '#21140A' : style.platformColor}
+          roughness={1.0}
+          clearcoat={node.active ? 0.1 : 0.0}
         />
       </mesh>
 
@@ -121,7 +122,7 @@ function CultivationNode({
         <meshStandardMaterial
           color={rimColor}
           emissive={rimColor}
-          emissiveIntensity={isResonant ? 0.6 : 0.15}
+          emissiveIntensity={isResonant ? 2.0 : 0.15}
           transparent
           opacity={0.8}
         />
@@ -354,7 +355,7 @@ export default function BiosphereGrid({
     <group>
       {/* Ground plane */}
       <mesh rotation={[-Math.PI / 2, 0, -0.0001]} position={[0, -0.02, 0]} receiveShadow>
-        <planeGeometry args={[30, 30]} />
+        <planeGeometry args={[30, 30, 64, 64]} />
         <meshStandardMaterial color="#1A0E06" roughness={0.98} />
       </mesh>
 

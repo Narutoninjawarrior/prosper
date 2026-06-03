@@ -14,8 +14,8 @@
  */
 
 import { useRef, useMemo } from 'react'
-import { useFrame } from '@react-three/fiber'
-import { Float, Text } from '@react-three/drei'
+import { useFrame, extend } from '@react-three/fiber'
+import { Float, Text, shaderMaterial } from '@react-three/drei'
 import * as THREE from 'three'
 
 // ── Hearthlands palette ───────────────────────────────────────────
@@ -31,6 +31,47 @@ const C = {
   gold:        '#D4A853',
   vine:        '#4A6A2A',
 }
+
+const TerraCottaMaterial = shaderMaterial(
+  { time: 0 },
+  `varying vec3 vNormal; varying vec3 vPos; varying vec2 vUv;
+   void main() {
+     vNormal = normalMatrix * normal;
+     vUv = uv; vPos = position;
+     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+   }`,
+  `varying vec3 vNormal; varying vec3 vPos; varying vec2 vUv;
+
+   float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+
+   float voronoi(vec2 p) {
+     vec2 n = floor(p); vec2 f = fract(p);
+     float minD = 8.0;
+     for(int j=-1;j<=1;j++) for(int i=-1;i<=1;i++) {
+       vec2 g = vec2(i,j);
+       vec2 o = vec2(hash(n+g), hash(n+g+0.5));
+       minD = min(minD, length(g + o - f));
+     }
+     return minD;
+   }
+
+   void main() {
+     float cracks = voronoi(vUv * 8.0);
+     float darkCracks = 1.0 - smoothstep(0.0, 0.15, cracks);
+     float variation = hash(floor(vUv * 20.0)) * 0.15;
+
+     vec3 base = vec3(0.76, 0.49, 0.35);  // terracotta
+     vec3 dark = vec3(0.4, 0.22, 0.14);   // crack shadow
+     vec3 col  = mix(base + variation, dark, darkCracks * 0.6);
+
+     // Simple diffuse lighting
+     vec3 light = normalize(vec3(0.5, 1.0, 0.3));
+     float diff = max(dot(normalize(vNormal), light), 0.0) * 0.8 + 0.2;
+
+     gl_FragColor = vec4(col * diff, 1.0);
+   }`
+)
+extend({ TerraCottaMaterial })
 
 // ── Water Catchment Tower ─────────────────────────────────────────
 // Terracotta spire that opens petals when water is nearby.
@@ -79,12 +120,7 @@ export function WaterCatchmentTower({
       {/* Main tower body — lathe geometry */}
       <mesh castShadow receiveShadow>
         <latheGeometry args={[profile, 6]} />
-        <meshStandardMaterial
-          color={C.terracotta}
-          roughness={0.85}
-          metalness={0.05}
-          side={THREE.DoubleSide}
-        />
+        <terraCottaMaterial side={THREE.DoubleSide} />
       </mesh>
 
       {/* Rim detail ring */}

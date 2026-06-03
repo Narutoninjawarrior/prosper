@@ -19,8 +19,8 @@
  */
 
 import { useRef, useMemo } from 'react'
-import { useFrame } from '@react-three/fiber'
-import { CatmullRomLine } from '@react-three/drei'
+import { useFrame, extend } from '@react-three/fiber'
+import { shaderMaterial } from '@react-three/drei'
 import * as THREE from 'three'
 
 // ── Constants ─────────────────────────────────────────────────────
@@ -48,6 +48,35 @@ const RESONANCE_COLOR_MAP = {
   metatrons_cube:COLORS.metatron,
   full_flower:   COLORS.full,
 }
+
+const MyceliumMaterial = shaderMaterial(
+  { time: 0, color: new THREE.Color('#00DDCC'), opacity: 0.8 },
+  `varying vec2 vUv;
+   void main() {
+     vUv = uv;
+     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+   }`,
+  `uniform float time;
+   uniform vec3 color;
+   uniform float opacity;
+   varying vec2 vUv;
+
+   void main() {
+     float w1 = sin(vUv.x * 18.0 - time * 2.8) * 0.5 + 0.5;
+     float w2 = sin(vUv.x * 7.0 - time * 1.4 + 1.2) * 0.5 + 0.5;
+     float wave = pow(w1, 6.0) * 0.7 + pow(w2, 4.0) * 0.3;
+
+     float fade = smoothstep(0.0, 0.08, vUv.x) * smoothstep(1.0, 0.92, vUv.x);
+     float radial = 1.0 - abs(vUv.y * 2.0 - 1.0);
+     radial = pow(radial, 1.5);
+
+     float glow = (0.08 + wave * 0.92) * fade * radial;
+     vec3 finalColor = mix(color * 0.3, color * 2.5, wave);
+
+     gl_FragColor = vec4(finalColor, glow * opacity);
+   }`
+)
+extend({ MyceliumMaterial })
 
 // ── Thread geometry ───────────────────────────────────────────────
 // Creates an organic sagging curve between two ground points
@@ -84,26 +113,27 @@ function MyceliumThread({
   pulse,
   opacity = 0.7,
 }) {
-  const ref     = useRef()
-  const points  = useMemo(() => threadPoints(ax, az, bx, bz), [ax, az, bx, bz])
+  const matRef = useRef()
+  const points = useMemo(() => threadPoints(ax, az, bx, bz), [ax, az, bx, bz])
+  const curve  = useMemo(() => new THREE.CatmullRomCurve3(points), [points])
+  const tube   = useMemo(() => new THREE.TubeGeometry(curve, 30, 0.018, 6, false), [curve])
 
   useFrame(({ clock }) => {
-    if (!ref.current) return
-    const t = clock.elapsedTime
-    const brightness = 0.5 + Math.sin(t * Math.PI * 2 * PULSE_RATE) * 0.5
-    ref.current.material.opacity = opacity * (0.4 + brightness * 0.6)
+    if (matRef.current) matRef.current.time = clock.elapsedTime
   })
 
   return (
-    <CatmullRomLine
-      ref={ref}
-      points={points}
-      color={color}
-      lineWidth={THREAD_WIDTH}
-      transparent
-      opacity={opacity * 0.7}
-      dashed={false}
-    />
+    <mesh geometry={tube}>
+      <myceliumMaterial
+        ref={matRef}
+        color={color}
+        opacity={opacity}
+        transparent
+        depthWrite={false}
+        side={THREE.DoubleSide}
+        blending={THREE.AdditiveBlending}
+      />
+    </mesh>
   )
 }
 

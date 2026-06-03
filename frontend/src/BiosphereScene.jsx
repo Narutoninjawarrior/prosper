@@ -167,10 +167,10 @@ function BiospherePostProcessing({ heat }) {
     <EffectComposer multisampling={4}>
       {/* Bloom — selective on emissive materials */}
       <Bloom
-        luminanceThreshold={0.85}
+        luminanceThreshold={0.6}
         luminanceSmoothing={0.9}
         mipmapBlur
-        intensity={1.0 + warmth * 0.8}
+        intensity={1.5 + warmth * 0.5}
         radius={0.45}
       />
 
