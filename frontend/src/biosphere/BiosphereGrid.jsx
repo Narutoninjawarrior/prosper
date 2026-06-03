@@ -36,6 +36,7 @@ import {
   describeResonance,
 } from './resonance'
 import MyceliumNetwork    from './MyceliumNetwork'
+import { createFBMDisplacementTexture } from './terrainNoise'
 import {
   WaterCatchmentTower,
   WindCatcher,
@@ -351,12 +352,21 @@ export default function BiosphereGrid({
   // Solarpunk structure placement (fixed locations)
   const outerNodes = nodes.filter(n => n.ring === 'outer')
 
+  const groundDisplacement = useMemo(() => createFBMDisplacementTexture(), [])
+
   return (
     <group>
-      {/* Ground plane */}
+      {/* Ground plane — FBM displacement for living soil bowl */}
       <mesh rotation={[-Math.PI / 2, 0, -0.0001]} position={[0, -0.02, 0]} receiveShadow>
         <planeGeometry args={[30, 30, 64, 64]} />
-        <meshStandardMaterial color="#1A0E06" roughness={0.98} />
+        <meshStandardMaterial
+          color="#1A0E06"
+          roughness={0.98}
+          metalness={0}
+          displacementMap={groundDisplacement}
+          displacementScale={0.2}
+          displacementBias={-0.05}
+        />
       </mesh>
 
       {/* Flower of Life floor rings */}

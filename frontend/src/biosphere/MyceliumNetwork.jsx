@@ -26,7 +26,63 @@ import * as THREE from 'three'
 // ── Constants ─────────────────────────────────────────────────────
 const PULSE_RATE   = 0.3          // Hz — Bellows breath rate
 const GROUND_SAG   = -0.12        // how far threads dip into the earth
-const THREAD_WIDTH = 1.2          // line width in pixels
+const TUBE_RADIUS  = 0.025        // tube radius — readable on dark earth
+
+const INNER_RING_IDS = [1, 2, 3, 4, 5, 6]
+
+function edgeKey(aId, bId) {
+  return aId < bId ? `${aId}-${bId}` : `${bId}-${aId}`
+}
+
+function xzDist(a, b) {
+  return Math.sqrt((a.x - b.x) ** 2 + (a.z - b.z) ** 2)
+}
+
+/** Prim MST + Seed-of-Life hexagon overlay — sparse organic highway */
+function buildMyceliumEdges(activeNodes) {
+  if (activeNodes.length < 2) return []
+
+  const byId = new Map(activeNodes.map(n => [n.id, n]))
+  const edgeSet = new Map()
+
+  const addEdge = (idA, idB) => {
+    const a = byId.get(idA)
+    const b = byId.get(idB)
+    if (!a || !b) return
+    edgeSet.set(edgeKey(idA, idB), { a, b })
+  }
+
+  const ids = activeNodes.map(n => n.id)
+  const startId = byId.has(0) ? 0 : Math.min(...ids)
+  const visited = new Set([startId])
+
+  while (visited.size < ids.length) {
+    let bestPair = null
+    let bestDist = Infinity
+    for (const vid of visited) {
+      const va = byId.get(vid)
+      for (const n of activeNodes) {
+        if (visited.has(n.id)) continue
+        const d = xzDist(va, n)
+        if (d < bestDist) {
+          bestDist = d
+          bestPair = [vid, n.id]
+        }
+      }
+    }
+    if (!bestPair) break
+    addEdge(bestPair[0], bestPair[1])
+    visited.add(bestPair[1])
+  }
+
+  if (INNER_RING_IDS.every(id => byId.has(id))) {
+    for (let i = 0; i < INNER_RING_IDS.length; i++) {
+      addEdge(INNER_RING_IDS[i], INNER_RING_IDS[(i + 1) % INNER_RING_IDS.length])
+    }
+  }
+
+  return [...edgeSet.values()]
+}
 
 // ── Color palette ─────────────────────────────────────────────────
 const COLORS = {
@@ -116,7 +172,7 @@ function MyceliumThread({
   const matRef = useRef()
   const points = useMemo(() => threadPoints(ax, az, bx, bz), [ax, az, bx, bz])
   const curve  = useMemo(() => new THREE.CatmullRomCurve3(points), [points])
-  const tube   = useMemo(() => new THREE.TubeGeometry(curve, 30, 0.018, 6, false), [curve])
+  const tube   = useMemo(() => new THREE.TubeGeometry(curve, 30, TUBE_RADIUS, 6, false), [curve])
 
   useFrame(({ clock }) => {
     if (matRef.current) matRef.current.time = clock.elapsedTime
@@ -186,24 +242,11 @@ export default function MyceliumNetwork({
 
   // Only render threads between active nodes
   const activeNodes = nodes.filter(n => n.active && n.bloomStage >= 1)
-  const nodeMap     = new Map(nodes.map(n => [n.id, n]))
 
-  // Build connections between nearby active nodes
-  const connections = useMemo(() => {
-    const pairs = []
-    for (let i = 0; i < activeNodes.length; i++) {
-      for (let j = i + 1; j < activeNodes.length; j++) {
-        const a = activeNodes[i]
-        const b = activeNodes[j]
-        const dist = Math.sqrt((a.x - b.x) ** 2 + (a.z - b.z) ** 2)
-        // Only connect nodes within 1.5 rings of each other
-        if (dist < 10) {
-          pairs.push({ a, b })
-        }
-      }
-    }
-    return pairs
-  }, [activeNodes.map(n => n.id).join(',')])
+  const connections = useMemo(
+    () => buildMyceliumEdges(activeNodes),
+    [activeNodes.map(n => n.id).join(',')]
+  )
 
   if (activeNodes.length < 2) return null
 

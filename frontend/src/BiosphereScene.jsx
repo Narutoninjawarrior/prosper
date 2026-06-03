@@ -174,18 +174,18 @@ function BiospherePostProcessing({ heat }) {
         radius={0.45}
       />
 
-      {/* SSAO — depth and soil contact shadows */}
+      {/* SSAO — light touch; heavy multiply crushes emissive glow on dark soil */}
       <SSAO
-        blendFunction={BlendFunction.MULTIPLY}
-        samples={12}
-        rings={3}
+        blendFunction={BlendFunction.NORMAL}
+        samples={8}
+        rings={2}
         distanceThreshold={1.0}
         rangeThreshold={0.5}
         rangeFalloff={0.1}
-        luminanceInfluence={0.9}
-        radius={18}
-        scale={0.5}
-        bias={0.5}
+        luminanceInfluence={0.2}
+        radius={8}
+        scale={0.35}
+        bias={0.65}
       />
 
       {/* Vignette — warm, draws eye to center */}

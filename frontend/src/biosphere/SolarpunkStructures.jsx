@@ -181,6 +181,59 @@ export function WaterCatchmentTower({
 // Persian wind tower, hexagonal, with rotating vanes.
 // Opens to incoming wind direction, cools nearby water pools.
 
+function makeVaneLeafShape() {
+  const shape = new THREE.Shape()
+  shape.moveTo(0, 0)
+  shape.quadraticCurveTo(0.06, 0.12, 0, 0.32)
+  shape.quadraticCurveTo(-0.05, 0.14, 0, 0)
+  return shape
+}
+
+function WindVane({ index, scale, heat, vaneAngle }) {
+  const matRef = useRef()
+  const geometry = useMemo(
+    () =>
+      new THREE.ExtrudeGeometry(makeVaneLeafShape(), {
+        depth: 0.03 * scale,
+        bevelEnabled: true,
+        bevelThickness: 0.004 * scale,
+        bevelSize: 0.004 * scale,
+        bevelSegments: 2,
+      }),
+    [scale]
+  )
+
+  const working = heat > 3000
+
+  useFrame(({ clock }) => {
+    if (!matRef.current) return
+    if (working) {
+      matRef.current.emissiveIntensity =
+        0.2 + Math.sin(clock.elapsedTime * 2.5 + index) * 0.15
+    } else {
+      matRef.current.emissiveIntensity = 0
+    }
+  })
+
+  return (
+    <mesh
+      geometry={geometry}
+      position={[Math.cos(vaneAngle) * 0.2 * scale, 0, Math.sin(vaneAngle) * 0.2 * scale]}
+      rotation={[0, vaneAngle + Math.PI / 2, 0]}
+      castShadow
+    >
+      <meshStandardMaterial
+        ref={matRef}
+        color={C.terracotta2}
+        roughness={0.72}
+        metalness={0.05}
+        emissive={working ? C.ember : '#000000'}
+        emissiveIntensity={0}
+      />
+    </mesh>
+  )
+}
+
 export function WindCatcher({
   position    = [0, 0, 0],
   scale       = 1,
@@ -191,12 +244,10 @@ export function WindCatcher({
 
   useFrame(({ clock }) => {
     if (!vaneRef.current) return
-    // Slowly orient to wind angle
     const target = windAngle
     const current = vaneRef.current.rotation.y
     vaneRef.current.rotation.y += (target - current) * 0.01
 
-    // Gentle vane flutter
     vaneRef.current.children?.forEach((child, i) => {
       if (child.rotation) {
         child.rotation.z = Math.sin(clock.elapsedTime * 1.5 + i * 1.2) * 0.05
@@ -220,22 +271,12 @@ export function WindCatcher({
         <meshStandardMaterial color={C.terracotta} roughness={0.8} />
       </mesh>
 
-      {/* Wind vanes */}
+      {/* Wind vanes — extruded terracotta leaves */}
       <group ref={vaneRef} position={[0, 0.9 * scale, 0]}>
         {Array.from({ length: 4 }).map((_, i) => {
           const a = (i / 4) * Math.PI * 2
           return (
-            <mesh
-              key={i}
-              position={[Math.cos(a) * 0.2 * scale, 0, Math.sin(a) * 0.2 * scale]}
-              rotation={[0, a + Math.PI / 2, 0]}
-            >
-              <boxGeometry args={[0.04 * scale, 0.35 * scale, 0.22 * scale]} />
-              <meshStandardMaterial
-                color={C.terracotta2}
-                roughness={0.75}
-              />
-            </mesh>
+            <WindVane key={i} index={i} scale={scale} heat={heat} vaneAngle={a} />
           )
         })}
       </group>
@@ -244,7 +285,7 @@ export function WindCatcher({
       {heat > 2000 && (
         <pointLight
           position={[0, 0.5 * scale, 0]}
-          color="#A0D8EF"
+          color={heat > 3000 ? C.ember : '#A0D8EF'}
           intensity={0.3 * cooling}
           distance={4}
         />
