@@ -14,6 +14,8 @@ import LobsterLeasing from './LobsterLeasing';
 import TreasuryDonation from './TreasuryDonation';
 import ThreeForge from './ThreeForge';
 import SOLCOTShop from './SOLCOTShop';
+// @ts-ignore
+import WorldScene from './WorldScene';
 
 export function AgentNode({ data }: NodeProps) {
   const agentId = data.agent as string;
@@ -98,6 +100,14 @@ function App() {
     return (
       <div className="h-screen w-screen bg-[#020804] text-gray-200">
         <SOLCOTShop />
+      </div>
+    );
+  }
+
+  if (window.location.pathname === '/world') {
+    return (
+      <div className="h-screen w-screen bg-[#020804] text-gray-200">
+        <WorldScene heat={2980} emberBalance={2980} />
       </div>
     );
   }

@@ -22,6 +22,8 @@ import WaterSim from './WaterSim';
 // @ts-ignore
 import BuilderPanel from './BuilderPanel';
 import { startInteractionEngine } from './lib/interactionEngine';
+// @ts-ignore
+import HearthRenderer from './HearthRenderer';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface ForgeNode {
@@ -434,7 +436,9 @@ export default function ThreeForge({ agentId }: { agentId?: string }) {
           style={{ background: '#020804' }}
         >
           <Suspense fallback={null}>
-            <ForgeScene nodes={nodes} tiles={tiles} onMint={handleMint} />
+            <HearthRenderer heat={2980}>
+              <ForgeScene nodes={nodes} tiles={tiles} onMint={handleMint} />
+            </HearthRenderer>
           </Suspense>
         </Canvas>
       </div>
