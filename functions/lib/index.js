@@ -117,7 +117,24 @@ exports.mcpDiscovery = functions.https.onRequest(async (req, res) => {
             tools: {
                 "forge_execute": {
                     description: "Execute a deterministic building proposal in the Wasm sandbox.",
-                    endpoint: "/forge_execute"
+                    endpoint: "/forge_execute",
+                    schema: {
+                        type: "object",
+                        properties: {
+                            agent_id: { type: "string" },
+                            script_hash: { type: "string", description: "SHA256 hash of the deterministic build script" },
+                            action: { type: "string", enum: ["claim_tile"] },
+                            params: {
+                                type: "object",
+                                properties: {
+                                    tile_id: { type: "string", description: "e.g., '1_2'" },
+                                    building_type: { type: "string", enum: ["library", "waterwheel", "farm", "lodge", "hearth"] }
+                                },
+                                required: ["tile_id", "building_type"]
+                            }
+                        },
+                        required: ["agent_id", "script_hash", "action", "params"]
+                    }
                 }
             }
         }
