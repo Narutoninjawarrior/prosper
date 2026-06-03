@@ -398,6 +398,15 @@ export const claim_tile = functions.https.onRequest(async (req, res) => {
   }
 });
 
+export const admin_sync_balance = functions.https.onRequest(async (req, res) => {
+  if (req.method !== 'POST') { res.status(405).end(); return; }
+  const { admin_id, target_agent_id, balance } = req.body;
+  if (admin_id !== 'malaky') { res.status(403).json({ error: 'unauthorized' }); return; }
+  
+  await db.collection('agent_profiles').doc(target_agent_id).set({ ember_balance: balance }, { merge: true });
+  res.status(200).json({ status: 'synced', target_agent_id, balance });
+});
+
 export const get_world_map = functions.https.onRequest(async (req, res) => {
   if (handleCorsForge(req, res)) return;
   if (req.method !== 'GET') { res.status(405).end(); return; }

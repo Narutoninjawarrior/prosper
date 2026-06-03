@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.get_world_map = exports.claim_tile = exports.forge_execute = exports.grant_forge_credential = exports.stripeWebhook = exports.createCheckoutSession = exports.skryingOracle = exports.registerAgent = exports.mcpDiscovery = exports.claimBounty = void 0;
+exports.get_world_map = exports.admin_sync_balance = exports.claim_tile = exports.forge_execute = exports.grant_forge_credential = exports.stripeWebhook = exports.createCheckoutSession = exports.skryingOracle = exports.registerAgent = exports.mcpDiscovery = exports.claimBounty = void 0;
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const nacl = require("tweetnacl");
@@ -457,6 +457,19 @@ exports.claim_tile = functions.https.onRequest(async (req, res) => {
         else
             res.status(500).json({ error: 'Internal error' });
     }
+});
+exports.admin_sync_balance = functions.https.onRequest(async (req, res) => {
+    if (req.method !== 'POST') {
+        res.status(405).end();
+        return;
+    }
+    const { admin_id, target_agent_id, balance } = req.body;
+    if (admin_id !== 'malaky') {
+        res.status(403).json({ error: 'unauthorized' });
+        return;
+    }
+    await db.collection('agent_profiles').doc(target_agent_id).set({ ember_balance: balance }, { merge: true });
+    res.status(200).json({ status: 'synced', target_agent_id, balance });
 });
 exports.get_world_map = functions.https.onRequest(async (req, res) => {
     if (handleCorsForge(req, res))
