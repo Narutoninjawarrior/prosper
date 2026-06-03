@@ -16,6 +16,8 @@ import ThreeForge from './ThreeForge';
 import SOLCOTShop from './SOLCOTShop';
 // @ts-ignore
 import WorldScene from './WorldScene';
+// @ts-ignore
+import BiosphereScene from './BiosphereScene';
 
 export function AgentNode({ data }: NodeProps) {
   const agentId = data.agent as string;
@@ -108,6 +110,14 @@ function App() {
     return (
       <div className="h-screen w-screen bg-[#020804] text-gray-200">
         <WorldScene heat={2980} emberBalance={2980} />
+      </div>
+    );
+  }
+
+  if (window.location.pathname === '/biosphere') {
+    return (
+      <div className="h-screen w-screen bg-[#0A0402] text-gray-200">
+        <BiosphereScene heat={2980} emberBalance={2980} />
       </div>
     );
   }
