@@ -21,7 +21,7 @@
  *   All other deps already in package.json
  */
 
-import { useRef, useState, useCallback, Suspense } from 'react'
+import { useRef, useState, useCallback, Suspense, useEffect } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import {
   OrbitControls,
@@ -252,22 +252,18 @@ function WorldContent({
   })
 
   // Keyboard shortcuts
-  const handleKeyboard = useCallback((e) => {
-    if (e.key === 'b' || e.key === 'B') setBuilder(v => !v)
-    if (e.key === 't' || e.key === 'T') setActiveZone('tesseract')
-    if (e.key === 'Escape') setActiveZone(null)
+  useEffect(() => {
+    const handleKey = (e) => {
+      if (e.key === 'b' || e.key === 'B') setBuilder(v => !v)
+      if (e.key === 't' || e.key === 'T') setActiveZone('tesseract')
+      if (e.key === 'Escape') setActiveZone(null)
+    }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
   }, [setActiveZone])
 
   return (
     <>
-      {/* Keyboard listener */}
-      <Html>
-        <div
-          style={{ position: 'fixed', inset: 0, pointerEvents: 'none' }}
-          tabIndex={0}
-          onKeyDown={handleKeyboard}
-        />
-      </Html>
 
       <HearthRenderer heat={heat}>
         {/* Click-to-move ground */}
@@ -372,7 +368,7 @@ export default function WorldScene({
   return (
     <div style={{ width: '100%', height: '100vh', background: '#0A0604' }}>
       <Canvas
-        camera={{ position: [0, 8, 12], fov: 55, near: 0.1, far: 200 }}
+        camera={{ position: [0, 10, 18], fov: 55, near: 0.1, far: 200 }}
         shadows
         gl={{
           antialias: true,

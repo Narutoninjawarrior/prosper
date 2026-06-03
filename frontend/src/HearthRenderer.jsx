@@ -80,13 +80,11 @@ function HearthSky() {
   return (
     <Sky
       distance={450000}
-      sunPosition={[8, 1.5, -10]}   // low sun = golden hour
-      inclination={0.55}
-      azimuth={0.25}
-      turbidity={8}
-      rayleigh={2}
-      mieCoefficient={0.005}
-      mieDirectionalG={0.85}
+      sunPosition={[2, 0.4, -8]}  // lower sun = warmer
+      turbidity={12}               // more atmosphere = more warmth
+      rayleigh={0.5}               // less blue scatter
+      mieCoefficient={0.01}        // more haze = orange glow
+      mieDirectionalG={0.95}
     />
   )
 }
