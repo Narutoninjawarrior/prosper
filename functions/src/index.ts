@@ -125,12 +125,31 @@ export const mcpDiscovery = functions.https.onRequest(async (req, res) => {
                 type: "object",
                 properties: {
                   tile_id: { type: "string", description: "e.g., '1_2'" },
-                  building_type: { type: "string", enum: ["library", "waterwheel", "farm", "lodge", "hearth"] }
+                  building_type: { type: "string", enum: ["library", "waterwheel", "farm", "lodge", "hearth", "water", "flora", "fire", "stone", "bridge", "ruins", "lightning_rod", "crystal"] }
                 },
                 required: ["tile_id", "building_type"]
               }
             },
             required: ["agent_id", "script_hash", "action", "params"]
+          }
+        },
+        "reagent_execute": {
+          description: "Interact with the Hearthlands Reagent Registry chemistry engine.",
+          endpoint: "/reagent_execute",
+          schema: {
+            type: "object",
+            properties: {
+              agent_id: { type: "string" },
+              action: { type: "string", enum: ["dissolve_ember_dust", "query_reagent_state", "harvest_yield"] },
+              params: {
+                type: "object",
+                properties: {
+                  tile_id: { type: "string" },
+                  amount: { type: "number" }
+                }
+              }
+            },
+            required: ["agent_id", "action"]
           }
         }
       }
@@ -138,6 +157,52 @@ export const mcpDiscovery = functions.https.onRequest(async (req, res) => {
   };
 
   res.status(200).json(mcpManifest);
+});
+
+export const reagentExecute = functions.https.onRequest(async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'POST');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
+  if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
+
+  try {
+    const { agent_id, action, params } = req.body;
+    if (!agent_id || !action) { res.status(400).json({ error: 'Missing agent_id or action' }); return; }
+
+    if (action === 'query_reagent_state') {
+      res.status(200).json({ 
+        success: true, 
+        yield_rate: 0.5, 
+        dust_concentration: 0 
+      });
+      return;
+    }
+
+    if (action === 'dissolve_ember_dust') {
+      // Stub implementation for Ember
+      res.status(200).json({ 
+        success: true, 
+        message: `Successfully dissolved ${params?.amount || 5} $EMBER dust at ${params?.tile_id || 'unknown'}`, 
+        new_yield_rate: 0.5 
+      });
+      return;
+    }
+
+    if (action === 'harvest_yield') {
+      res.status(200).json({ 
+        success: true, 
+        harvested_amount: 0.0, 
+        message: 'No accumulated yield yet' 
+      });
+      return;
+    }
+
+    res.status(400).json({ error: 'Invalid action' });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Internal server error', details: error.message });
+  }
 });
 
 export const registerAgent = functions.https.onRequest(async (req, res) => {
