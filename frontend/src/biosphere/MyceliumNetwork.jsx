@@ -39,7 +39,7 @@ const COLORS = {
   full:       '#FFFFFF',   // white on full Flower
 }
 
-const RESONANCE_COLOR_MAP: Record<string, string> = {
+const RESONANCE_COLOR_MAP = {
   none:          COLORS.dormant,
   seed_of_life:  COLORS.seed,
   inner_hexagon: COLORS.ember,
@@ -53,10 +53,10 @@ const RESONANCE_COLOR_MAP: Record<string, string> = {
 // Creates an organic sagging curve between two ground points
 
 function threadPoints(
-  ax: number, az: number,
-  bx: number, bz: number,
+  ax, az,
+  bx, bz,
   segments = 12
-): THREE.Vector3[] {
+) {
   const mid = new THREE.Vector3((ax + bx) / 2, GROUND_SAG, (az + bz) / 2)
 
   // Add slight random lateral offset for organic feel
@@ -146,13 +146,6 @@ function NodeGlow({ x, z, color, intensity = 0.5 }) {
 
 // ── Main MyceliumNetwork ──────────────────────────────────────────
 
-interface NodePos {
-  id:  number
-  x:   number
-  z:   number
-  active: boolean
-  bloomStage: number
-}
 
 export default function MyceliumNetwork({
   nodes,
@@ -167,7 +160,7 @@ export default function MyceliumNetwork({
 
   // Build connections between nearby active nodes
   const connections = useMemo(() => {
-    const pairs: { a: NodePos; b: NodePos }[] = []
+    const pairs = []
     for (let i = 0; i < activeNodes.length; i++) {
       for (let j = i + 1; j < activeNodes.length; j++) {
         const a = activeNodes[i]

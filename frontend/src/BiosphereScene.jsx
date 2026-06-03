@@ -29,7 +29,6 @@ import {
   Sky,
   Stars,
   Html,
-  Fog,
 } from '@react-three/drei'
 import { EffectComposer, Bloom, Vignette, SSAO } from '@react-three/postprocessing'
 import { BlendFunction } from 'postprocessing'
