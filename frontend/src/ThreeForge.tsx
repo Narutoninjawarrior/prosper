@@ -17,6 +17,11 @@ import { doc, onSnapshot, collection } from 'firebase/firestore';
 import ArtFrame from './ArtFrame';
 // @ts-ignore
 import FlowerBed from './FlowerBed';
+// @ts-ignore
+import WaterSim from './WaterSim';
+// @ts-ignore
+import BuilderPanel from './BuilderPanel';
+import { startInteractionEngine } from './lib/interactionEngine';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface ForgeNode {
@@ -25,7 +30,7 @@ interface ForgeNode {
   y:           number;
   z:           number;
   color:       string;
-  object_type: 'node' | 'waterwheel' | 'hearth' | 'library' | 'lodge' | 'flora';
+  object_type: 'node' | 'waterwheel' | 'hearth' | 'library' | 'lodge' | 'flora' | 'water' | 'fire' | 'stone' | 'bridge' | 'ruins' | 'lightning_rod' | 'crystal';
   placed_by:   string;
   ts:          number;
   label?:      string;
@@ -41,6 +46,8 @@ interface ForgeNode {
   // flora-specific fields:
   bloom_stage?: number;
   branch_data?: any[];
+  // water/reagent fields:
+  substance_id?: number;
 }
 
 interface WorldMapTile {
@@ -252,6 +259,21 @@ function ForgeScene({ nodes, tiles, onMint }: { nodes: ForgeNode[], tiles: World
           />
         ))
       }
+      {nodes
+        .filter(n => n.object_type === 'water')
+        .map(node => (
+          <WaterSim
+            key={node.id}
+            position={[node.x, node.y, node.z]}
+            chainHash={node.chain_hash ?? '0'.repeat(64)}
+            heatLevel={node.heat_level ?? 1000}
+            substanceId={node.substance_id ?? 0}
+            wasmInstance={null} /* TODO: passed via ref if needed, but not strictly required if WaterSim loads it or handles it */
+            title={node.title}
+            placedBy={node.placed_by}
+          />
+        ))
+      }
       {tiles.map(tile => (
         <ForgeTile key={tile.tile_id} tile={tile} />
       ))}
@@ -273,6 +295,16 @@ export default function ThreeForge({ agentId }: { agentId?: string }) {
   const [tiles, setTiles]     = useState<WorldMapTile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState<string | null>(null);
+  
+  const [builderOpen, setBuilderOpen] = useState(false);
+  const [playerEmberBalance, setPlayerEmberBalance] = useState(2980);
+  const waterWasmRef = useRef<any>(null);
+
+  const handlePlace = (config: any) => {
+    // TODO: Wire to Forge API
+    console.log("Placing node:", config);
+    setBuilderOpen(false);
+  };
 
   const handleMint = async (nodeId: string) => {
     const db = getFirestoreDb();
@@ -292,6 +324,8 @@ export default function ThreeForge({ agentId }: { agentId?: string }) {
   };
 
   useEffect(() => {
+    startInteractionEngine(5000); // Start the interaction engine loops
+    
     const db = getFirestoreDb();
     if (!db) {
       setError('Firebase not configured');
@@ -403,6 +437,21 @@ export default function ThreeForge({ agentId }: { agentId?: string }) {
             <ForgeScene nodes={nodes} tiles={tiles} onMint={handleMint} />
           </Suspense>
         </Canvas>
+      </div>
+
+      {/* Builder Panel */}
+      <BuilderPanel
+        emberBalance={playerEmberBalance}
+        visible={builderOpen}
+        onPlace={handlePlace}
+      />
+      <div style={{ position: 'absolute', bottom: 20, right: 20, zIndex: 100 }}>
+        <button 
+          onClick={() => setBuilderOpen(!builderOpen)}
+          style={{ background: '#d97706', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 4, cursor: 'pointer', fontFamily: 'monospace' }}
+        >
+          {builderOpen ? 'CLOSE BUILDER' : 'OPEN BUILDER'}
+        </button>
       </div>
 
       {/* Node list */}
