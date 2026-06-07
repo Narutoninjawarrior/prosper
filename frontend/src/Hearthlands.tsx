@@ -17,7 +17,7 @@ import { useLMStudioStore } from './store';
 // VITE_TRAINER_SECRET must be set in frontend/.env (never committed)
 // It is also set in cognitive_sync.py as TRAINER_SECRET env var.
 // Both sides must match. Rotate monthly.
-const TRAINER_SECRET = 'dev-secret-change-me'; // Secret removed from bundle; true auth deferred
+const TRAINER_BRIDGE_ENABLED = false;
 const SYNC_ENDPOINT  = 'http://127.0.0.1:8765/emit';
 
 type SemanticEventType = 'trainer.node_place' | 'trainer.agent_move' | 'trainer.harvest';
@@ -35,18 +35,8 @@ interface SemanticEvent {
  * Sign a canonical payload string with HMAC-SHA256 using SubtleCrypto.
  * Returns the hex signature.
  */
-async function hmacSign(payload: string): Promise<string> {
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(TRAINER_SECRET),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  );
-  const sigBuf = await crypto.subtle.sign('HMAC', keyMaterial, new TextEncoder().encode(payload));
-  return Array.from(new Uint8Array(sigBuf))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('');
+async function hmacSign(_payload: string): Promise<string> {
+  throw new Error('Trainer bridge signing is disabled in public builds.');
 }
 
 /**
@@ -54,10 +44,18 @@ async function hmacSign(payload: string): Promise<string> {
  * Fire-and-forget: the game never stalls if the backend is offline.
  */
 async function emitSemanticEvent(event: SemanticEvent): Promise<void> {
+  if (!TRAINER_BRIDGE_ENABLED) {
+    if (import.meta.env.DEV) {
+      console.warn('[CogSync] Trainer bridge disabled in public bundle â€” event dropped');
+    }
+    return;
+  }
+
   const canonical = `${event.event_type}:${event.grid_x}:${event.grid_y}:${event.agent_id}:${event.timestamp}`;
   let sig: string;
   try {
     sig = await hmacSign(canonical);
+    void sig;
   } catch {
     console.warn('[CogSync] HMAC signing failed — event dropped');
     return;
@@ -68,7 +66,6 @@ async function emitSemanticEvent(event: SemanticEvent): Promise<void> {
       method:  'POST',
       headers: {
         'Content-Type':   'application/json',
-        'X-Trainer-Sig':  sig,
       },
       body: JSON.stringify(event),
       signal: AbortSignal.timeout(800), // never block the game thread
@@ -311,3 +308,5 @@ const HearthlandsGame = () => {
 };
 
 export default HearthlandsGame;
+
+

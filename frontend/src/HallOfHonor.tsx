@@ -23,7 +23,7 @@ import {
   type QuestContract,
   type RoomContract,
 } from './lib/sanctuaryBridge';
-import { getFirebaseProjectId, isFirebaseConfigured } from './firebaseConfig';
+import { ensureFirebaseConfigured, getFirebaseProjectId, isFirebaseConfigured } from './firebaseConfig';
 import { LODGE_DOC_LINKS } from './lodgeDocs';
 import {
   fetchApprovedClaims,
@@ -176,9 +176,7 @@ export default function HallOfHonor() {
   const [liveRooms, setLiveRooms] = useState<LodgeLiveRoomDoc[]>([]);
   const [liveQuests, setLiveQuests] = useState<LodgeLiveQuestDoc[]>([]);
   const [liveMetaDocs, setLiveMetaDocs] = useState<LodgeMetaDoc[]>([]);
-  const [liveRegistryPhase, setLiveRegistryPhase] = useState<LiveRegistryPhase>(
-    isFirebaseConfigured() ? 'loading' : 'off',
-  );
+  const [liveRegistryPhase, setLiveRegistryPhase] = useState<LiveRegistryPhase>('loading');
   const [liveRegistryCounts, setLiveRegistryCounts] = useState<string | null>(null);
   const [approvedClaims, setApprovedClaims] = useState<LodgeClaimRow[]>([]);
   const [lastLiveRefreshAt, setLastLiveRefreshAt] = useState<number | null>(null);
@@ -188,7 +186,8 @@ export default function HallOfHonor() {
     let cancelled = false;
 
     const refresh = async () => {
-      if (!isFirebaseConfigured()) {
+      const firebaseReady = isFirebaseConfigured() || (await ensureFirebaseConfigured());
+      if (!firebaseReady) {
         if (!cancelled) {
           setLiveMembers([]);
           setLiveRooms([]);
