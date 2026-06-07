@@ -3,16 +3,23 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "emergent-lock": "node scripts/emergent-lock.mjs",
     "export:firestore-seed": "node scripts/export-firestore-seed.mjs",
+    "hermes:start": "node scripts/hermes-supervisor.mjs start",
+    "hermes:status": "node scripts/hermes-supervisor.mjs status",
+    "hermes:stop": "node scripts/hermes-supervisor.mjs stop",
     "verify:port-pack": "node scripts/verify-port-pack.mjs",
     "verify:lodge-interface": "node scripts/verify-lodge-interface.mjs",
     "verify:firebase-branch": "node scripts/verify-firebase-branch.mjs",
     "verify:proposal-intent": "node scripts/verify-proposal-intent.mjs",
+    "reality-lock": "node scripts/reality-lock.mjs",
+    "reality-lock:dist": "node scripts/reality-lock.mjs --dist",
     "sync:firestore": "node scripts/sync-firestore-from-seed.mjs",
     "sync:firestore:dry-run": "node scripts/sync-firestore-from-seed.mjs --dry-run",
     "steward:claim": "node scripts/steward-claim.mjs"
   },
   "dependencies": {
+    "eventsource": "^4.1.0",
     "firebase-admin": "^13.6.0"
   }
 }
