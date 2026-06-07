@@ -8,6 +8,7 @@ import {
   Link2,
   ListOrdered,
   PencilLine,
+  RefreshCw,
   Sparkles,
   Terminal,
   UserPlus,
@@ -22,14 +23,16 @@ import {
   type QuestContract,
   type RoomContract,
 } from './lib/sanctuaryBridge';
-import { isFirebaseConfigured } from './firebaseConfig';
+import { getFirebaseProjectId, isFirebaseConfigured } from './firebaseConfig';
 import { LODGE_DOC_LINKS } from './lodgeDocs';
 import {
   fetchApprovedClaims,
+  fetchLiveMetaPreview,
   fetchLiveMembersPreview,
   fetchLiveQuestsPreview,
   fetchLiveRoomsPreview,
   type LodgeClaimRow,
+  type LodgeMetaDoc,
   type LodgeLiveMemberDoc,
   type LodgeLiveQuestDoc,
   type LodgeLiveRoomDoc,
@@ -154,6 +157,16 @@ function sortMembers(members: MemberContract[]) {
 
 type LiveRegistryPhase = 'off' | 'loading' | 'ready' | 'error';
 
+function formatRelativeRefresh(timestamp: number | null): string {
+  if (!timestamp) return 'Not refreshed yet';
+  const deltaMs = Date.now() - timestamp;
+  if (deltaMs < 60_000) return 'Refreshed just now';
+  const minutes = Math.floor(deltaMs / 60_000);
+  if (minutes < 60) return `Refreshed ${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  return `Refreshed ${hours}h ago`;
+}
+
 export default function HallOfHonor() {
   const membersContract = useContract('/vessel_members.json', sanctuaryBridge.normalizeMembers, defaultMembers);
   const roomsContract = useContract('/room_registry.json', sanctuaryBridge.normalizeRooms, defaultRooms);
@@ -162,11 +175,14 @@ export default function HallOfHonor() {
   const [liveMembers, setLiveMembers] = useState<LodgeLiveMemberDoc[]>([]);
   const [liveRooms, setLiveRooms] = useState<LodgeLiveRoomDoc[]>([]);
   const [liveQuests, setLiveQuests] = useState<LodgeLiveQuestDoc[]>([]);
+  const [liveMetaDocs, setLiveMetaDocs] = useState<LodgeMetaDoc[]>([]);
   const [liveRegistryPhase, setLiveRegistryPhase] = useState<LiveRegistryPhase>(
     isFirebaseConfigured() ? 'loading' : 'off',
   );
   const [liveRegistryCounts, setLiveRegistryCounts] = useState<string | null>(null);
   const [approvedClaims, setApprovedClaims] = useState<LodgeClaimRow[]>([]);
+  const [lastLiveRefreshAt, setLastLiveRefreshAt] = useState<number | null>(null);
+  const [liveRefreshNonce, setLiveRefreshNonce] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -177,9 +193,11 @@ export default function HallOfHonor() {
           setLiveMembers([]);
           setLiveRooms([]);
           setLiveQuests([]);
+          setLiveMetaDocs([]);
           setApprovedClaims([]);
           setLiveRegistryPhase('off');
           setLiveRegistryCounts(null);
+          setLastLiveRefreshAt(null);
         }
         return;
       }
@@ -189,10 +207,11 @@ export default function HallOfHonor() {
         setLiveRegistryCounts(null);
       }
 
-      const [m, r, q, claims] = await Promise.all([
+      const [m, r, q, meta, claims] = await Promise.all([
         fetchLiveMembersPreview(),
         fetchLiveRoomsPreview(),
         fetchLiveQuestsPreview(),
+        fetchLiveMetaPreview(),
         fetchApprovedClaims(),
       ]);
 
@@ -204,10 +223,13 @@ export default function HallOfHonor() {
       else setLiveRooms([]);
       if (q.ok) setLiveQuests(q.rows);
       else setLiveQuests([]);
+      if (meta.ok) setLiveMetaDocs(meta.rows);
+      else setLiveMetaDocs([]);
       if (claims.ok) setApprovedClaims(claims.rows);
       else setApprovedClaims([]);
+      setLastLiveRefreshAt(Date.now());
 
-      const registryFailed = [m, r, q].some((x) => x.ok === false && x.reason === 'failed');
+      const registryFailed = [m, r, q, meta].some((x) => x.ok === false && x.reason === 'failed');
       if (registryFailed) {
         setLiveRegistryPhase('error');
         setLiveRegistryCounts(null);
@@ -231,7 +253,7 @@ export default function HallOfHonor() {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, []);
+  }, [liveRefreshNonce]);
 
   const liveRegistryPhaseLabel =
     liveRegistryPhase === 'off'
@@ -243,6 +265,18 @@ export default function HallOfHonor() {
           : liveRegistryCounts
             ? 'supplemental live'
             : 'connected · empty';
+
+  const liveProjectId = getFirebaseProjectId();
+  const liveMetaSummary = useMemo(
+    () =>
+      liveMetaDocs
+        .map((row) => ({
+          ...row,
+          syncLabel: row.seed_sync_bundle_generated_at ?? row.updated_at ?? null,
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label)),
+    [liveMetaDocs],
+  );
 
   const [draftProof, setDraftProof] = useState<DraftProof>({
     title: 'Draft the public member ledger',
@@ -516,6 +550,23 @@ export default function HallOfHonor() {
           rows after stewards sync from the terminal; it does not override seed verification.
         </p>
 
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#e1eee3] bg-[#fbfefa] px-4 py-3">
+          <div className="text-xs leading-5 text-[#62766d]">
+            <div>
+              project <code className="text-[10px] text-[#3d5349]">{liveProjectId}</code>
+            </div>
+            <div>{formatRelativeRefresh(lastLiveRefreshAt)}</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setLiveRefreshNonce((value) => value + 1)}
+            className="inline-flex items-center gap-2 rounded-full border border-[#cfe7d4] bg-white px-3 py-2 text-[10px] font-bold uppercase tracking-[0.22em] text-[#1c6c4d] hover:bg-[#f5fcf6]"
+          >
+            <RefreshCw size={14} aria-hidden />
+            Refresh live branch
+          </button>
+        </div>
+
         {liveRegistryPhase === 'off' ? (
           <p className="mt-4 rounded-2xl border border-[#e1eee3] bg-[#fbfefa] px-4 py-3 text-sm leading-6 text-[#62766d]">
             Browser Firebase env is not set. Copy <code className="text-[10px]">frontend/.env.example</code> to{' '}
@@ -566,6 +617,43 @@ export default function HallOfHonor() {
         {liveRegistryPhase === 'ready' && liveRegistryCounts ? (
           <>
             <p className="mt-3 text-[12px] text-[#8a9b94]">{liveRegistryCounts}</p>
+            <div className="mt-4 rounded-2xl border border-[#d7eadc] bg-[#f8fcf8] px-4 py-4">
+              <div className="text-[10px] uppercase tracking-[0.35em] text-[#7b9581]">firebase sync pulse</div>
+              <p className="mt-2 text-sm leading-6 text-[#54655d]">
+                Live Firestore stays supplemental. These meta rows show which stamped artifacts last crossed the steward bridge.
+              </p>
+              {liveMetaSummary.length > 0 ? (
+                <ul className="mt-3 space-y-3 text-sm text-[#18382d]">
+                  {liveMetaSummary.map((row) => (
+                    <li key={row.id} className="rounded-xl border border-[#e1eee4] bg-white px-3 py-3">
+                      <div className="font-semibold">{row.label}</div>
+                      <div className="mt-1 text-xs text-[#62766d]">
+                        doc <code className="text-[10px]">{row.id}</code>
+                        {row.syncLabel ? (
+                          <>
+                            <span className="text-[#8a9b94]"> / </span>
+                            synced {row.syncLabel}
+                          </>
+                        ) : null}
+                      </div>
+                      {row.seed_source ? (
+                        <div className="mt-1 text-xs text-[#62766d]">
+                          source <code className="text-[10px]">{row.seed_source}</code>
+                        </div>
+                      ) : null}
+                      {row.manifest_hash ? (
+                        <div className="mt-1 break-all font-mono text-[10px] text-[#54655d]">{row.manifest_hash}</div>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-3 text-sm leading-6 text-[#62766d]">
+                  No synced <code className="text-[10px]">lodge_meta</code> rows yet. Run export -&gt; dry-run -&gt; live sync
+                  from the steward path to surface branch metadata here.
+                </p>
+              )}
+            </div>
             <div className="mt-6 grid gap-6 lg:grid-cols-3">
             {liveMembers.length > 0 ? (
               <div>

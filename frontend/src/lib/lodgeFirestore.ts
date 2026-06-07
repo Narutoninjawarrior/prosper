@@ -33,6 +33,15 @@ export type LodgeLiveQuestDoc = {
   room?: string;
 };
 
+export type LodgeMetaDoc = {
+  id: string;
+  label: string;
+  manifest_hash?: string;
+  updated_at?: string;
+  seed_source?: string;
+  seed_sync_bundle_generated_at?: string;
+};
+
 export type LiveFetchOk<T> = { ok: true; rows: T[] };
 export type LiveFetchErr = { ok: false; reason: 'no_db' | 'failed' };
 export type LiveFetchResult<T> = LiveFetchOk<T> | LiveFetchErr;
@@ -43,6 +52,10 @@ export type LodgeClaimRow = {
   profile_url?: string;
   note?: string;
 };
+
+function readOptionalString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim().length > 0 ? value : undefined;
+}
 
 export async function fetchLiveMembersPreview(max = 40): Promise<LiveFetchResult<LodgeLiveMemberDoc>> {
   const db = getFirestoreDb();
@@ -171,6 +184,34 @@ export async function fetchLiveQuestsPreview(max = 40): Promise<LiveFetchResult<
     return { ok: true, rows };
   } catch (error) {
     console.error('[lodgeFirestore] fetchLiveQuestsPreview failed', error);
+    return { ok: false, reason: 'failed' };
+  }
+}
+
+export async function fetchLiveMetaPreview(max = 8): Promise<LiveFetchResult<LodgeMetaDoc>> {
+  const db = getFirestoreDb();
+  if (!db) return { ok: false, reason: 'no_db' };
+
+  try {
+    const q = query(collection(db, FIRESTORE_COLLECTIONS.meta), limit(max));
+    const snap = await getDocs(q);
+    const rows: LodgeMetaDoc[] = [];
+
+    snap.forEach((docSnap) => {
+      const d = docSnap.data();
+      rows.push({
+        id: docSnap.id,
+        label: readOptionalString(d.title) ?? readOptionalString(d.name) ?? docSnap.id,
+        manifest_hash: readOptionalString(d.manifest_hash),
+        updated_at: readOptionalString(d.updated_at),
+        seed_source: readOptionalString(d.seed_source),
+        seed_sync_bundle_generated_at: readOptionalString(d.seed_sync_bundle_generated_at),
+      });
+    });
+
+    return { ok: true, rows };
+  } catch (error) {
+    console.error('[lodgeFirestore] fetchLiveMetaPreview failed', error);
     return { ok: false, reason: 'failed' };
   }
 }

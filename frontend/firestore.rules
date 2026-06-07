@@ -23,6 +23,11 @@ service cloud.firestore {
       allow read: if true; // Public read so agents can verify scores
       allow write: if false; // Functions only
     }
+
+    // Phase A+B: human Privy ID ↔ Solana pubkey (server-written only)
+    match /wallet_identities/{doc} {
+      allow read, write: if false;
+    }
     
     match /bounty_claims/{doc} {
       allow read: if true;
@@ -33,7 +38,69 @@ service cloud.firestore {
       allow read: if true;
       allow write: if false; // Admin only
     }
+
+    match /lodge_members/{doc} {
+      allow read: if true;
+      allow write: if false; // Steward sync only
+    }
+
+    match /lodge_rooms/{doc} {
+      allow read: if true;
+      allow write: if false; // Steward sync only
+    }
+
+    match /lodge_meta/{doc} {
+      allow read: if true;
+      allow write: if false; // Steward sync only
+    }
+
+    match /lodge_claims/{doc} {
+      allow read: if resource.data.status == 'approved';
+      allow write: if false; // Steward-only review path
+    }
     
+    // World state — Bellows + Forge (read-only from clients)
+    match /three_forge/{document=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Emergent Embodiment Ledger mirror (server-written only)
+    match /embodiment_ledger/{doc} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /welcome_grants/{doc} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /treasury_intents/{doc} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /moltbook_recruitment_log/{doc} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Lodge presence — users can write only their own presence
+    match /lodge_presence/{userId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    match /lodge_activity/{doc} {
+      allow read, write: if false; // Reserved branch
+    }
+
+    // User data — users can only read/write their own
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
     // Default fallback
     match /{document=**} {
       allow read, write: if false;
