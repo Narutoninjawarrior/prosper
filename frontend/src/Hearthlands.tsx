@@ -17,7 +17,7 @@ import { useLMStudioStore } from './store';
 // VITE_TRAINER_SECRET must be set in frontend/.env (never committed)
 // It is also set in cognitive_sync.py as TRAINER_SECRET env var.
 // Both sides must match. Rotate monthly.
-const TRAINER_SECRET = import.meta.env.VITE_TRAINER_SECRET ?? 'dev-secret-change-me';
+const TRAINER_SECRET = 'dev-secret-change-me'; // Secret removed from bundle; true auth deferred
 const SYNC_ENDPOINT  = 'http://127.0.0.1:8765/emit';
 
 type SemanticEventType = 'trainer.node_place' | 'trainer.agent_move' | 'trainer.harvest';

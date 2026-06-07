@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hearthlands Mission Control</title>
+  <style>
+    :root {
+      --bg: #0A0402;
+      --panel: rgba(20, 10, 5, 0.92);
+      --border: #C27C5A;
+      --ember: #E8842A;
+      --gold: #D4A853;
+      --sage: #7A9E7E;
+      --text: #C8B89A;
+      --muted: #888;
+    }
+    body {
+      background: radial-gradient(ellipse 70% 40% at 50% 0%, #e8842a15, transparent), var(--bg);
+      color: var(--text);
+      font-family: Consolas, monospace;
+      padding: 32px 24px 48px;
+      margin: 0;
+    }
+    h1 { color: var(--ember); margin: 0 0 24px; border-bottom: 1px solid var(--border); padding-bottom: 12px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 16px; }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px;
+      box-shadow: 0 0 20px rgba(232, 132, 42, 0.08);
+    }
+    .card h2 {
+      color: var(--gold);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin: 0 0 12px;
+    }
+    .value { font-size: 22px; font-weight: 700; color: var(--sage); }
+    .status-good { color: #10b981; }
+    .status-warn { color: #f59e0b; }
+    .status-err { color: #e05a4f; }
+    .agent { margin-top: 8px; padding: 8px 10px; background: rgba(0,0,0,0.45); border-left: 3px solid #3b82f6; font-size: 12px; }
+    .ledger-wrap { margin-top: 8px; }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    th { text-align: left; color: var(--muted); padding: 6px 4px; border-bottom: 1px solid #3D2B1A; font-weight: 600; }
+    td { padding: 8px 4px; border-bottom: 1px solid #2a1e14; vertical-align: middle; }
+    .chip {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 10px;
+      border: 1px solid;
+    }
+    .chip.mirrored { color: #10b981; border-color: #10b98155; background: #10b98115; }
+    .chip.pending { color: #f59e0b; border-color: #f59e0b55; background: #f59e0b15; }
+    .meta { font-size: 11px; color: var(--muted); margin-top: 8px; }
+    footer { margin-top: 24px; font-size: 10px; color: #555; }
+    footer a { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <h1>⬡ Mission Control</h1>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Live Economy (Bellows)</h2>
+      <div>Total $EMBER: <span class="value" id="ember-val">—</span></div>
+      <div style="margin-top:8px">World Heat: <span class="value" style="color:#f59e0b" id="heat-val">—</span></div>
+      <div class="meta" id="tick-val">Tick: —</div>
+    </div>
+
+    <div class="card">
+      <h2>Embodiment Ledger Mirror</h2>
+      <div id="firebase-status">Firebase mirror: <span class="status-warn">checking…</span></div>
+      <div class="meta" id="ledger-summary">Entries: — · synced: — · pending: —</div>
+      <div class="meta" id="ledger-tip">Chain tip: —</div>
+    </div>
+
+    <div class="card">
+      <h2>Systems Readiness</h2>
+      <div style="font-size:12px;line-height:1.8">
+        <div>Firebase site: <span class="status-good">LIVE</span></div>
+        <div>Emergent Forge: <span class="status-good">hearth-lodge</span></div>
+        <div id="mirror-poll-status">Ledger poll: <span class="status-warn">starting…</span></div>
+        <div>Recruitment: <span class="status-good">/welcome?ref=moltbook</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Embodiment Ledger — Latest 10 (read-only)</h2>
+    <div class="ledger-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Agent</th>
+            <th>Action</th>
+            <th>$EMBER</th>
+            <th>Mirror</th>
+            <th>Time</th>
+          </tr>
+        </thead>
+        <tbody id="ledger-body">
+          <tr><td colspan="5" style="color:#666">Polling Emergent mirror…</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="meta" id="ledger-updated">Last poll: —</div>
+  </div>
+
+  <footer>
+    <a href="/world">World</a> · <a href="/biosphere">Biosphere</a> ·
+    <a href="/welcome?ref=moltbook&agent=traveler">Welcome</a> ·
+    <a href="/hall">Hall of Honor</a> ·
+    <a href="/treasury">Treasury</a> ·
+    <a href="/solcot">SOLCOT</a> ·
+    <a href="https://hearth-lodge.preview.emergentagent.com">Emergent Forge</a>
+  </footer>
+
+  <script>
+    const LEDGER_URLS = [
+      '/api/embodiment/ledger/latest',
+      'https://hearth-lodge.preview.emergentagent.com/api/embodiment/ledger/latest',
+    ];
+    const LEDGER_URL = LEDGER_URLS[0];
+
+    async function fetchBellows() {
+      try {
+        const res = await fetch('/bellows_state.json?t=' + Date.now());
+        const data = await res.json();
+        document.getElementById('ember-val').textContent = Math.floor(data.ember_balance || 0);
+        document.getElementById('heat-val').textContent = Math.floor(data.heat || 0);
+        document.getElementById('tick-val').textContent =
+          'Tick: ' + (data.tick || 0) + (data.last_intent ? ' · ' + data.last_intent : '');
+      } catch (e) {
+        console.warn('bellows poll failed', e);
+      }
+    }
+
+    function fmtTime(iso) {
+      if (!iso) return '—';
+      try { return new Date(iso).toLocaleString(); } catch { return iso; }
+    }
+
+    async function fetchLedger() {
+      const pollEl = document.getElementById('mirror-poll-status');
+      const body = document.getElementById('ledger-body');
+      for (const base of LEDGER_URLS) {
+        try {
+          const res = await fetch(base + '?t=' + Date.now());
+          if (!res.ok) continue;
+          const data = await res.json();
+        const entries = (data.entries || []).slice(0, 10);
+        const summary = data.summary || {};
+
+        const configured = summary.firebase_configured === true;
+        document.getElementById('firebase-status').innerHTML =
+          'Firebase mirror: <span class="' + (configured ? 'status-good' : 'status-warn') + '">' +
+          (configured ? 'CONFIGURED' : 'NOT CONFIGURED — set Emergent env vars') + '</span>';
+
+        document.getElementById('ledger-summary').textContent =
+          'Entries: ' + (summary.total_entries ?? entries.length) +
+          ' · synced: ' + (summary.firebase_synced ?? 0) +
+          ' · pending: ' + (summary.firebase_pending ?? 0);
+
+        document.getElementById('ledger-tip').textContent =
+          'Chain tip: ' + (summary.chain_tip || '—').slice(0, 16) + '…';
+
+        pollEl.innerHTML = 'Ledger poll: <span class="status-good">live · 10s</span>';
+
+        if (!entries.length) {
+          body.innerHTML = '<tr><td colspan="5" style="color:#666">No ledger entries yet</td></tr>';
+        } else {
+          body.innerHTML = entries.map(function (e) {
+            const synced = e.firebase_synced === true;
+            const chip = synced
+              ? '<span class="chip mirrored">mirrored</span>'
+              : '<span class="chip pending">pending</span>';
+            return '<tr>' +
+              '<td>' + (e.agent_id || '—') + '</td>' +
+              '<td>' + (e.action || '—') + '</td>' +
+              '<td>' + (e.ember_awarded ?? 0) + '</td>' +
+              '<td>' + chip + '</td>' +
+              '<td style="color:#777">' + fmtTime(e.timestamp) + '</td>' +
+              '</tr>';
+          }).join('');
+        }
+
+        document.getElementById('ledger-updated').textContent =
+          'Last poll: ' + new Date().toLocaleTimeString() + ' · ' + base;
+        return;
+        } catch (e) {
+          console.warn('ledger poll failed', base, e);
+        }
+      }
+      pollEl.innerHTML = 'Ledger poll: <span class="status-err">offline</span>';
+      body.innerHTML = '<tr><td colspan="5" style="color:#e05a4f">Could not reach ledger mirror</td></tr>';
+    }
+
+    fetchBellows();
+    fetchLedger();
+    setInterval(fetchBellows, 5000);
+    setInterval(fetchLedger, 10000);
+  </script>
+</body>
+</html>
