@@ -14,10 +14,10 @@ import LobsterLeasing from './LobsterLeasing';
 import TreasuryDonation from './TreasuryDonation';
 import ThreeForge from './ThreeForge';
 import SOLCOTShop from './SOLCOTShop';
-// @ts-ignore
-import WorldScene from './WorldScene';
-// @ts-ignore
-import BiosphereScene from './BiosphereScene';
+import PublicShell from './PublicShell';
+import WorldRoute from './WorldRoute';
+import BiosphereRoute from './BiosphereRoute';
+import WelcomeRoute from './WelcomeRoute';
 
 export function AgentNode({ data }: NodeProps) {
   const agentId = data.agent as string;
@@ -92,33 +92,47 @@ function App() {
 
   if (window.location.pathname === '/treasury') {
     return (
-      <div className="h-screen w-screen bg-[#020804] text-gray-200">
+      <PublicShell className="h-screen w-screen bg-[#020804] text-gray-200">
         <TreasuryDonation />
-      </div>
+      </PublicShell>
     );
   }
 
   if (window.location.pathname === '/solcot') {
     return (
-      <div className="h-screen w-screen bg-[#020804] text-gray-200">
+      <PublicShell className="h-screen w-screen bg-[#020804] text-gray-200">
         <SOLCOTShop />
-      </div>
+      </PublicShell>
     );
   }
 
   if (window.location.pathname === '/world') {
     return (
-      <div className="h-screen w-screen bg-[#020804] text-gray-200">
-        <WorldScene heat={2980} emberBalance={2980} />
-      </div>
+      <PublicShell className="h-screen w-screen bg-[#020804] text-gray-200">
+        <WorldRoute />
+      </PublicShell>
     );
   }
 
   if (window.location.pathname === '/biosphere') {
     return (
-      <div className="h-screen w-screen bg-[#0A0402] text-gray-200">
-        <BiosphereScene heat={2980} emberBalance={2980} />
-      </div>
+      <PublicShell className="h-screen w-screen bg-[#0A0402] text-gray-200">
+        <BiosphereRoute />
+      </PublicShell>
+    );
+  }
+
+  if (window.location.pathname === '/welcome') {
+    return <WelcomeRoute />;
+  }
+
+  if (window.location.pathname === '/hall') {
+    return (
+      <PublicShell className="min-h-screen w-screen bg-[#020804] text-gray-200">
+        <div className="h-full overflow-y-auto">
+          <HallOfHonor />
+        </div>
+      </PublicShell>
     );
   }
 

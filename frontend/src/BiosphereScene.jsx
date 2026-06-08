@@ -167,7 +167,7 @@ function BiospherePostProcessing({ heat }) {
   const warmth = Math.min((heat ?? 2980) / 5000, 1)
 
   return (
-    <EffectComposer multisampling={4}>
+    <EffectComposer multisampling={4} enableNormalPass>
       {/* Bloom — selective on emissive materials */}
       <Bloom
         luminanceThreshold={0.6}
