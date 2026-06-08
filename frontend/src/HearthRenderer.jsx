@@ -179,7 +179,7 @@ function HearthPostProcessing({ heat }) {
   const warmth = Math.min(heat / 5000, 1)
 
   return (
-    <EffectComposer multisampling={4}>
+    <EffectComposer multisampling={4} enableNormalPass>
       {/* Bloom — ONLY on materials with emissiveIntensity > 1 */}
       <Bloom
         luminanceThreshold={0.9}

@@ -37,6 +37,7 @@ import BiosphereGrid from './biosphere/BiosphereGrid'
 import BuilderPanel  from './BuilderPanel'
 import StewardMount from './steward/StewardMount'
 import CommunityPulse from './community/CommunityPulse'
+import CommunityFeed from './community/CommunityFeed'
 import GemmaPresence from './community/GemmaPresence'
 
 // ── Scene lighting for the Biosphere ─────────────────────────────
@@ -337,6 +338,14 @@ export default function BiosphereScene({
         activePlots={activePlots}
         onOpenBuilder={() => setBuilder(true)}
         onOpenSteward={() => setStewardSignal((value) => value + 1)}
+      />
+
+      <CommunityFeed
+        realm="biosphere"
+        heat={heat}
+        emberBalance={emberBalance}
+        nodeCount={forgeNodes.length}
+        activePlots={activePlots}
       />
 
       <StewardMount

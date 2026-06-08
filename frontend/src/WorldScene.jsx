@@ -36,6 +36,7 @@ import TesseractZone  from './sacred/TesseractZone'
 import BuilderPanel   from './BuilderPanel'
 import StewardMount   from './steward/StewardMount'
 import CommunityPulse from './community/CommunityPulse'
+import CommunityFeed  from './community/CommunityFeed'
 import GemmaPresence  from './community/GemmaPresence'
 
 // ── Zone definitions ──────────────────────────────────────────────
@@ -341,6 +342,13 @@ function WorldContent({
           nodeCount={forgeNodes.length}
           onOpenBuilder={() => setBuilder(true)}
           onOpenSteward={() => setStewardSignal((value) => value + 1)}
+        />
+
+        <CommunityFeed
+          realm="world"
+          heat={heat}
+          emberBalance={emberBalance}
+          nodeCount={forgeNodes.length}
         />
 
         <StewardMount
