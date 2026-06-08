@@ -34,6 +34,9 @@ import * as THREE from 'three'
 import HearthRenderer from './HearthRenderer'
 import TesseractZone  from './sacred/TesseractZone'
 import BuilderPanel   from './BuilderPanel'
+import StewardMount   from './steward/StewardMount'
+import CommunityPulse from './community/CommunityPulse'
+import GemmaPresence  from './community/GemmaPresence'
 
 // ── Zone definitions ──────────────────────────────────────────────
 const ZONES = {
@@ -222,6 +225,7 @@ function WorldContent({
   const [targetPos, setTargetPos]   = useState(null)
   const [moving, setMoving]         = useState(false)
   const [builderOpen, setBuilder]   = useState(false)
+  const [stewardSignal, setStewardSignal] = useState(0)
   const playerRef = useRef(new THREE.Vector3(0, 0, 2))
 
   // Click-to-move
@@ -299,6 +303,13 @@ function WorldContent({
             />
           </group>
         )}
+
+        <GemmaPresence
+          position={[1.8, 1.5, -1.2]}
+          label="Gemma"
+          accent="#D4A853"
+          onInvoke={() => setStewardSignal((value) => value + 1)}
+        />
       </HearthRenderer>
 
       {/* RuneScape-style orbit camera */}
@@ -321,6 +332,22 @@ function WorldContent({
             console.log('[WorldScene] Place:', type, config)
             setBuilder(false)
           }}
+        />
+
+        <CommunityPulse
+          realm="world"
+          heat={heat}
+          emberBalance={emberBalance}
+          nodeCount={forgeNodes.length}
+          onOpenBuilder={() => setBuilder(true)}
+          onOpenSteward={() => setStewardSignal((value) => value + 1)}
+        />
+
+        <StewardMount
+          emberBalance={emberBalance}
+          realm="world"
+          anchor="right"
+          openSignal={stewardSignal}
         />
 
         {/* HUD — bottom left */}

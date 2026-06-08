@@ -35,6 +35,9 @@ import { BlendFunction } from 'postprocessing'
 import * as THREE from 'three'
 import BiosphereGrid from './biosphere/BiosphereGrid'
 import BuilderPanel  from './BuilderPanel'
+import StewardMount from './steward/StewardMount'
+import CommunityPulse from './community/CommunityPulse'
+import GemmaPresence from './community/GemmaPresence'
 
 // ── Scene lighting for the Biosphere ─────────────────────────────
 // Warmer and earthier than the WorldScene — we're in a garden,
@@ -205,12 +208,15 @@ export default function BiosphereScene({
   heat          = 2980,
   emberBalance  = 2980,
   forgeNodes    = [],       // from Firestore
+  biospherePlots = [],
   onPlant       = () => {}, // notify parent of plant events
   onHarvest     = () => {}, // notify parent of harvest events
   onEmberSpend  = () => {}, // notify parent of $EMBER spend
 }) {
   const [builderOpen, setBuilder]   = useState(false)
   const [resonance,   setResonance] = useState(null)
+  const [stewardSignal, setStewardSignal] = useState(0)
+  const activePlots = biospherePlots.filter((plot) => plot.active).length
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -282,6 +288,13 @@ export default function BiosphereScene({
             externalNodes={forgeNodes}
           />
 
+          <GemmaPresence
+            position={[0, 1.8, 0.6]}
+            label="Gemma"
+            accent="#D4A853"
+            onInvoke={() => setStewardSignal((value) => value + 1)}
+          />
+
           {/* Camera — RuneScape-style orbit locked to farm view */}
           <OrbitControls
             makeDefault
@@ -314,6 +327,23 @@ export default function BiosphereScene({
           console.log('[Biosphere] Place:', type, config)
           setBuilder(false)
         }}
+      />
+
+      <CommunityPulse
+        realm="biosphere"
+        heat={heat}
+        emberBalance={emberBalance}
+        nodeCount={forgeNodes.length}
+        activePlots={activePlots}
+        onOpenBuilder={() => setBuilder(true)}
+        onOpenSteward={() => setStewardSignal((value) => value + 1)}
+      />
+
+      <StewardMount
+        emberBalance={emberBalance}
+        realm="biosphere"
+        anchor="right"
+        openSignal={stewardSignal}
       />
     </div>
   )
