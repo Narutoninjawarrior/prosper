@@ -293,14 +293,14 @@ function ForgeScene({ nodes, tiles, onMint }: { nodes: ForgeNode[], tiles: World
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function ThreeForge({ agentId }: { agentId?: string }) {
+  void agentId;
   const [nodes, setNodes]     = useState<ForgeNode[]>([]);
   const [tiles, setTiles]     = useState<WorldMapTile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState<string | null>(null);
   
   const [builderOpen, setBuilderOpen] = useState(false);
-  const [playerEmberBalance, setPlayerEmberBalance] = useState(2980);
-  const waterWasmRef = useRef<any>(null);
+  const [playerEmberBalance] = useState(2980);
 
   const handlePlace = (config: any) => {
     // TODO: Wire to Forge API

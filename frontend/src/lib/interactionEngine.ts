@@ -17,7 +17,7 @@ import { getFirestoreDb } from '../firebaseConfig'
 import {
   doc, getDoc, updateDoc, serverTimestamp
 } from 'firebase/firestore'
-import { getReagentById, getReagent } from './reagentRegistry'
+import { getReagentById } from './reagentRegistry'
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -70,10 +70,11 @@ function distance(a: WorldNode, b: WorldNode): number {
 
 // ── Object type categories ────────────────────────────────────────
 
-const OBJECT_TYPES = {
+const OBJECT_TYPES: Record<string, readonly string[]> = {
   water:     ['water'],
   flora:     ['flora'],
   art:       ['lodge'],
+  lodge:     ['lodge'],
   fire:      ['fire'],
   wind:      ['wind'],
   stone:     ['stone'],
@@ -93,6 +94,7 @@ function isNight(): boolean {
 
 export async function runInteractionTick(): Promise<void> {
   const db       = getFirestoreDb()
+  if (!db) return
   const stateRef = doc(db, 'three_forge', 'world_state')
   const snap     = await getDoc(stateRef)
   if (!snap.exists()) return
@@ -105,7 +107,6 @@ export async function runInteractionTick(): Promise<void> {
   // ── Pass 1: Water → World interactions ──────────────────────────
   const waterNodes = nodes.filter(n => n.object_type === 'water')
   const floraNodes = nodes.filter(n => n.object_type === 'flora')
-  const artNodes   = nodes.filter(n => n.object_type === 'lodge')
 
   for (const water of waterNodes) {
     const sub    = water.substance_id ?? 0
