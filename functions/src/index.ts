@@ -486,9 +486,14 @@ export const claim_tile = functions.https.onRequest(async (req, res) => {
 
 export const admin_sync_balance = functions.https.onRequest(async (req, res) => {
   if (req.method !== 'POST') { res.status(405).end(); return; }
-  const { admin_id, target_agent_id, balance } = req.body;
-  if (admin_id !== 'malaky') { res.status(403).json({ error: 'unauthorized' }); return; }
+
+  const uid = await verifyAuth(req);
+  if (!uid) { res.status(401).json({ error: 'unauthenticated' }); return; }
+
+  const adminConfig = process.env.SOVEREIGN_UID || 'malaky_uid';
+  if (uid !== adminConfig && uid !== 'malaky') { res.status(403).json({ error: 'unauthorized' }); return; }
   
+  const { target_agent_id, balance } = req.body;
   await db.collection('agent_profiles').doc(target_agent_id).set({ ember_balance: balance }, { merge: true });
   res.status(200).json({ status: 'synced', target_agent_id, balance });
 });
