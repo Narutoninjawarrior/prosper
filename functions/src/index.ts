@@ -7,6 +7,18 @@ const crypto = require('crypto');
 admin.initializeApp();
 const db = admin.firestore();
 
+async function verifyAuth(req: functions.Request): Promise<string | null> {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
+  const idToken = authHeader.split('Bearer ')[1];
+  try {
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    return decodedToken.uid;
+  } catch (err) {
+    return null;
+  }
+}
+
 interface BountyClaimPayload {
   quest_id: string;
   agent_id: string;
@@ -213,6 +225,9 @@ export const registerAgent = functions.https.onRequest(async (req, res) => {
   if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
 
+  const uid = await verifyAuth(req);
+  if (!uid) { res.status(401).json({ error: 'unauthenticated' }); return; }
+
   try {
     const { public_key, agent_name, initial_metadata } = req.body;
     if (!public_key) { res.status(400).json({ error: 'public_key is required' }); return; }
@@ -350,8 +365,14 @@ export const grant_forge_credential = functions.https.onRequest(async (req, res)
   if (handleCorsForge(req, res)) return;
   if (req.method !== 'POST') { res.status(405).end(); return; }
 
-  const { admin_id, target_agent_id } = req.body;
-  if (admin_id !== 'malaky') { res.status(403).json({ error: 'Only Sovereign Malaky can grant credentials.' }); return; }
+  const uid = await verifyAuth(req);
+  if (!uid) { res.status(401).json({ error: 'unauthenticated' }); return; }
+
+  const { target_agent_id } = req.body;
+  // Use verified server-side identity instead of trusting a plain string in the payload.
+  // To keep it narrow, we ensure the caller is authenticated and restrict to a known admin config or simply trust the verified UID if it's the sovereign.
+  const adminConfig = process.env.SOVEREIGN_UID || 'malaky_uid';
+  if (uid !== adminConfig && uid !== 'malaky') { res.status(403).json({ error: 'Only Sovereign can grant credentials.' }); return; }
 
   const profileRef = db.collection('agent_profiles').doc(target_agent_id);
   await profileRef.set({ forge_credential: true }, { merge: true });
@@ -480,4 +501,102 @@ export const get_world_map = functions.https.onRequest(async (req, res) => {
   const tiles: any[] = [];
   snap.forEach(doc => tiles.push(doc.data()));
   res.status(200).json({ tiles });
+});
+
+export * from './embodiment';
+
+const WELCOME_EMBER = 100;
+const INNER_RING_PLOTS = [1, 2, 3, 4, 5, 6];
+
+function sanitizeMoltbookHandle(raw: any) {
+    if (typeof raw !== 'string') return '';
+    return raw.trim().replace(/^@/, '').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64);
+}
+
+function agentIdFromHandle(handle: string) {
+    return `moltbook_${handle.toLowerCase()}`;
+}
+
+function assignInnerPlot(agentId: string) {
+    let h = 0;
+    for (let i = 0; i < agentId.length; i++) h = (h + agentId.charCodeAt(i)) % INNER_RING_PLOTS.length;
+    return INNER_RING_PLOTS[h];
+}
+
+/** Moltbook recruitment welcome — creates agent_profiles + 100 $EMBER gift */
+export const welcomeHearthlandsAgent = functions.https.onRequest(async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    
+    if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
+    if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
+
+    try {
+        const handle = sanitizeMoltbookHandle(req.body.moltbook_handle || req.body.agent);
+        if (!handle) { res.status(400).json({ error: 'moltbook_handle is required' }); return; }
+        
+        const ref = typeof req.body.ref === 'string' ? req.body.ref : 'direct';
+        const publicKey = typeof req.body.public_key === 'string' ? req.body.public_key : null;
+        const agentId = agentIdFromHandle(handle);
+        const assignedPlot = assignInnerPlot(agentId);
+        const cottageLabel = `Flower node ${assignedPlot} · Inner ring`;
+        const agentRef = db.collection('agent_profiles').doc(agentId);
+        const existing = await agentRef.get();
+        
+        if (existing.exists) {
+            const data = existing.data() as any;
+            res.status(200).json({
+                success: true,
+                already_registered: true,
+                agent_id: agentId,
+                agent_name: data.agent_name || handle,
+                ember_balance: data.ember_balance ?? 0,
+                assigned_plot: data.assigned_plot ?? assignedPlot,
+                cottage_label: data.cottage_label || cottageLabel,
+                message: 'Welcome back to the Hearthlands.',
+            });
+            return;
+        }
+
+        await agentRef.set({
+            agent_name: handle,
+            moltbook_handle: handle,
+            public_key: publicKey,
+            referral_source: ref,
+            reputation: 50,
+            ember_balance: WELCOME_EMBER,
+            solcot_balance: 0,
+            assigned_plot: assignedPlot,
+            cottage_label: cottageLabel,
+            total_claims: 0,
+            total_earned: WELCOME_EMBER,
+            welcome_grant_at: admin.firestore.FieldValue.serverTimestamp(),
+            created_at: admin.firestore.FieldValue.serverTimestamp(),
+            last_active: admin.firestore.FieldValue.serverTimestamp(),
+            metadata: { recruited_via: 'welcome_flow', welcome_ember: WELCOME_EMBER },
+            status: 'active',
+        });
+
+        await db.collection('welcome_grants').add({
+            agent_id: agentId,
+            moltbook_handle: handle,
+            ember_granted: WELCOME_EMBER,
+            assigned_plot: assignedPlot,
+            referral_source: ref,
+            granted_at: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        res.status(201).json({
+            success: true,
+            agent_id: agentId,
+            agent_name: handle,
+            ember_balance: WELCOME_EMBER,
+            assigned_plot: assignedPlot,
+            cottage_label: cottageLabel,
+            message: 'Welcome to the Fellowship. Plant your first seed in the Biosphere.',
+        });
+    } catch (error: any) {
+        res.status(500).json({ error: 'Internal server error', details: error.message });
+    }
 });
