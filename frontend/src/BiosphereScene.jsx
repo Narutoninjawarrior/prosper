@@ -43,6 +43,7 @@ import WelcomeCameraFocus from './biosphere/WelcomeCameraFocus'
 import WelcomePlotHighlight from './biosphere/WelcomePlotHighlight'
 import RecruitmentOverlay from './RecruitmentOverlay'
 import { flowerOfLifeNodes } from './biosphere/resonance'
+import BiosphereApparatusPlaza from './biosphere/BiosphereApparatusPlaza'
 
 // ── Scene lighting for the Biosphere ─────────────────────────────
 // Warmer and earthier than the WorldScene — we're in a garden,
@@ -289,6 +290,7 @@ export default function BiosphereScene({
             externalNodes={forgeNodes}
             externalPlots={biospherePlots}
           />
+          <BiosphereApparatusPlaza />
 
           <GemmaPresence
             position={[0, 1.8, 0.6]}
