@@ -1,0 +1,97 @@
+{
+  "vessel_id": "hearthlands-doctrine-forge-v1",
+  "source_repo": "D:\\Hearth\\prosper2",
+  "records": [
+    {
+      "id": "world-scene",
+      "title": "World Scene",
+      "summary": "Public RuneScape-style 3D world with forge nodes, portals, and keyboard movement.",
+      "provenance": "Primary public vessel route at /world.",
+      "status": "live",
+      "route_pointer": "/world",
+      "source_pointer": "frontend/src/WorldScene.jsx",
+      "tags": [
+        "3d",
+        "world",
+        "public"
+      ],
+      "featured": true,
+      "updated_at": "2026-06-10T00:00:00Z",
+      "module_kind": "route",
+      "realm": "world"
+    },
+    {
+      "id": "biosphere-scene",
+      "title": "Biosphere Scene",
+      "summary": "Sacred geometry farming world — 19 plots, mycelium, plant/harvest inspect rail.",
+      "provenance": "Primary public vessel route at /biosphere.",
+      "status": "live",
+      "route_pointer": "/biosphere",
+      "source_pointer": "frontend/src/BiosphereScene.jsx",
+      "tags": [
+        "3d",
+        "biosphere",
+        "farming"
+      ],
+      "featured": true,
+      "updated_at": "2026-06-10T00:00:00Z",
+      "module_kind": "route",
+      "realm": "biosphere"
+    },
+    {
+      "id": "builder-panel",
+      "title": "Builder Panel",
+      "summary": "Catalogue preview for placing forge objects — preview-only until steward write path.",
+      "provenance": "Shared builder overlay; placement logs to console only.",
+      "status": "prototype",
+      "route_pointer": "/3dforge",
+      "source_pointer": "frontend/src/BuilderPanel.jsx",
+      "tags": [
+        "builder",
+        "forge",
+        "preview"
+      ],
+      "featured": false,
+      "updated_at": "2026-06-09T18:00:00Z",
+      "module_kind": "overlay",
+      "realm": "forge"
+    },
+    {
+      "id": "council-board",
+      "title": "Council Board",
+      "summary": "Public council proposal board — seeded proposals with steward/planner voices.",
+      "provenance": "local_council_proposals.json + councilProposals.ts.",
+      "status": "seeded",
+      "route_pointer": "/council",
+      "source_pointer": "frontend/src/CouncilBoard.tsx",
+      "tags": [
+        "council",
+        "governance",
+        "proposals"
+      ],
+      "featured": true,
+      "updated_at": "2026-06-08T19:41:00Z",
+      "module_kind": "route",
+      "realm": "public"
+    },
+    {
+      "id": "artifact-registry-page",
+      "title": "Artifact Registry",
+      "summary": "Public archive of witnessed capabilities — read-only, no marketplace writes.",
+      "provenance": "artifact_registry.json seed + ArtifactRegistry.tsx.",
+      "status": "seeded",
+      "route_pointer": "/artifacts",
+      "source_pointer": "frontend/src/ArtifactRegistry.tsx",
+      "tags": [
+        "artifacts",
+        "archive",
+        "registry"
+      ],
+      "featured": true,
+      "updated_at": "2026-06-10T00:00:00Z",
+      "module_kind": "route",
+      "realm": "public"
+    }
+  ],
+  "manifest_hash": "68a336195449557dcdc9275053522d7886e12d834d53cb4c40eff9e647cdf2d5"
+}

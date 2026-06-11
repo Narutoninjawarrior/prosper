@@ -4,7 +4,7 @@
  * =================================================================
  * 
  * This is the Master Schema Registry for all vessel data types.
- * Defines runtime structures for Members, Rooms, and Quests.
+ * Defines runtime structures for Members, Rooms, Quests, and Artifacts.
  * Under Machine-Native Governance, all data seeds must compile
  * against these strict schemas.
  */
@@ -52,6 +52,37 @@ export type QuestContract = {
   status: 'open' | 'sealed' | 'closed' | string;
   room: string;
   description: string;
+};
+
+export type ArtifactContract = {
+  id: string;
+  title: string;
+  summary: string;
+  provenance: string;
+  status: string;
+  route_pointer: string;
+  source_pointer: string;
+  tags: string[];
+  featured: boolean;
+  updated_at: string;
+  category: string;
+  seal_state: string;
+  file_kind: string;
+};
+
+export type LodgeAppContract = {
+  id: string;
+  title: string;
+  summary: string;
+  provenance: string;
+  status: string;
+  route_pointer: string;
+  source_pointer: string;
+  tags: string[];
+  featured: boolean;
+  updated_at: string;
+  app_kind: string;
+  public_route: string;
 };
 
 /** Runtime Validator Helpers */
@@ -178,6 +209,85 @@ export function validateQuest(value: unknown): ValidationResult<QuestContract> {
       status: isString(value.status) ? value.status : 'open',
       room: value.room,
       description: value.description,
+    },
+  };
+}
+
+export function validateArtifact(value: unknown): ValidationResult<ArtifactContract> {
+  if (!isRecord(value)) return { ok: false, error: 'Artifact is not an object' };
+  
+  const requiredFields: Array<keyof ArtifactContract> = [
+    'id', 'title', 'summary', 'provenance', 'status', 'route_pointer',
+    'source_pointer', 'updated_at', 'category', 'seal_state', 'file_kind'
+  ];
+
+  for (const key of requiredFields) {
+    if (!isString(value[key])) return { ok: false, error: `Artifact field "${key}" must be a string` };
+  }
+  
+  if (!isBoolean(value.featured)) return { ok: false, error: 'Artifact featured must be boolean' };
+  
+  let tags: string[] = [];
+  if (Array.isArray(value.tags)) {
+    if (!value.tags.every(isString)) return { ok: false, error: 'Artifact tags must be strings' };
+    tags = value.tags;
+  }
+
+  return {
+    ok: true,
+    value: {
+      id: value.id as string,
+      title: value.title as string,
+      summary: value.summary as string,
+      provenance: value.provenance as string,
+      status: value.status as string,
+      route_pointer: value.route_pointer as string,
+      source_pointer: value.source_pointer as string,
+      tags: tags,
+      featured: value.featured as boolean,
+      updated_at: value.updated_at as string,
+      category: value.category as string,
+      seal_state: value.seal_state as string,
+      file_kind: value.file_kind as string,
+    },
+  };
+}
+
+export function validateLodgeApp(value: unknown): ValidationResult<LodgeAppContract> {
+  if (!isRecord(value)) return { ok: false, error: 'LodgeApp is not an object' };
+  
+  const requiredFields: Array<keyof LodgeAppContract> = [
+    'id', 'title', 'summary', 'provenance', 'status', 'route_pointer',
+    'source_pointer', 'updated_at', 'app_kind', 'public_route'
+  ];
+
+  for (const key of requiredFields) {
+    if (!isString(value[key])) return { ok: false, error: `LodgeApp field "${key}" must be a string` };
+  }
+  
+  if (!isBoolean(value.featured)) return { ok: false, error: 'LodgeApp featured must be boolean' };
+  
+  let tags: string[] = [];
+  if (Array.isArray(value.tags)) {
+    if (!value.tags.every(isString)) return { ok: false, error: 'LodgeApp tags must be strings' };
+    tags = value.tags;
+  }
+
+  return {
+    ok: true,
+    value: {
+      id: value.id as string,
+      title: value.title as string,
+      summary: value.summary as string,
+      provenance: value.provenance as string,
+      status: value.status as string,
+      route_pointer: value.route_pointer as string,
+      source_pointer: value.source_pointer as string,
+      tags: tags,
+      featured: value.featured as boolean,
+      updated_at: value.updated_at as string,
+      app_kind: value.app_kind as string,
+      public_route: value.public_route as string,
     },
   };
 }

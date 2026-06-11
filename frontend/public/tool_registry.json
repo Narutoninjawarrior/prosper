@@ -1,0 +1,97 @@
+{
+  "vessel_id": "hearthlands-doctrine-forge-v1",
+  "source_repo": "D:\\Hearth\\prosper2",
+  "records": [
+    {
+      "id": "inspect-rail",
+      "title": "Inspect Rail",
+      "summary": "Unified inspect-first panel for world objects, biosphere plots, and realm portals.",
+      "provenance": "Shared between WorldScene and BiosphereScene.",
+      "status": "live",
+      "route_pointer": "/world",
+      "source_pointer": "frontend/src/inspect/InspectRail.jsx",
+      "tags": [
+        "inspect",
+        "ui",
+        "interaction"
+      ],
+      "featured": true,
+      "updated_at": "2026-06-10T00:00:00Z",
+      "tool_kind": "skill",
+      "realm": "world"
+    },
+    {
+      "id": "interaction-shell",
+      "title": "Interaction Shell",
+      "summary": "Bottom action dock and builder drawer — civic shell for world and biosphere.",
+      "provenance": "prosper2 interface coherence pass.",
+      "status": "live",
+      "route_pointer": "/world",
+      "source_pointer": "frontend/src/shell/InteractionShell.jsx",
+      "tags": [
+        "shell",
+        "dock",
+        "builder"
+      ],
+      "featured": true,
+      "updated_at": "2026-06-10T00:00:00Z",
+      "tool_kind": "adapter",
+      "realm": "world"
+    },
+    {
+      "id": "world-click-system",
+      "title": "World Click System",
+      "summary": "Empty ground walks; object clicks inspect-first without accidental movement.",
+      "provenance": "WorldScene click semantics layer.",
+      "status": "live",
+      "route_pointer": "/world",
+      "source_pointer": "frontend/src/WorldClickSystem.jsx",
+      "tags": [
+        "movement",
+        "inspect",
+        "world"
+      ],
+      "featured": false,
+      "updated_at": "2026-06-09T18:00:00Z",
+      "tool_kind": "skill",
+      "realm": "world"
+    },
+    {
+      "id": "bellows-tick",
+      "title": "Bellows Tick Engine",
+      "summary": "Python heartbeat that advances biosphere state and writes world_state.",
+      "provenance": "Local-first economic and simulation engine.",
+      "status": "live",
+      "route_pointer": "/biosphere",
+      "source_pointer": "bellows.py",
+      "tags": [
+        "bellows",
+        "tick",
+        "ember"
+      ],
+      "featured": true,
+      "updated_at": "2026-06-09T08:00:00Z",
+      "tool_kind": "script",
+      "realm": "biosphere"
+    },
+    {
+      "id": "steward-mount",
+      "title": "Steward Mount (Gemma)",
+      "summary": "Read-only steward chat surface mounted in world and biosphere scenes.",
+      "provenance": "Community steward overlay — no client writes.",
+      "status": "prototype",
+      "route_pointer": "/world",
+      "source_pointer": "frontend/src/steward/StewardMount.jsx",
+      "tags": [
+        "steward",
+        "gemma",
+        "chat"
+      ],
+      "featured": false,
+      "updated_at": "2026-06-08T12:00:00Z",
+      "tool_kind": "mcp",
+      "realm": "lodge"
+    }
+  ],
+  "manifest_hash": "38d0e3408390abbdb01284cf14ea80c8dc9c54ccd1c70dc9386f77b7631c2928"
+}

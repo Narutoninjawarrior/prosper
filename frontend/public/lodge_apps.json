@@ -1,0 +1,97 @@
+{
+  "vessel_id": "hearthlands-doctrine-forge-v1",
+  "source_repo": "D:\\Hearth\\prosper2",
+  "records": [
+    {
+      "id": "public-vessel",
+      "title": "Hearthlands Public Vessel",
+      "summary": "Firebase-hosted fellowship site — world, biosphere, forge, hall, council, artifacts.",
+      "provenance": "prosper2 canonical deployment at fellowship-of-the-hearth.web.app.",
+      "status": "live",
+      "route_pointer": "/",
+      "source_pointer": "frontend/src/App.tsx",
+      "tags": [
+        "vessel",
+        "public",
+        "firebase"
+      ],
+      "featured": true,
+      "updated_at": "2026-06-10T00:00:00Z",
+      "app_kind": "surface",
+      "public_route": "https://fellowship-of-the-hearth.web.app"
+    },
+    {
+      "id": "three-forge",
+      "title": "Three Forge",
+      "summary": "3D forge surface for world_state objects — mirrored into /world forge nodes.",
+      "provenance": "Shared Firestore three_forge/world_state collection.",
+      "status": "live",
+      "route_pointer": "/3dforge",
+      "source_pointer": "frontend/src/ThreeForge.tsx",
+      "tags": [
+        "forge",
+        "3d",
+        "world_state"
+      ],
+      "featured": true,
+      "updated_at": "2026-06-09T18:00:00Z",
+      "app_kind": "surface",
+      "public_route": "/3dforge"
+    },
+    {
+      "id": "hall-of-honor",
+      "title": "Hall of Honor",
+      "summary": "Manifest-verified member ledger with Firestore supplemental reads.",
+      "provenance": "vessel_members.json + lodgeFirestore.ts.",
+      "status": "live",
+      "route_pointer": "/hall",
+      "source_pointer": "frontend/src/HallOfHonor.tsx",
+      "tags": [
+        "hall",
+        "members",
+        "honor"
+      ],
+      "featured": false,
+      "updated_at": "2026-06-08T12:00:00Z",
+      "app_kind": "surface",
+      "public_route": "/hall"
+    },
+    {
+      "id": "lodge-mind",
+      "title": "Lodge Mind",
+      "summary": "Public lodge-mind surface — registry summaries and hive context (read-only).",
+      "provenance": "LodgeMindRoute.tsx prototype bridge.",
+      "status": "prototype",
+      "route_pointer": "/lodge-mind",
+      "source_pointer": "frontend/src/LodgeMindRoute.tsx",
+      "tags": [
+        "lodge-mind",
+        "hive",
+        "context"
+      ],
+      "featured": false,
+      "updated_at": "2026-06-09T08:00:00Z",
+      "app_kind": "engine",
+      "public_route": "/lodge-mind"
+    },
+    {
+      "id": "bellows-engine",
+      "title": "Bellows Engine",
+      "summary": "Local Python tick engine — weather, plots, EMBER mining loop.",
+      "provenance": "bellows.py + ignite_hearth.py — expects reboot via JSON ledger.",
+      "status": "live",
+      "route_pointer": "/biosphere",
+      "source_pointer": "bellows.py",
+      "tags": [
+        "bellows",
+        "ember",
+        "simulation"
+      ],
+      "featured": true,
+      "updated_at": "2026-06-09T08:00:00Z",
+      "app_kind": "engine",
+      "public_route": "/biosphere"
+    }
+  ],
+  "manifest_hash": "a57bb9edba2c1722f7821316ee80058c20617aca2afcee6e7eaed9e6e4de9c5b"
+}

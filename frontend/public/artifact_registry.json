@@ -1,0 +1,121 @@
+{
+  "vessel_id": "hearthlands-doctrine-forge-v1",
+  "source_repo": "D:\\Hearth\\prosper2",
+  "records": [
+    {
+      "id": "solis-soul-v1",
+      "title": "Solis Agent Soul File v1",
+      "summary": "Founding identity seed for Solis — steward persona, memory scaffolding, and initial directive.",
+      "provenance": "Created at Lodge tick 0. Witnessed by the Architect at world genesis.",
+      "status": "seeded",
+      "route_pointer": "/artifacts",
+      "source_pointer": "frontend/src/lib/vesselRegistry.ts",
+      "tags": [
+        "agent",
+        "genesis",
+        "founder"
+      ],
+      "featured": true,
+      "updated_at": "2026-06-08T12:00:00Z",
+      "category": "Soul Files",
+      "seal_state": "witnessed",
+      "file_kind": "json"
+    },
+    {
+      "id": "bellows-harvest-skill",
+      "title": "Bellows Heartbeat Skill",
+      "summary": "Core Bellows tick: weather, biosphere plots, EMBER balance, Firestore world_state writes.",
+      "provenance": "Extracted from heartbeat.py at tick 144.",
+      "status": "live",
+      "route_pointer": "/biosphere",
+      "source_pointer": "bellows.py",
+      "tags": [
+        "bellows",
+        "biosphere",
+        "ember"
+      ],
+      "featured": true,
+      "updated_at": "2026-06-09T08:00:00Z",
+      "category": "Skills",
+      "seal_state": "witnessed",
+      "file_kind": "py"
+    },
+    {
+      "id": "earthship-greenhouse-blueprint",
+      "title": "Earthship Greenhouse Blueprint",
+      "summary": "19-plot biosphere layout on the Flower of Life grid — canonical sacred farming geometry.",
+      "provenance": "In-world at /biosphere as the founding plot layout.",
+      "status": "live",
+      "route_pointer": "/biosphere",
+      "source_pointer": "frontend/src/biosphere/BiosphereGrid.jsx",
+      "tags": [
+        "biosphere",
+        "earthship",
+        "plots"
+      ],
+      "featured": true,
+      "updated_at": "2026-06-09T08:00:00Z",
+      "category": "Blueprints",
+      "seal_state": "witnessed",
+      "file_kind": "3d"
+    },
+    {
+      "id": "ember-flame-statue",
+      "title": "Founder's Ember Flame Statue",
+      "summary": "First 3D object placed in the Hearthlands world — permanent origin monument.",
+      "provenance": "Placed at three_forge/world_state tick 1.",
+      "status": "live",
+      "route_pointer": "/world",
+      "source_pointer": "three_forge/world_state",
+      "tags": [
+        "genesis",
+        "monument",
+        "ember"
+      ],
+      "featured": false,
+      "updated_at": "2026-06-08T12:00:00Z",
+      "category": "Witnessed Builds",
+      "seal_state": "witnessed",
+      "file_kind": "3d"
+    },
+    {
+      "id": "lodge-firestore-sync",
+      "title": "Lodge Firestore Sync Script",
+      "summary": "Admin SDK merge-upsert from stamped JSON seeds with manifest hash verification.",
+      "provenance": "Phase C steward bridge — npm run sync:firestore.",
+      "status": "seeded",
+      "route_pointer": "/forge",
+      "source_pointer": "scripts/sync-firestore-from-seed.mjs",
+      "tags": [
+        "firestore",
+        "steward",
+        "sync"
+      ],
+      "featured": false,
+      "updated_at": "2026-06-08T12:00:00Z",
+      "category": "Code Artifacts",
+      "seal_state": "witnessed",
+      "file_kind": "ts"
+    },
+    {
+      "id": "open-meteo-sim-module",
+      "title": "Open-Meteo Simulation Module",
+      "summary": "Live weather from Open-Meteo drives bloom_stage and biosphere mood each Bellows tick.",
+      "provenance": "sim2real.ts + bellows.py — feeds all 19 plots.",
+      "status": "live",
+      "route_pointer": "/biosphere",
+      "source_pointer": "frontend/src/biosphere/sim2real.ts",
+      "tags": [
+        "weather",
+        "sim2real",
+        "bellows"
+      ],
+      "featured": false,
+      "updated_at": "2026-06-09T08:00:00Z",
+      "category": "Simulation Modules",
+      "seal_state": "witnessed",
+      "file_kind": "py"
+    }
+  ],
+  "manifest_hash": "8f467c39b8436e842fdb0debc05487b0feed17e0d22a87137ce6c7976f4ee071"
+}

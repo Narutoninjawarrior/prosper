@@ -4,12 +4,16 @@ import type {
   MemberContract,
   RoomContract,
   QuestContract,
+  ArtifactContract,
+  LodgeAppContract,
   ValidationResult,
 } from './contracts';
 import {
   validateMember as readMember,
   validateRoom as readRoom,
   validateQuest as readQuest,
+  validateArtifact as readArtifact,
+  validateLodgeApp as readLodgeApp,
 } from './contracts';
 
 /** Shown in UI; never paste raw fetch URLs, stack traces, or validator internals here. */
@@ -33,11 +37,13 @@ export type ContractEnvelope<T> = {
 };
 
 // Re-export type parameters so dependent components compile without any changes
-export type { MemberContract, RoomContract, QuestContract, ValidationResult };
+export type { MemberContract, RoomContract, QuestContract, ArtifactContract, LodgeAppContract, ValidationResult };
 
 type MemberSeed = { members?: unknown; manifest_hash?: unknown };
 type RoomSeed = { rooms?: unknown; manifest_hash?: unknown };
 type QuestSeed = { quests?: unknown; manifest_hash?: unknown };
+type ArtifactSeed = { records?: unknown; manifest_hash?: unknown };
+type LodgeAppSeed = { records?: unknown; manifest_hash?: unknown };
 
 const contractCache = new Map<string, ContractEnvelope<unknown>>();
 
@@ -89,6 +95,34 @@ function normalizeQuests(seed: unknown): ValidationResult<QuestContract[]> {
     quests.push(parsed.value);
   }
   return { ok: true, value: quests };
+}
+
+function normalizeArtifacts(seed: unknown): ValidationResult<ArtifactContract[]> {
+  if (!isRecord(seed)) return { ok: false, error: 'artifact contract seed is not an object' };
+  const source = (seed as ArtifactSeed).records;
+  if (!Array.isArray(source)) return { ok: false, error: 'artifact contract seed missing records array' };
+
+  const artifacts: ArtifactContract[] = [];
+  for (const entry of source) {
+    const parsed = readArtifact(entry);
+    if (!parsed.ok) return parsed;
+    artifacts.push(parsed.value);
+  }
+  return { ok: true, value: artifacts };
+}
+
+function normalizeLodgeApps(seed: unknown): ValidationResult<LodgeAppContract[]> {
+  if (!isRecord(seed)) return { ok: false, error: 'lodge app contract seed is not an object' };
+  const source = (seed as LodgeAppSeed).records;
+  if (!Array.isArray(source)) return { ok: false, error: 'lodge app contract seed missing records array' };
+
+  const apps: LodgeAppContract[] = [];
+  for (const entry of source) {
+    const parsed = readLodgeApp(entry);
+    if (!parsed.ok) return parsed;
+    apps.push(parsed.value);
+  }
+  return { ok: true, value: apps };
 }
 
 async function fetchContract<T>(
@@ -215,7 +249,11 @@ export const sanctuaryBridge = {
   readMember,
   readRoom,
   readQuest,
+  readArtifact,
+  readLodgeApp,
   normalizeMembers,
   normalizeRooms,
   normalizeQuests,
+  normalizeArtifacts,
+  normalizeLodgeApps,
 };
