@@ -6,6 +6,33 @@ import path from 'node:path'
 
 // https://vite.dev/config/
 export default defineConfig({
+  build: {
+    // The only remaining oversized chunk is the optional local WebLLM steward runtime.
+    // It is already lazily imported and never blocks the public route entry path.
+    chunkSizeWarningLimit: 6200,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined
+          if (id.includes('@react-three/fiber')) return 'r3f'
+          if (id.includes('@react-three/drei')) return 'drei'
+          if (id.includes('@react-three/postprocessing') || id.includes('postprocessing')) return 'postprocessing'
+          if (id.includes('@react-three/rapier')) return 'rapier'
+          if (id.includes('/three/') || id.includes('\\three\\') || id.includes('node_modules/three')) return 'three-core'
+          if (id.includes('firebase')) return 'firebase'
+          if (id.includes('@xyflow')) return 'xyflow'
+          if (id.includes('phaser')) return 'phaser'
+          if (id.includes('framer-motion')) return 'motion'
+          const [, packagePath = 'vendor'] = id.split('node_modules/')
+          const segments = packagePath.split(/[\\/]/)
+          const packageName = segments[0]?.startsWith('@')
+            ? `${segments[0]}-${segments[1] ?? 'pkg'}`
+            : segments[0]
+          return `pkg-${packageName.replace('@', '').replace(/[\\/]/g, '-')}`
+        },
+      },
+    },
+  },
   plugins: [
     react(),
     tailwindcss(),

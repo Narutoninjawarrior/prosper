@@ -3,6 +3,7 @@
  * Subscribes to three_forge/world_state (same as ThreeForge) — no client writes.
  */
 import { useEffect, useState } from 'react'
+import './biosphere/geometries.js'
 import { doc, onSnapshot } from 'firebase/firestore'
 import { getFirestoreDb, isFirebaseConfigured, ensureFirebaseConfigured } from './firebaseConfig'
 // @ts-ignore — JSX scene module
