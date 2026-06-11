@@ -1,7 +1,8 @@
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import './index.css';
 import PublicShell from './PublicShell';
 import Gate from './Gate';
+import { registerAgentTools } from './lib/agentTools';
 
 const InternalAppShell = lazy(() => import('./InternalAppShell'));
 const TreasuryDonation = lazy(() => import('./TreasuryDonation'));
@@ -12,6 +13,7 @@ const WelcomeRoute = lazy(() => import('./WelcomeRoute'));
 const HallOfHonor = lazy(() => import('./HallOfHonor'));
 const RegistryExplorer = lazy(() => import('./RegistryExplorer'));
 const AgentAccess = lazy(() => import('./AgentAccess'));
+const LodgeMindRoute = lazy(() => import('./LodgeMindRoute'));
 const ThreeForge = lazy(() => import('./ThreeForge'));
 const ForgePage = lazy(() => import('./ForgePage'));
 
@@ -45,13 +47,18 @@ function App() {
   const [unlocked, setUnlocked] = useState(() => {
     return sessionStorage.getItem('hearth_unlocked') === 'true';
   });
+  const pathname = window.location.pathname;
+
+  useEffect(() => {
+    registerAgentTools();
+  }, []);
 
   const handleUnlock = () => {
     sessionStorage.setItem('hearth_unlocked', 'true');
     setUnlocked(true);
   };
 
-  if (window.location.pathname === '/treasury') {
+  if (pathname === '/treasury') {
     return (
       <SuspendedPublicShell className="h-screen w-screen bg-[#020804] text-gray-200" label="Loading treasury...">
         <TreasuryDonation />
@@ -59,7 +66,7 @@ function App() {
     );
   }
 
-  if (window.location.pathname === '/solcot') {
+  if (pathname === '/solcot') {
     return (
       <SuspendedPublicShell className="h-screen w-screen bg-[#020804] text-gray-200" label="Loading SOLCOT...">
         <SOLCOTShop />
@@ -67,7 +74,7 @@ function App() {
     );
   }
 
-  if (window.location.pathname === '/world') {
+  if (pathname === '/world') {
     return (
       <SuspendedPublicShell className="h-screen w-screen bg-[#020804] text-gray-200" label="Loading world...">
         <WorldRoute />
@@ -75,7 +82,7 @@ function App() {
     );
   }
 
-  if (window.location.pathname === '/biosphere') {
+  if (pathname === '/biosphere') {
     return (
       <SuspendedPublicShell className="h-screen w-screen bg-[#0A0402] text-gray-200" label="Loading biosphere...">
         <BiosphereRoute />
@@ -83,7 +90,7 @@ function App() {
     );
   }
 
-  if (window.location.pathname === '/welcome') {
+  if (pathname === '/welcome') {
     return (
       <Suspense fallback={<LoadingSurface label="Loading welcome..." />}>
         <WelcomeRoute />
@@ -91,7 +98,7 @@ function App() {
     );
   }
 
-  if (window.location.pathname === '/hall') {
+  if (pathname === '/hall') {
     return (
       <SuspendedPublicShell className="min-h-screen w-screen bg-[#020804] text-gray-200" label="Loading hall...">
         <div className="h-full overflow-y-auto">
@@ -101,7 +108,7 @@ function App() {
     );
   }
 
-  if (window.location.pathname === '/registry') {
+  if (pathname === '/registry') {
     return (
       <SuspendedPublicShell className="min-h-screen w-screen bg-[#020804] text-gray-200" label="Loading registry...">
         <div className="h-full overflow-y-auto">
@@ -111,7 +118,7 @@ function App() {
     );
   }
 
-  if (window.location.pathname === '/agent-access') {
+  if (pathname === '/agent-access') {
     return (
       <SuspendedPublicShell className="min-h-screen w-screen bg-[#020804] text-gray-200" label="Loading agent access...">
         <div className="h-full overflow-y-auto">
@@ -121,7 +128,17 @@ function App() {
     );
   }
 
-  if (window.location.pathname === '/3dforge') {
+  if (pathname === '/lodge-mind') {
+    return (
+      <SuspendedPublicShell className="min-h-screen w-screen bg-[#020804] text-gray-200" label="Loading lodge mind...">
+        <div className="h-full overflow-y-auto">
+          <LodgeMindRoute />
+        </div>
+      </SuspendedPublicShell>
+    );
+  }
+
+  if (pathname === '/3dforge') {
     return (
       <SuspendedPublicShell className="h-screen w-screen bg-[#020804] text-gray-200" label="Loading 3D forge...">
         <ThreeForge agentId="human" />
@@ -129,7 +146,7 @@ function App() {
     );
   }
 
-  if (window.location.pathname === '/forge') {
+  if (pathname === '/forge') {
     return (
       <SuspendedPublicShell className="h-screen w-screen bg-[#020804] text-gray-200" label="Loading forge...">
         <ForgePage />

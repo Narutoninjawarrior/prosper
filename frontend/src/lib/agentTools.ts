@@ -122,6 +122,24 @@ export const AGENT_TOOL_CATALOG = [
       'Static orientation brief: vessel identity, public routes, machine-readable seed endpoints, and read-only policy. Start here.',
     inputs: 'none',
   },
+  {
+    name: 'hearthlands_world_summary',
+    description:
+      'Live public world_state summary from Firestore: object counts by type, peak heat, plot counts, and ember/heat readouts. Counts only — no mutation.',
+    inputs: 'none',
+  },
+  {
+    name: 'hearthlands_council_latest',
+    description:
+      'Latest council proposal from the public seed. Truthfully labeled as seeded, not live governance.',
+    inputs: 'none',
+  },
+  {
+    name: 'hearthlands_validate_blueprint',
+    description:
+      'Deterministically validate a workshop-v1 blueprint. Returns stable errors, warnings, cost estimate, and reproducible hashes with world_write: false.',
+    inputs: 'blueprint, mode?',
+  },
 ] as const;
 
 const VESSEL_BRIEF = {
@@ -132,7 +150,7 @@ const VESSEL_BRIEF = {
     'All tools and seeds are read-only. No write paths, no wallet actions, no purchases. Registry mutation happens via steward-reviewed commits only.',
   public_routes: [
     '/world', '/biosphere', '/forge', '/3dforge', '/hall',
-    '/council', '/artifacts', '/registry', '/agent-access',
+    '/council', '/artifacts', '/registry', '/agent-access', '/lodge-mind',
   ],
   machine_seeds: REGISTRY_SOURCES.map((s) => ({
     kind: s.kind,
@@ -237,6 +255,56 @@ export function registerAgentTools(): boolean {
       inputSchema: { type: 'object', properties: {} },
       annotations: { readOnlyHint: true },
       execute: async () => textResult(VESSEL_BRIEF),
+    });
+
+    mc.registerTool({
+      name: 'hearthlands_world_summary',
+      description: AGENT_TOOL_CATALOG[4].description,
+      inputSchema: { type: 'object', properties: {} },
+      annotations: { readOnlyHint: true },
+      execute: async () => {
+        const res = await fetch('/api/world/summary');
+        if (!res.ok) throw new Error(`world summary failed (${res.status})`);
+        return textResult(await res.json());
+      },
+    });
+
+    mc.registerTool({
+      name: 'hearthlands_council_latest',
+      description: AGENT_TOOL_CATALOG[5].description,
+      inputSchema: { type: 'object', properties: {} },
+      annotations: { readOnlyHint: true },
+      execute: async () => {
+        const res = await fetch('/api/council/latest');
+        if (!res.ok) throw new Error(`council latest failed (${res.status})`);
+        return textResult(await res.json());
+      },
+    });
+
+    mc.registerTool({
+      name: 'hearthlands_validate_blueprint',
+      description: AGENT_TOOL_CATALOG[6].description,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          blueprint: { type: 'object', description: 'A workshop-v1 blueprint JSON object.' },
+          mode: { type: 'string', enum: ['validation', 'preview'], default: 'validation' },
+        },
+        required: ['blueprint'],
+      },
+      annotations: { readOnlyHint: true },
+      execute: async (input) => {
+        const res = await fetch('/api/workshop/validate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            blueprint: input.blueprint,
+            mode: input.mode === 'preview' ? 'preview' : 'validation',
+          }),
+        });
+        if (!res.ok) throw new Error(`blueprint validate failed (${res.status})`);
+        return textResult(await res.json());
+      },
     });
 
     registered = true;

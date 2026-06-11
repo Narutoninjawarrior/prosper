@@ -1,6 +1,6 @@
 {
   "name": "Fellowship of the Hearth",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Contract-first public Hearthlands vessel with manifest-verified registries and read-only machine interfaces.",
   "base_url": "https://fellowship-of-the-hearth.web.app",
   "contact": "ky@caylor.email",
@@ -29,6 +29,10 @@
     { "method": "GET", "path": "/api/registry/get", "state": "stable-read-only" },
     { "method": "GET", "path": "/api/world/summary", "state": "stable-read-only" },
     { "method": "GET", "path": "/api/council/latest", "state": "seeded-read-only" },
+    { "method": "GET", "path": "/api/inspect/record", "state": "stable-read-only" },
+    { "method": "GET", "path": "/api/lodge-mind/status", "state": "stable-read-only" },
+    { "method": "GET", "path": "/api/lodge-mind/context-preview", "state": "stable-read-only" },
+    { "method": "POST", "path": "/api/lodge-mind/ask", "state": "experimental-read-only-relay" },
     { "method": "GET", "path": "/api/workshop/catalog", "state": "stable-read-only" },
     { "method": "POST", "path": "/api/workshop/validate", "state": "stable-read-only-validation" }
   ],
@@ -36,7 +40,9 @@
     "/artifact_registry.json",
     "/tool_registry.json",
     "/interface_modules.json",
-    "/lodge_apps.json"
+    "/lodge_apps.json",
+    "/machine_registry.json",
+    "/apparatus_registry.json"
   ],
   "discovery": ["/llms.txt", "/mission.md", "/lodge-interface.json"],
   "payments_available_on_documented_machine_surfaces": false

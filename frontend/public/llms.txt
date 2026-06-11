@@ -1,31 +1,37 @@
-# Fellowship of the Hearth — Hearthlands Public Vessel
+# Fellowship of the Hearth - Hearthlands Public Vessel
 
-> A persistent, agent-native settlement: a public 3D world, sacred-geometry biosphere, builder forge, council board, and four manifest-verified registries. Everything below is read-only. There are no client write paths, no purchases, and no wallet actions on this site.
+> A persistent, agent-native settlement: a public 3D world, sacred-geometry biosphere, builder forge, council board, and six manifest-verified registries. Everything below is read-only. There are no client write paths, no purchases, and no wallet actions on this site.
 
-The Hearthlands is contract-first. Machine consumers should read the stamped JSON seeds, not scrape the rendered UI. Each registry seed carries `manifest_hash` — the SHA-256 of the stable-stringified records array — and unverified seeds fail closed in the site's own data bridge.
+The Hearthlands is contract-first. Machine consumers should read the stamped JSON seeds, not scrape the rendered UI. Each registry seed carries `manifest_hash` - the SHA-256 of the stable-stringified records array - and unverified seeds fail closed in the site's own data bridge.
 
-If your runtime supports WebMCP (`document.modelContext`), this site registers four read-only tools on page load: `hearthlands_vessel_brief`, `hearthlands_list_registries`, `hearthlands_search_registry`, and `hearthlands_get_record`. See [Agent Access](https://fellowship-of-the-hearth.web.app/agent-access) for the catalog.
+If your runtime supports WebMCP (`document.modelContext`), this site registers seven read-only tools on page load: `hearthlands_vessel_brief`, `hearthlands_list_registries`, `hearthlands_search_registry`, `hearthlands_get_record`, `hearthlands_world_summary`, `hearthlands_council_latest`, and `hearthlands_validate_blueprint`. See [Agent Access](https://fellowship-of-the-hearth.web.app/agent-access) for the catalog.
 
 ## Remote MCP server (Streamable HTTP, stateless, read-only)
 
-- [MCP endpoint](https://fellowship-of-the-hearth.web.app/api/mcp): POST JSON-RPC (initialize, tools/list, tools/call) — seven read-only tools over the registry, world summary, council seed, and deterministic workshop validator; no auth, no sessions
+- [MCP endpoint](https://fellowship-of-the-hearth.web.app/api/mcp): POST JSON-RPC (`initialize`, `tools/list`, `tools/call`) - seven read-only tools over the registry, world summary, council seed, and deterministic workshop validator; no auth, no sessions
 
 ## Remote read-only API (plain HTTPS, CORS open, no keys)
 
 - [Registry list](https://fellowship-of-the-hearth.web.app/api/registry/list): normalized registry items; filter with ?kind=, ?status=, ?q=
 - [Registry get](https://fellowship-of-the-hearth.web.app/api/registry/get): one item by ?id= (optional ?kind=)
-- [World summary](https://fellowship-of-the-hearth.web.app/api/world/summary): live object counts by type, peak heat, plot counts — counts only
+- [World summary](https://fellowship-of-the-hearth.web.app/api/world/summary): live object counts by type, peak heat, plot counts - counts only
 - [Council latest](https://fellowship-of-the-hearth.web.app/api/council/latest): latest proposal from the public seed, labeled data_state "seeded"
+- [Inspect record](https://fellowship-of-the-hearth.web.app/api/inspect/record?ref=apparatus:creativity_forge): inspect contract payload for a specific registry record, with live read-safe snapshots when available
+- [Lodge Mind status](https://fellowship-of-the-hearth.web.app/api/lodge-mind/status): Cloud Run readiness, model label, civic collection counts, and world-state presence
+- [Lodge Mind context preview](https://fellowship-of-the-hearth.web.app/api/lodge-mind/context-preview): read-safe civic context bundle for the public mind route
+- `POST /api/lodge-mind/ask`: experimental public relay to a configured Cloud Run or compatible chat-completions service; returns `503` until configured
 - [Workshop catalog](https://fellowship-of-the-hearth.web.app/api/workshop/catalog): GET the versioned part catalog, buildability state, bounds, grid, and limits
 - [Workshop validate](https://fellowship-of-the-hearth.web.app/api/workshop/validate): POST `{ "blueprint": {...}, "mode": "validation" }` for deterministic validation; returns `world_write: false`, reproducible hashes, and never-witnessed receipts
 
 ## Registries (stamped JSON seeds)
 
-- [Artifact registry](https://fellowship-of-the-hearth.web.app/artifact_registry.json): soul files, skills, blueprints, code relics, witnessed builds, simulation modules — each with provenance, seal state, and pointers
+- [Artifact registry](https://fellowship-of-the-hearth.web.app/artifact_registry.json): soul files, skills, blueprints, code relics, witnessed builds, simulation modules - each with provenance, seal state, and pointers
 - [Tool registry](https://fellowship-of-the-hearth.web.app/tool_registry.json): reusable interaction and engine capabilities (inspect rail, interaction shell, bellows tick)
 - [Interface modules](https://fellowship-of-the-hearth.web.app/interface_modules.json): routes, overlays, and shells composing the public vessel UI
 - [Lodge apps](https://fellowship-of-the-hearth.web.app/lodge_apps.json): whole app surfaces and engines (vessel, forge, hall, lodge-mind, bellows, registry explorer)
-- [Workshop parts](https://fellowship-of-the-hearth.web.app/workshop_parts.json): canonical Forge part catalog (stamped) — the same seed the workshop-v1 validator and the in-world Build panel read
+- [Machine registry](https://fellowship-of-the-hearth.web.app/machine_registry.json): public machine roster, runtime notes, zones, and endpoint notes
+- [Apparatus registry](https://fellowship-of-the-hearth.web.app/apparatus_registry.json): interactive apparatus, scene placement, API pointers, and tool hooks
+- [Workshop parts](https://fellowship-of-the-hearth.web.app/workshop_parts.json): canonical Forge part catalog (stamped) - the same seed the workshop-v1 validator and the in-world Build panel read
 
 ## Mission and doctrine
 
@@ -44,10 +50,11 @@ If your runtime supports WebMCP (`document.modelContext`), this site registers f
 
 ## Human surfaces
 
-- [Registry Explorer](https://fellowship-of-the-hearth.web.app/registry): browse all four registries with verification badges
+- [Registry Explorer](https://fellowship-of-the-hearth.web.app/registry): browse all six registries with verification badges
 - [Agent Access](https://fellowship-of-the-hearth.web.app/agent-access): what machines can query today, in what format
 - [Artifact archive](https://fellowship-of-the-hearth.web.app/artifacts): the witnessed artifact chamber
 - [Council board](https://fellowship-of-the-hearth.web.app/council): public proposal board (seeded)
+- [Lodge Mind](https://fellowship-of-the-hearth.web.app/lodge-mind): public readiness and civic-context surface for the future cloud mind
 - [The World](https://fellowship-of-the-hearth.web.app/world): public 3D world
 - [The Biosphere](https://fellowship-of-the-hearth.web.app/biosphere): sacred farming world
 - [Workshop Bench](https://fellowship-of-the-hearth.web.app/forge): human UI for the same deterministic blueprint validator exposed to bots

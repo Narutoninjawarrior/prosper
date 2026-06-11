@@ -511,6 +511,8 @@ export const get_world_map = functions.https.onRequest(async (req, res) => {
 export * from './embodiment';
 export * from './agentApi';
 export * from './mcpServer';
+export * from './inspectApi';
+export * from './lodgeMindApi';
 export * from './workshopApi';
 
 const WELCOME_EMBER = 100;

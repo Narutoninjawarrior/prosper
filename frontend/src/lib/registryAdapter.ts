@@ -73,6 +73,18 @@ export const REGISTRY_SOURCES: Array<{
     seed_source: '/lodge_apps.json',
     description: 'Whole app surfaces and engines: vessel, forge, hall, lodge-mind, bellows.',
   },
+  {
+    kind: 'machine',
+    label: 'Machines',
+    seed_source: '/machine_registry.json',
+    description: 'Public machine roster: runtimes, abilities, operating zones, and endpoint notes.',
+  },
+  {
+    kind: 'apparatus',
+    label: 'Apparatus',
+    seed_source: '/apparatus_registry.json',
+    description: 'Interactive world apparatus with scene placement, tool hooks, and public API pointers.',
+  },
 ];
 
 export function fromArtifact(record: ArtifactContract): NormalizedRegistryItem {

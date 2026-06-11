@@ -32,6 +32,10 @@
         "function": "agentCouncilLatest"
       },
       {
+        "source": "/api/inspect/record",
+        "function": "inspectRecordApi"
+      },
+      {
         "source": "/api/workshop/catalog",
         "function": "workshopApi"
       },
@@ -62,6 +66,10 @@
       {
         "source": "/api/lodge-mind/context-preview",
         "function": "lodgeMindContextPreview"
+      },
+      {
+        "source": "/api/lodge-mind/ask",
+        "function": "lodgeMindAsk"
       },
       {
         "source": "/api/welcome",

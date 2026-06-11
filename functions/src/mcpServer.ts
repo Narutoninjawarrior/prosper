@@ -90,7 +90,7 @@ const TOOLS: ToolDefinition[] = [
       vessel_id: 'hearthlands-doctrine-forge-v1',
       base_url: 'https://fellowship-of-the-hearth.web.app',
       policy: 'All MCP tools and documented discovery/workshop endpoints are read-only.',
-      public_routes: ['/world', '/biosphere', '/forge', '/3dforge', '/hall', '/council', '/artifacts', '/registry', '/agent-access'],
+      public_routes: ['/world', '/biosphere', '/forge', '/3dforge', '/hall', '/council', '/artifacts', '/registry', '/agent-access', '/lodge-mind'],
       rest_api: {
         registry_list: '/api/registry/list?kind=&status=&q=',
         registry_get: '/api/registry/get?id=&kind=',
@@ -106,7 +106,7 @@ const TOOLS: ToolDefinition[] = [
   {
     name: 'hearthlands_list_registries',
     description:
-      'List the four Hearthlands registries (artifacts, tools, interface modules, lodge apps) with record counts, seed URLs, and SHA-256 manifest verification state.',
+      'List the six Hearthlands registries (artifacts, tools, interface modules, lodge apps, machines, apparatus) with record counts, seed URLs, and SHA-256 manifest verification state.',
     inputSchema: { type: 'object', properties: {} },
     annotations: { readOnlyHint: true },
     execute: async () => {
@@ -125,7 +125,7 @@ const TOOLS: ToolDefinition[] = [
   {
     name: 'hearthlands_search_registry',
     description:
-      'Search normalized registry records by free-text query, kind (artifact | tool | interface_module | lodge_app), and/or status (live | seeded | mirrored | prototype). Returns normalized items with provenance and pointers.',
+      'Search normalized registry records by free-text query, kind (artifact | tool | interface_module | lodge_app | machine | apparatus), and/or status (live | seeded | mirrored | prototype). Returns normalized items with provenance and pointers.',
     inputSchema: {
       type: 'object',
       properties: {
