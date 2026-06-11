@@ -8,6 +8,8 @@ import type {
   ToolContract,
   InterfaceModuleContract,
   LodgeAppContract,
+  MachineContract,
+  ApparatusContract,
   WorkshopPartContract,
   ValidationResult,
 } from './contracts';
@@ -19,6 +21,8 @@ import {
   validateTool as readTool,
   validateInterfaceModule as readInterfaceModule,
   validateLodgeApp as readLodgeApp,
+  validateMachine as readMachine,
+  validateApparatus as readApparatus,
   validateWorkshopPart as readWorkshopPart,
 } from './contracts';
 
@@ -51,6 +55,8 @@ export type {
   ToolContract,
   InterfaceModuleContract,
   LodgeAppContract,
+  MachineContract,
+  ApparatusContract,
   WorkshopPartContract,
   ValidationResult,
 };
@@ -62,6 +68,8 @@ type ArtifactSeed = { records?: unknown; manifest_hash?: unknown };
 type ToolSeed = { records?: unknown; manifest_hash?: unknown };
 type InterfaceModuleSeed = { records?: unknown; manifest_hash?: unknown };
 type LodgeAppSeed = { records?: unknown; manifest_hash?: unknown };
+type MachineSeed = { records?: unknown; manifest_hash?: unknown };
+type ApparatusSeed = { records?: unknown; manifest_hash?: unknown };
 type WorkshopPartSeed = { records?: unknown; manifest_hash?: unknown };
 
 const contractCache = new Map<string, ContractEnvelope<unknown>>();
@@ -172,6 +180,34 @@ function normalizeLodgeApps(seed: unknown): ValidationResult<LodgeAppContract[]>
     apps.push(parsed.value);
   }
   return { ok: true, value: apps };
+}
+
+function normalizeMachines(seed: unknown): ValidationResult<MachineContract[]> {
+  if (!isRecord(seed)) return { ok: false, error: 'machine contract seed is not an object' };
+  const source = (seed as MachineSeed).records;
+  if (!Array.isArray(source)) return { ok: false, error: 'machine contract seed missing records array' };
+
+  const machines: MachineContract[] = [];
+  for (const entry of source) {
+    const parsed = readMachine(entry);
+    if (!parsed.ok) return parsed;
+    machines.push(parsed.value);
+  }
+  return { ok: true, value: machines };
+}
+
+function normalizeApparatus(seed: unknown): ValidationResult<ApparatusContract[]> {
+  if (!isRecord(seed)) return { ok: false, error: 'apparatus contract seed is not an object' };
+  const source = (seed as ApparatusSeed).records;
+  if (!Array.isArray(source)) return { ok: false, error: 'apparatus contract seed missing records array' };
+
+  const apparatus: ApparatusContract[] = [];
+  for (const entry of source) {
+    const parsed = readApparatus(entry);
+    if (!parsed.ok) return parsed;
+    apparatus.push(parsed.value);
+  }
+  return { ok: true, value: apparatus };
 }
 
 function normalizeWorkshopParts(seed: unknown): ValidationResult<WorkshopPartContract[]> {
@@ -316,6 +352,8 @@ export const sanctuaryBridge = {
   readTool,
   readInterfaceModule,
   readLodgeApp,
+  readMachine,
+  readApparatus,
   normalizeMembers,
   normalizeRooms,
   normalizeQuests,
@@ -323,5 +361,7 @@ export const sanctuaryBridge = {
   normalizeTools,
   normalizeInterfaceModules,
   normalizeLodgeApps,
+  normalizeMachines,
+  normalizeApparatus,
   normalizeWorkshopParts,
 };

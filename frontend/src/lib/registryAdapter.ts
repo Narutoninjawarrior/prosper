@@ -11,9 +11,17 @@ import type {
   ToolContract,
   InterfaceModuleContract,
   LodgeAppContract,
+  MachineContract,
+  ApparatusContract,
 } from './contracts';
 
-export type RegistryKind = 'artifact' | 'tool' | 'interface_module' | 'lodge_app';
+export type RegistryKind =
+  | 'artifact'
+  | 'tool'
+  | 'interface_module'
+  | 'lodge_app'
+  | 'machine'
+  | 'apparatus';
 
 export type NormalizedRegistryItem = {
   id: string;
@@ -149,6 +157,62 @@ export function fromLodgeApp(record: LodgeAppContract): NormalizedRegistryItem {
       { label: 'Public route', value: record.public_route },
     ],
     seed_source: '/lodge_apps.json',
+  };
+}
+
+function sceneRoute(scene: string): string {
+  if (scene === 'biosphere') return '/biosphere';
+  if (scene === 'forge') return '/forge';
+  return '/world';
+}
+
+export function fromMachine(record: MachineContract): NormalizedRegistryItem {
+  return {
+    id: record.machine_id,
+    kind: 'machine',
+    title: record.name,
+    summary: `${record.kind} powered by ${record.mind.provider}/${record.mind.model}.`,
+    provenance: 'Public machine registry seed.',
+    status: record.status,
+    route_pointer: sceneRoute(record.body.scene),
+    source_pointer: `/machine_registry.json#${record.machine_id}`,
+    tags: [record.kind, record.body.scene, ...record.abilities],
+    featured: false,
+    updated_at: '2026-06-10',
+    facets: [
+      { label: 'Kind', value: record.kind },
+      { label: 'Mind', value: `${record.mind.provider} · ${record.mind.model}` },
+      { label: 'Endpoint', value: record.mind.endpoint_note },
+      { label: 'Mesh', value: record.body.mesh },
+      { label: 'Abilities', value: record.abilities.join(', ') || 'none' },
+      { label: 'Commercial note', value: record.monetization_note },
+    ],
+    seed_source: '/machine_registry.json',
+  };
+}
+
+export function fromApparatus(record: ApparatusContract): NormalizedRegistryItem {
+  return {
+    id: record.apparatus_id,
+    kind: 'apparatus',
+    title: record.name,
+    summary: record.capabilities.join(', ') || `${record.kind} apparatus`,
+    provenance: 'Public apparatus registry seed.',
+    status: record.status,
+    route_pointer: sceneRoute(record.mesh.scene),
+    source_pointer: `/apparatus_registry.json#${record.apparatus_id}`,
+    tags: [record.kind, record.mesh.scene, ...record.capabilities],
+    featured: false,
+    updated_at: '2026-06-10',
+    facets: [
+      { label: 'Kind', value: record.kind },
+      { label: 'REST', value: record.rest_endpoints.join(', ') || 'none' },
+      { label: 'MCP tools', value: record.mcp_tools.join(', ') || 'none' },
+      { label: 'Write policy', value: record.write_policy },
+      { label: 'Mesh', value: `${record.mesh.preset} · ${record.mesh.position_hint}` },
+      { label: 'Commercial note', value: record.monetization_note },
+    ],
+    seed_source: '/apparatus_registry.json',
   };
 }
 

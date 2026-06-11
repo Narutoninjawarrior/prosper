@@ -34,6 +34,8 @@ const KIND_META: Record<RegistryKind, { label: string; accent: string; icon: Rea
   tool: { label: 'Tool', accent: '#34D399', icon: <Wrench size={13} /> },
   interface_module: { label: 'Interface Module', accent: '#E8842A', icon: <Layers size={13} /> },
   lodge_app: { label: 'Lodge App', accent: '#D4A853', icon: <Compass size={13} /> },
+  machine: { label: 'Machine', accent: '#60A5FA', icon: <Bot size={13} /> },
+  apparatus: { label: 'Apparatus', accent: '#F472B6', icon: <Wrench size={13} /> },
 }
 
 const STATUS_META: Record<string, { label: string; color: string }> = {

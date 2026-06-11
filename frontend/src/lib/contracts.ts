@@ -115,6 +115,41 @@ export type LodgeAppContract = {
   public_route: string;
 };
 
+export type MachineContract = {
+  machine_id: string;
+  name: string;
+  kind: string;
+  mind: {
+    provider: string;
+    model: string;
+    endpoint_note: string;
+  };
+  body: {
+    mesh: string;
+    scene: string;
+  };
+  abilities: string[];
+  status: string;
+  monetization_note: string;
+};
+
+export type ApparatusContract = {
+  apparatus_id: string;
+  name: string;
+  kind: string;
+  status: string;
+  mcp_tools: string[];
+  rest_endpoints: string[];
+  mesh: {
+    preset: string;
+    scene: string;
+    position_hint: string;
+  };
+  capabilities: string[];
+  write_policy: string;
+  monetization_note: string;
+};
+
 /**
  * Canonical Forge part — single source of truth for the BuilderPanel UI and
  * the workshop-v1 validator (functions/src/workshop.ts reads the same seed).
@@ -414,6 +449,92 @@ export function validateLodgeApp(value: unknown): ValidationResult<LodgeAppContr
       updated_at: value.updated_at as string,
       app_kind: value.app_kind as string,
       public_route: value.public_route as string,
+    },
+  };
+}
+
+export function validateMachine(value: unknown): ValidationResult<MachineContract> {
+  if (!isRecord(value)) return { ok: false, error: 'Machine is not an object' };
+  if (!isString(value.machine_id) || !isString(value.name) || !isString(value.kind)) {
+    return { ok: false, error: 'Machine identity fields must be strings' };
+  }
+  if (!isString(value.status) || !isString(value.monetization_note)) {
+    return { ok: false, error: 'Machine status fields must be strings' };
+  }
+  if (!Array.isArray(value.abilities) || !value.abilities.every(isString)) {
+    return { ok: false, error: 'Machine abilities must be strings' };
+  }
+  if (
+    !isRecord(value.mind)
+    || !isString(value.mind.provider)
+    || !isString(value.mind.model)
+    || !isString(value.mind.endpoint_note)
+  ) {
+    return { ok: false, error: 'Machine mind must contain provider, model, and endpoint_note' };
+  }
+  if (!isRecord(value.body) || !isString(value.body.mesh) || !isString(value.body.scene)) {
+    return { ok: false, error: 'Machine body must contain mesh and scene' };
+  }
+
+  return {
+    ok: true,
+    value: {
+      machine_id: value.machine_id,
+      name: value.name,
+      kind: value.kind,
+      mind: {
+        provider: value.mind.provider,
+        model: value.mind.model,
+        endpoint_note: value.mind.endpoint_note,
+      },
+      body: {
+        mesh: value.body.mesh,
+        scene: value.body.scene,
+      },
+      abilities: value.abilities,
+      status: value.status,
+      monetization_note: value.monetization_note,
+    },
+  };
+}
+
+export function validateApparatus(value: unknown): ValidationResult<ApparatusContract> {
+  if (!isRecord(value)) return { ok: false, error: 'Apparatus is not an object' };
+  const stringFields = ['apparatus_id', 'name', 'kind', 'status', 'write_policy', 'monetization_note'] as const;
+  for (const key of stringFields) {
+    if (!isString(value[key])) return { ok: false, error: `Apparatus field "${key}" must be a string` };
+  }
+  for (const key of ['mcp_tools', 'rest_endpoints', 'capabilities'] as const) {
+    if (!Array.isArray(value[key]) || !value[key].every(isString)) {
+      return { ok: false, error: `Apparatus field "${key}" must contain strings` };
+    }
+  }
+  if (
+    !isRecord(value.mesh)
+    || !isString(value.mesh.preset)
+    || !isString(value.mesh.scene)
+    || !isString(value.mesh.position_hint)
+  ) {
+    return { ok: false, error: 'Apparatus mesh must contain preset, scene, and position_hint' };
+  }
+
+  return {
+    ok: true,
+    value: {
+      apparatus_id: value.apparatus_id as string,
+      name: value.name as string,
+      kind: value.kind as string,
+      status: value.status as string,
+      mcp_tools: value.mcp_tools as string[],
+      rest_endpoints: value.rest_endpoints as string[],
+      mesh: {
+        preset: value.mesh.preset,
+        scene: value.mesh.scene,
+        position_hint: value.mesh.position_hint,
+      },
+      capabilities: value.capabilities as string[],
+      write_policy: value.write_policy as string,
+      monetization_note: value.monetization_note as string,
     },
   };
 }

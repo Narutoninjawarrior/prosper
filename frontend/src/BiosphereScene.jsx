@@ -30,7 +30,7 @@ import {
   Stars,
   Html,
 } from '@react-three/drei'
-import { EffectComposer, Bloom, Vignette, SSAO } from '@react-three/postprocessing'
+import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing'
 import { BlendFunction } from 'postprocessing'
 import * as THREE from 'three'
 import BiosphereGrid from './biosphere/BiosphereGrid'
@@ -39,6 +39,10 @@ import StewardMount from './steward/StewardMount'
 import CommunityPulse from './community/CommunityPulse'
 import CommunityFeed from './community/CommunityFeed'
 import GemmaPresence from './community/GemmaPresence'
+import WelcomeCameraFocus from './biosphere/WelcomeCameraFocus'
+import WelcomePlotHighlight from './biosphere/WelcomePlotHighlight'
+import RecruitmentOverlay from './RecruitmentOverlay'
+import { flowerOfLifeNodes } from './biosphere/resonance'
 
 // ── Scene lighting for the Biosphere ─────────────────────────────
 // Warmer and earthier than the WorldScene — we're in a garden,
@@ -132,7 +136,7 @@ function BiosphereHUD({ heat, emberBalance, resonance }) {
           </div>
         )}
         <div style={{ color: '#444', fontSize: 9, marginTop: 6 }}>
-          Click nodes to plant · [B] build · [Esc] deselect
+          Click nodes to inspect · [B] build · [Esc] deselect
         </div>
       </div>
 
@@ -178,20 +182,6 @@ function BiospherePostProcessing({ heat }) {
         radius={0.45}
       />
 
-      {/* SSAO — light touch; heavy multiply crushes emissive glow on dark soil */}
-      <SSAO
-        blendFunction={BlendFunction.NORMAL}
-        samples={8}
-        rings={2}
-        distanceThreshold={1.0}
-        rangeThreshold={0.5}
-        rangeFalloff={0.1}
-        luminanceInfluence={0.2}
-        radius={8}
-        scale={0.35}
-        bias={0.65}
-      />
-
       {/* Vignette — warm, draws eye to center */}
       <Vignette
         eskil={false}
@@ -218,6 +208,16 @@ export default function BiosphereScene({
   const [resonance,   setResonance] = useState(null)
   const [stewardSignal, setStewardSignal] = useState(0)
   const activePlots = biospherePlots.filter((plot) => plot.active).length
+  const params = new URLSearchParams(window.location.search)
+  const isWelcome = params.get('welcome') === '1'
+  const requestedPlot = Number.parseInt(params.get('plot') ?? '', 10)
+  const welcomePlotId = isWelcome && Number.isInteger(requestedPlot) && requestedPlot >= 0 && requestedPlot <= 18
+    ? requestedPlot
+    : null
+  const welcomeAgent = params.get('agent')?.trim() || 'Citizen'
+  const welcomeNode = welcomePlotId == null
+    ? null
+    : flowerOfLifeNodes(3.5).find((node) => node.id === welcomePlotId) ?? null
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -287,6 +287,7 @@ export default function BiosphereScene({
             onHarvest={onHarvest}
             onEmberSpend={onEmberSpend}
             externalNodes={forgeNodes}
+            externalPlots={biospherePlots}
           />
 
           <GemmaPresence
@@ -306,6 +307,15 @@ export default function BiosphereScene({
             maxDistance={35}
             enablePan={false}
           />
+
+          {welcomePlotId != null && <WelcomeCameraFocus plotId={welcomePlotId} />}
+          {welcomeNode && (
+            <WelcomePlotHighlight
+              position={[welcomeNode.x, 0, welcomeNode.z]}
+              plotId={welcomeNode.id}
+              agentName={welcomeAgent}
+            />
+          )}
 
           {/* Postprocessing */}
           <BiospherePostProcessing heat={heat} />
@@ -329,6 +339,8 @@ export default function BiosphereScene({
           setBuilder(false)
         }}
       />
+
+      {isWelcome && <RecruitmentOverlay />}
 
       <CommunityPulse
         realm="biosphere"

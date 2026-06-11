@@ -42,6 +42,7 @@ import {
   WindCatcher,
   BiosphereHearth,
 } from './SolarpunkStructures'
+import InspectRail from '../inspect/InspectRail'
 
 // ── Constants ─────────────────────────────────────────────────────
 const PLANT_COST   = 5     // $EMBER to plant
@@ -61,8 +62,7 @@ function CultivationNode({
   node,
   resonanceNodeIds,
   resonanceColor,
-  onPlant,
-  onHarvest,
+  onInspect,
   emberBalance,
 }) {
   const [hovered, setHovered] = useState(false)
@@ -89,9 +89,8 @@ function CultivationNode({
 
   const handleClick = useCallback((e) => {
     e.stopPropagation()
-    if (canHarvest) onHarvest(node.id)
-    else if (canPlant) onPlant(node.id)
-  }, [canPlant, canHarvest, node.id])
+    onInspect(node.id)
+  }, [node.id, onInspect])
 
   const rimColor = isResonant ? resonanceColor : style.rimColor
 
@@ -179,9 +178,9 @@ function CultivationNode({
               {style.label} #{node.id}
             </div>
             {node.active
-              ? <div>Stage {node.bloomStage}/6{canHarvest ? ' · Click to harvest' : ''}</div>
+              ? <div>Stage {node.bloomStage}/6 · Click to inspect</div>
               : canPlant
-                ? <div>Click to plant · {PLANT_COST} $EMBER</div>
+                ? <div>Click to inspect · Plant costs {PLANT_COST} $EMBER</div>
                 : <div style={{ color: '#777' }}>
                     {emberBalance < PLANT_COST ? `Need ${PLANT_COST} $EMBER` : 'Empty plot'}
                   </div>
@@ -308,9 +307,11 @@ export default function BiosphereGrid({
   onHarvest    = () => {},
   onEmberSpend = () => {},
   externalNodes = [],  // ForgeNode data from Firestore
+  externalPlots = [],
 }) {
   // Initialize 19-node grid
   const [nodes, setNodes] = useState(() => flowerOfLifeNodes(NODE_RADIUS))
+  const [inspectNodeId, setInspectNodeId] = useState(null)
 
   // Sync with Firestore ForgeNodes
   useEffect(() => {
@@ -330,6 +331,7 @@ export default function BiosphereGrid({
 
   const resonanceNodeIds = resonance?.nodeIds ?? []
   const resonanceColor   = resonance?.color ?? '#D4A853'
+  const inspectNode = nodes.find((node) => node.id === inspectNodeId) ?? null
 
   // Plant handler
   const handlePlant = useCallback((nodeId) => {
@@ -404,8 +406,7 @@ export default function BiosphereGrid({
           node={node}
           resonanceNodeIds={resonanceNodeIds}
           resonanceColor={resonanceColor}
-          onPlant={handlePlant}
-          onHarvest={handleHarvest}
+          onInspect={setInspectNodeId}
           emberBalance={emberBalance}
         />
       ))}
@@ -449,6 +450,53 @@ export default function BiosphereGrid({
             pointerEvents: 'none',
           }}>
             Plant nodes to discover geometric resonance
+          </div>
+        </Html>
+      )}
+
+      {inspectNode && (
+        <Html fullscreen style={{ pointerEvents: 'none' }}>
+          <div style={{ pointerEvents: 'auto' }}>
+            <InspectRail
+              visible
+              draggable
+              accent="#7A9E7E"
+              eyebrow={`plot ${inspectNode.id} · ${inspectNode.ring}`}
+              title={inspectNode.active ? 'Cultivation node' : 'Empty plot'}
+              summary={inspectNode.active
+                ? `Bloom stage ${inspectNode.bloomStage}. Plant and harvest actions remain session-local on this public surface.`
+                : `Planting costs ${PLANT_COST} $EMBER in the local scene preview.`}
+              details={[
+                { label: 'ring', value: inspectNode.ring },
+                { label: 'active', value: inspectNode.active ? 'yes' : 'no' },
+                { label: 'bloom', value: String(inspectNode.bloomStage) },
+                { label: 'ember', value: String(emberBalance) },
+                {
+                  label: 'plot sync',
+                  value: externalPlots.find((plot) => plot.id === inspectNode.id)?.substance ?? 'none',
+                },
+              ]}
+              footer="Inspect-first cultivation. No Firestore write is performed by these actions."
+              actions={[
+                {
+                  label: 'Plant',
+                  tone: 'warm',
+                  disabled: inspectNode.active || emberBalance < PLANT_COST,
+                  onClick: () => handlePlant(inspectNode.id),
+                },
+                {
+                  label: 'Harvest',
+                  tone: 'primary',
+                  disabled: !inspectNode.active || inspectNode.bloomStage < HARVEST_MIN,
+                  onClick: () => handleHarvest(inspectNode.id),
+                },
+                {
+                  label: 'Close',
+                  onClick: () => setInspectNodeId(null),
+                },
+              ]}
+              onClose={() => setInspectNodeId(null)}
+            />
           </div>
         </Html>
       )}

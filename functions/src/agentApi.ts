@@ -18,13 +18,15 @@ import * as crypto from 'crypto';
 const HOSTING_BASE = process.env.AGENT_API_SEED_BASE || 'https://fellowship-of-the-hearth.web.app';
 const SEED_CACHE_MS = 5 * 60 * 1000;
 
-export type RegistryKind = 'artifact' | 'tool' | 'interface_module' | 'lodge_app';
+export type RegistryKind = 'artifact' | 'tool' | 'interface_module' | 'lodge_app' | 'machine' | 'apparatus';
 
 const REGISTRY_SEEDS: Array<{ kind: RegistryKind; path: string }> = [
   { kind: 'artifact', path: '/artifact_registry.json' },
   { kind: 'tool', path: '/tool_registry.json' },
   { kind: 'interface_module', path: '/interface_modules.json' },
   { kind: 'lodge_app', path: '/lodge_apps.json' },
+  { kind: 'machine', path: '/machine_registry.json' },
+  { kind: 'apparatus', path: '/apparatus_registry.json' },
 ];
 
 export type NormalizedItem = {
@@ -64,6 +66,14 @@ function str(value: unknown): string {
 
 function normalizeRecord(kind: RegistryKind, record: Record<string, unknown>, seedPath: string): NormalizedItem {
   const facets: Array<{ label: string; value: string }> = [];
+  let id = str(record.id);
+  let title = str(record.title);
+  let summary = str(record.summary);
+  let provenance = str(record.provenance);
+  let route_pointer = str(record.route_pointer);
+  let source_pointer = str(record.source_pointer);
+  let tags = Array.isArray(record.tags) ? record.tags.filter((t): t is string => typeof t === 'string') : [];
+  
   if (kind === 'artifact') {
     facets.push(
       { label: 'Category', value: str(record.category) },
@@ -80,23 +90,54 @@ function normalizeRecord(kind: RegistryKind, record: Record<string, unknown>, se
       { label: 'Module kind', value: str(record.module_kind) },
       { label: 'Realm', value: str(record.realm) },
     );
-  } else {
+  } else if (kind === 'lodge_app') {
     facets.push(
       { label: 'App kind', value: str(record.app_kind) },
       { label: 'Public route', value: str(record.public_route) },
     );
+  } else if (kind === 'machine') {
+    const mind = record.mind as Record<string, unknown> || {};
+    const hardware = record.hardware as Record<string, unknown> || {};
+    facets.push(
+      { label: 'Role', value: str(record.role) },
+      { label: 'Engine', value: str(mind.engine) },
+      { label: 'Driver', value: str(hardware.driver) },
+      { label: 'Payment', value: str(record.payment_address) }
+    );
+    id = str(record.machine_id);
+    title = str(record.name);
+    summary = `${str(record.status)} machine in ${str(record.zone)}`;
+    route_pointer = '';
+    source_pointer = str(mind.endpoint_note);
+    tags = Array.isArray(record.abilities) ? record.abilities : [];
+    provenance = 'machine_registry';
+  } else if (kind === 'apparatus') {
+    const mesh = record.mesh as Record<string, unknown> || {};
+    facets.push(
+      { label: 'Mesh Preset', value: str(mesh.preset) },
+      { label: 'Scene', value: str(mesh.scene) },
+      { label: 'Write Policy', value: str(record.write_policy) },
+      { label: 'Monetization', value: str(record.monetization_note) }
+    );
+    id = str(record.apparatus_id);
+    title = str(record.name);
+    summary = `${str(record.kind)} apparatus`;
+    route_pointer = '';
+    source_pointer = Array.isArray(record.rest_endpoints) ? record.rest_endpoints.join(', ') : '';
+    tags = Array.isArray(record.mcp_tools) ? record.mcp_tools.filter((t): t is string => typeof t === 'string') : [];
+    provenance = 'apparatus_registry';
   }
 
   return {
-    id: str(record.id),
+    id,
     kind,
-    title: str(record.title),
-    summary: str(record.summary),
-    provenance: str(record.provenance),
+    title,
+    summary,
+    provenance,
     status: str(record.status),
-    route_pointer: str(record.route_pointer),
-    source_pointer: str(record.source_pointer),
-    tags: Array.isArray(record.tags) ? record.tags.filter((t): t is string => typeof t === 'string') : [],
+    route_pointer,
+    source_pointer,
+    tags,
     featured: record.featured === true,
     updated_at: str(record.updated_at),
     facets,
@@ -163,7 +204,7 @@ function guardGet(req: functions.Request, res: functions.Response): boolean {
   return true;
 }
 
-export const VALID_KINDS: RegistryKind[] = ['artifact', 'tool', 'interface_module', 'lodge_app'];
+export const VALID_KINDS: RegistryKind[] = ['artifact', 'tool', 'interface_module', 'lodge_app', 'machine', 'apparatus'];
 export const VALID_STATUSES = ['live', 'seeded', 'mirrored', 'prototype'];
 
 export function filterItems(

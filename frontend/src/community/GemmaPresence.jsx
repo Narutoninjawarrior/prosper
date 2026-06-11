@@ -34,12 +34,6 @@ export default function GemmaPresence({
       <Float speed={1.1} rotationIntensity={0.1} floatIntensity={0.4}>
         <group
           ref={groupRef}
-          onClick={(e) => {
-            e.stopPropagation()
-            onInvoke?.()
-          }}
-          onPointerOver={() => setHovered(true)}
-          onPointerOut={() => setHovered(false)}
         >
           <Sparkles
             count={hovered ? 28 : 18}
@@ -49,7 +43,16 @@ export default function GemmaPresence({
             color={accent}
           />
 
-          <mesh ref={shellRef} castShadow>
+          <mesh
+            ref={shellRef}
+            castShadow
+            onClick={(e) => {
+              e.stopPropagation()
+              onInvoke?.()
+            }}
+            onPointerOver={() => setHovered(true)}
+            onPointerOut={() => setHovered(false)}
+          >
             <icosahedronGeometry args={[0.35, 1]} />
             <MeshTransmissionMaterial
               thickness={0.8}
