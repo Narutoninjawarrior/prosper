@@ -9,7 +9,7 @@
  *   - No Mcp-Session-Id is issued  → every request is independent
  *
  * Methods: initialize, ping, tools/list, tools/call.
- * All six tools are READ-ONLY and reuse the exact helpers behind the
+ * All tools are READ-ONLY and reuse the exact helpers behind the
  * /api/* REST endpoints — one contract, two transports.
  */
 import * as functions from 'firebase-functions';
@@ -21,6 +21,7 @@ import {
   VALID_KINDS,
   VALID_STATUSES,
 } from './agentApi';
+import { validateBlueprint } from './workshop';
 
 const SUPPORTED_PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
 const DEFAULT_PROTOCOL_VERSION = '2025-06-18';
@@ -48,8 +49,33 @@ type ToolDefinition = {
   name: string;
   description: string;
   inputSchema: Record<string, unknown>;
+  outputSchema?: Record<string, unknown>;
   annotations: { readOnlyHint: boolean };
   execute: (args: Record<string, unknown>) => Promise<unknown>;
+};
+
+export const WORKSHOP_OUTPUT_SCHEMA: Record<string, unknown> = {
+  type: 'object',
+  properties: {
+    receipt: { type: 'string', const: 'workshop-receipt-v1' },
+    kind: { type: 'string', enum: ['validation', 'preview'] },
+    valid: { type: 'boolean' },
+    schema_version: { type: 'string' },
+    catalog_version: { type: 'string' },
+    blueprint_hash: { type: 'string' },
+    receipt_hash: { type: 'string' },
+    errors: { type: 'array' },
+    warnings: { type: 'array' },
+    compatibility: { type: 'array' },
+    cost_estimate: { type: 'object' },
+    footprint: { type: 'object' },
+    world_write: { type: 'boolean', const: false },
+  },
+  required: [
+    'receipt', 'kind', 'valid', 'schema_version', 'catalog_version',
+    'blueprint_hash', 'receipt_hash', 'errors', 'warnings',
+    'compatibility', 'cost_estimate', 'footprint', 'world_write',
+  ],
 };
 
 const TOOLS: ToolDefinition[] = [
@@ -63,13 +89,15 @@ const TOOLS: ToolDefinition[] = [
       vessel: 'Fellowship of the Hearth — Hearthlands public vessel',
       vessel_id: 'hearthlands-doctrine-forge-v1',
       base_url: 'https://fellowship-of-the-hearth.web.app',
-      policy: 'All tools and endpoints are read-only. No write paths, no wallet actions, no purchases.',
+      policy: 'All MCP tools and documented discovery/workshop endpoints are read-only.',
       public_routes: ['/world', '/biosphere', '/forge', '/3dforge', '/hall', '/council', '/artifacts', '/registry', '/agent-access'],
       rest_api: {
         registry_list: '/api/registry/list?kind=&status=&q=',
         registry_get: '/api/registry/get?id=&kind=',
         world_summary: '/api/world/summary',
         council_latest: '/api/council/latest',
+        workshop_catalog: '/api/workshop/catalog',
+        workshop_validate: '/api/workshop/validate',
       },
       docs: ['/llms.txt', '/.well-known/ai.json', '/mission.md'],
       integrity: 'Registry seeds carry manifest_hash (SHA-256 of stable-stringified records); hashes are re-verified server-side.',
@@ -162,7 +190,32 @@ const TOOLS: ToolDefinition[] = [
     annotations: { readOnlyHint: true },
     execute: async () => fetchCouncilLatest(),
   },
+  {
+    name: 'hearthlands_validate_blueprint',
+    description:
+      'Deterministically validate a workshop-v1 blueprint. Returns stable errors, warnings, an estimate, and reproducible hashes. Performs no world write; receipts are never witnessed.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        blueprint: { type: 'object', description: 'A workshop-v1 blueprint JSON object.' },
+        mode: { type: 'string', enum: ['validation', 'preview'], default: 'validation' },
+      },
+      required: ['blueprint'],
+    },
+    outputSchema: WORKSHOP_OUTPUT_SCHEMA,
+    annotations: { readOnlyHint: true },
+    execute: async (args) => validateBlueprint(
+      args.blueprint,
+      args.mode === 'preview' ? 'preview' : 'validation',
+    ),
+  },
 ];
+
+export async function executeMcpTool(name: string, args: Record<string, unknown>): Promise<unknown> {
+  const tool = TOOLS.find((candidate) => candidate.name === name);
+  if (!tool) throw new Error(`Unknown tool "${name}".`);
+  return tool.execute(args);
+}
 
 function rpcResult(id: string | number | null, result: unknown) {
   return { jsonrpc: '2.0', id, result };
@@ -195,10 +248,11 @@ async function handleRequest(rpc: JsonRpcRequest): Promise<unknown> {
 
     case 'tools/list':
       return rpcResult(id, {
-        tools: TOOLS.map(({ name, description, inputSchema, annotations }) => ({
+        tools: TOOLS.map(({ name, description, inputSchema, outputSchema, annotations }) => ({
           name,
           description,
           inputSchema,
+          ...(outputSchema ? { outputSchema } : {}),
           annotations,
         })),
       });
@@ -213,9 +267,10 @@ async function handleRequest(rpc: JsonRpcRequest): Promise<unknown> {
         ? params.arguments as Record<string, unknown>
         : {};
       try {
-        const payload = await tool.execute(args);
+        const payload = await executeMcpTool(tool.name, args);
         return rpcResult(id, {
           content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
+          ...(typeof payload === 'object' && payload !== null ? { structuredContent: payload } : {}),
           isError: false,
         });
       } catch (err) {

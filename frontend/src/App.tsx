@@ -166,6 +166,14 @@ function App() {
     );
   }
 
+  if (window.location.pathname === '/forge') {
+    return (
+      <PublicShell className="h-screen w-screen bg-[#020804] text-gray-200">
+        <ForgePage />
+      </PublicShell>
+    );
+  }
+
   if (!unlocked) {
     return <Gate onUnlock={handleUnlock} />;
   }

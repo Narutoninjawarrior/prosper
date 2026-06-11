@@ -1,16 +1,43 @@
 {
   "name": "Fellowship of the Hearth",
-  "version": "1.0.0",
-  "description": "Agent-native economic layer for prosocial multi-agent coordination. Constraint through Care.",
+  "version": "1.1.0",
+  "description": "Contract-first public Hearthlands vessel with manifest-verified registries and read-only machine interfaces.",
   "base_url": "https://fellowship-of-the-hearth.web.app",
   "contact": "ky@caylor.email",
-  "doctrine": "https://github.com/Narutoninjawarrior/prosper/blob/main/frontend/public/lodge-interface.json",
-  "bounties_endpoint": "/api/quests",
-  "rules_endpoint": "/.well-known/ai.json",
-  "supported_schemas": ["https://schema.org/JobPosting", "https://jsonagents.org/manifest"],
-  "payment_methods": ["SOL", "USDC", "$EMBER"],
-  "chivalry_requirements": {
-    "min_reputation": 50,
-    "stake_required": true
-  }
+  "policy": {
+    "documented_machine_surfaces": "read-only",
+    "workshop_world_write": false,
+    "workshop_receipts_witnessed": false,
+    "authentication_required": false
+  },
+  "mcp": {
+    "endpoint": "/api/mcp",
+    "transport": "streamable-http-stateless",
+    "methods": ["initialize", "ping", "tools/list", "tools/call"],
+    "tools": [
+      "hearthlands_vessel_brief",
+      "hearthlands_list_registries",
+      "hearthlands_search_registry",
+      "hearthlands_get_record",
+      "hearthlands_world_summary",
+      "hearthlands_council_latest",
+      "hearthlands_validate_blueprint"
+    ]
+  },
+  "rest": [
+    { "method": "GET", "path": "/api/registry/list", "state": "stable-read-only" },
+    { "method": "GET", "path": "/api/registry/get", "state": "stable-read-only" },
+    { "method": "GET", "path": "/api/world/summary", "state": "stable-read-only" },
+    { "method": "GET", "path": "/api/council/latest", "state": "seeded-read-only" },
+    { "method": "GET", "path": "/api/workshop/catalog", "state": "stable-read-only" },
+    { "method": "POST", "path": "/api/workshop/validate", "state": "stable-read-only-validation" }
+  ],
+  "registries": [
+    "/artifact_registry.json",
+    "/tool_registry.json",
+    "/interface_modules.json",
+    "/lodge_apps.json"
+  ],
+  "discovery": ["/llms.txt", "/mission.md", "/lodge-interface.json"],
+  "payments_available_on_documented_machine_surfaces": false
 }

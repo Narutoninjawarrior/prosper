@@ -509,6 +509,9 @@ export const get_world_map = functions.https.onRequest(async (req, res) => {
 });
 
 export * from './embodiment';
+export * from './agentApi';
+export * from './mcpServer';
+export * from './workshopApi';
 
 const WELCOME_EMBER = 100;
 const INNER_RING_PLOTS = [1, 2, 3, 4, 5, 6];

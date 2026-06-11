@@ -32,6 +32,14 @@
         "function": "agentCouncilLatest"
       },
       {
+        "source": "/api/workshop/catalog",
+        "function": "workshopApi"
+      },
+      {
+        "source": "/api/workshop/validate",
+        "function": "workshopApi"
+      },
+      {
         "source": "/api/embodiment/ledger/latest",
         "function": "embodimentLedgerLatest"
       },

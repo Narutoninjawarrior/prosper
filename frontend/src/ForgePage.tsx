@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { ArrowRight, BookOpen, Flame, ShieldCheck, Sparkles, TriangleAlert, UserPlus, Download, ExternalLink } from 'lucide-react';
 import ArtifactInspector from './ArtifactInspector';
+import WorkshopBench from './workshop/WorkshopBench';
 import { useContract, sanctuaryBridge } from './lib/sanctuaryBridge';
-import { sha256Hex } from './lib/grace';
 
 const quickLinks = [
   {
@@ -150,47 +150,6 @@ function ForgePage() {
   const [draftNote, setDraftNote] = useState('');
   const [draftTargetArea, setDraftTargetArea] = useState('');
   const [draftRisk, setDraftRisk] = useState('');
-
-  // World Forger states
-  const [forgerJson, setForgerJson] = useState<string>(`{
-  "room_id": "cozy-library",
-  "room_name": "Cozy Solarpunk Library",
-  "owner": "Solis",
-  "capacity": 8,
-  "theme": {
-    "primary": "#1c6c4d",
-    "accent": "#d97706",
-    "background": "#fbfefa"
-  },
-  "metadata": {
-    "description": "A persistent virtual workspace for cooperative builders."
-  }
-}`);
-  const [witnessHash, setWitnessHash] = useState<string>("");
-  const [forgerError, setForgerError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    const calculateHash = async () => {
-      try {
-        const parsed = JSON.parse(forgerJson);
-        setForgerError(null);
-        const hash = await sha256Hex(JSON.stringify(parsed, null, 2));
-        if (active) {
-          setWitnessHash(hash);
-        }
-      } catch (err: any) {
-        if (active) {
-          setForgerError(err.message || "Invalid JSON");
-          setWitnessHash("----------------- INVALID JSON -----------------");
-        }
-      }
-    };
-    calculateHash();
-    return () => {
-      active = false;
-    };
-  }, [forgerJson]);
 
   return (
     <div className="h-full overflow-y-auto rounded-3xl border border-[#d7eadc] bg-[linear-gradient(180deg,#fcfcf4_0%,#f7fcf6_48%,#edf8fb_100%)] px-5 py-5 text-[#18382d]">
@@ -635,86 +594,7 @@ function ForgePage() {
           </div>
         </section>
 
-        {/* World Forger Placeholder Section */}
-        <section className="rounded-3xl border border-[#d9e9dc] bg-white/90 p-5 shadow-[0_18px_50px_rgba(97,127,105,0.08)]">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="max-w-3xl">
-              <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.4em] text-[#7b9581]">
-                <Flame size={14} className="text-[#d97706] animate-pulse" /> 3D World Forger
-              </div>
-              <h2 className="mt-1 text-lg font-semibold text-[#123228]">Geometric Cloud Data Preview Pane</h2>
-              <p className="mt-2 text-sm leading-relaxed text-[#62766d]">
-                Draft a hearth-room update proposal as JSON. The browser provides a read-only preview pane to validate syntax, generate integrity witness hashes, and prove the proposal's witness certificate before submission. No write path, no auto-apply, and no Wasm execution are active on this preview rail.
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-5 grid gap-4 lg:grid-cols-2">
-            {/* Input Column */}
-            <div className="flex flex-col gap-3 rounded-2xl border border-[#e1eee3] bg-[#fbfefa] p-4">
-              <div className="flex items-center justify-between">
-                <label className="text-[10px] font-bold uppercase tracking-widest text-[#7b9581]">Draft Proposal JSON</label>
-                <span className="text-[9px] uppercase tracking-wider text-[#b8d4c4]">Source: room_registry.json format</span>
-              </div>
-              <textarea
-                value={forgerJson}
-                onChange={(e) => setForgerJson(e.target.value)}
-                rows={12}
-                className="w-full rounded-xl border border-[#cfe7d4] bg-white px-4 py-3 font-mono text-xs text-[#18382d] placeholder:text-[#8aa195] focus:border-[#1c6c4d] focus:outline-none resize-none transition-colors"
-                placeholder="Paste your JSON hearth-room update proposal..."
-              />
-              {forgerError && (
-                <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-200/50 px-3 py-2 rounded-xl">
-                  <TriangleAlert size={14} />
-                  <span>{forgerError}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Read-Only Artifact & Witness Column */}
-            <div className="flex flex-col gap-3 rounded-2xl border border-[#e8f1e9] bg-[#f2f8f3] p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-[#7b9581]">Witness Certificate</span>
-                <span className="rounded-full bg-[#1c6c4d]/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#1c6c4d]">
-                  witness-witness
-                </span>
-              </div>
-
-              <div className="flex-1 flex flex-col justify-between bg-white rounded-xl border border-[#d6e7da] p-4 relative overflow-hidden">
-                <div>
-                  <div className="text-[9px] uppercase tracking-widest font-bold text-[#7b9581]">Proposal Witness Hash</div>
-                  <div className="mt-1.5 font-mono text-[10px] break-all bg-[#fbfefa] border border-[#e1eee3] px-3 py-2 rounded-lg text-[#123228] select-all cursor-pointer font-semibold shadow-inner" title="Click to copy SHA-256 witness hash">
-                    {witnessHash}
-                  </div>
-                </div>
-
-                <div className="mt-4 border-t border-[#e8f1e9] pt-4">
-                  <div className="text-[9px] uppercase tracking-widest font-bold text-[#7b9581] mb-2">Geometric Cloud Metadata</div>
-                  <div className="grid grid-cols-2 gap-2 text-[10px] text-[#62766d]">
-                    <div className="bg-[#fbfefa] border border-[#e1eee3] p-2 rounded-lg">
-                      <span className="block font-semibold text-[#18382d]">Target Surface:</span>
-                      <span className="font-mono">/forge/world-forger</span>
-                    </div>
-                    <div className="bg-[#fbfefa] border border-[#e1eee3] p-2 rounded-lg">
-                      <span className="block font-semibold text-[#18382d]">Execution Rail:</span>
-                      <span className="font-mono text-[#d97706]">Read-Only Preview</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-4 text-[10px] text-[#62766d] leading-relaxed">
-                  <span className="font-bold text-[#1c6c4d]">🛡️ Integrity Policy:</span>
-                  <p className="mt-1">
-                    To apply this update, copy the witness hash and file it with a steward. The steward must authorize and commit it to `room_registry.json` via the terminal:
-                  </p>
-                  <code className="block mt-1.5 bg-[#fbfefa] p-2 rounded border border-[#d6e7da] font-mono text-[9px] text-[#123228] select-all">
-                    node scripts/steward-room.js --hash {witnessHash.substring(0, 12)}
-                  </code>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
+        <WorkshopBench />
 
         <section className="rounded-3xl border border-[#d9e9dc] bg-white/90 p-5 shadow-[0_18px_50px_rgba(97,127,105,0.08)]">
           <div className="flex items-center gap-3">

@@ -43,6 +43,18 @@ const REMOTE_ENDPOINTS = [
     params: 'none',
     note: 'Latest council proposal from the public seed. Labeled data_state: "seeded" — this is not a live governance feed yet.',
   },
+  {
+    method: 'GET',
+    path: '/api/workshop/catalog',
+    params: 'none',
+    note: 'Versioned workshop-v1 part catalog, bounds, grid, and payload limits. Five parts are buildable; nine are recognized but catalog-only.',
+  },
+  {
+    method: 'POST',
+    path: '/api/workshop/validate',
+    params: '{ blueprint, mode? }',
+    note: 'Deterministic read-only validation. Returns reproducible hashes, stable rule codes, cost estimates, and world_write: false. Receipts are never witnessed.',
+  },
 ]
 
 const SEED_DOCS = [
@@ -84,9 +96,9 @@ export default function AgentAccess() {
             What machines can query here, today
           </h1>
           <p className="mt-4 max-w-2xl text-base leading-7 text-[#c9bba5]">
-            This vessel is read-only for machines. Four manifest-verified registries, stamped
-            community seeds, and an in-browser WebMCP tool surface. No write paths exist.
-            Nothing on this page describes an API that has not shipped.
+            Four manifest-verified registries, stamped community seeds, a deterministic blueprint
+            validator, and an in-browser WebMCP tool surface. The discovery and workshop contracts
+            documented here perform no writes.
           </p>
           <div className="mt-5 flex flex-wrap gap-2">
             <Pill color="#34D399">Seeds · live</Pill>
@@ -127,7 +139,7 @@ export default function AgentAccess() {
             </pre>
           </div>
           <div className="mt-3 flex flex-wrap gap-1.5">
-            {['hearthlands_vessel_brief', 'hearthlands_list_registries', 'hearthlands_search_registry', 'hearthlands_get_record', 'hearthlands_world_summary', 'hearthlands_council_latest'].map((tool) => (
+            {['hearthlands_vessel_brief', 'hearthlands_list_registries', 'hearthlands_search_registry', 'hearthlands_get_record', 'hearthlands_world_summary', 'hearthlands_council_latest', 'hearthlands_validate_blueprint'].map((tool) => (
               <code key={tool} className="rounded-full border border-[#AA88FF]/24 bg-[#AA88FF]/8 px-2.5 py-1 text-[10px] text-[#c4b5fd]">
                 {tool}
               </code>
@@ -142,13 +154,12 @@ export default function AgentAccess() {
               <TerminalSquare size={14} />
               Remote read-only API — no browser required
             </div>
-            <Pill color="#34D399">GET only · CORS open</Pill>
+            <Pill color="#34D399">GET + validation POST · CORS open</Pill>
           </div>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-[#c9bba5]">
-            Plain HTTPS endpoints any bot can call from any runtime. They serve the same
-            manifest-verified registry contract as the seeds and WebMCP tools, with hashes
-            re-verified server-side on every load. No keys required today; everything is free
-            and public.
+            Plain HTTPS endpoints any bot can call from any runtime. Registry loads re-verify
+            manifest hashes, while the workshop POST performs deterministic validation without
+            persistence or world mutation. No keys are required today.
           </p>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             {REMOTE_ENDPOINTS.map((endpoint) => (
@@ -157,7 +168,7 @@ export default function AgentAccess() {
                   <span className="rounded border border-[#34D399]/30 bg-[#34D399]/10 px-1.5 py-0.5 text-[9px] font-bold text-[#34D399]">
                     {endpoint.method}
                   </span>
-                  <a href={endpoint.path} className="no-underline">
+                  <a href={endpoint.method === 'GET' ? endpoint.path : '/forge'} className="no-underline">
                     <code className="text-[12px] font-semibold text-[#eadfcd]">{endpoint.path}</code>
                   </a>
                 </div>
