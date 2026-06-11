@@ -16,175 +16,16 @@
  */
 
 import { useState, useMemo } from 'react'
-import { getAllReagents, getMintableReagents } from './lib/reagentRegistry'
+import { getMintableReagents } from './lib/reagentRegistry'
+import { useContract, sanctuaryBridge } from './lib/sanctuaryBridge'
 
 // ── Object catalogue ──────────────────────────────────────────────
+// Parts come from the canonical seed /workshop_parts.json — the same
+// manifest-hashed catalog the workshop-v1 validator reads. Reagents stay
+// dynamic from the reagent registry.
 
-const OBJECT_TYPES = [
-  {
-    category: 'Water',
-    emoji:    '〜',
-    color:    '#4A90D9',
-    objects:  [
-      {
-        id:          'water_pool',
-        name:        'Water Pool',
-        description: 'A still pool of water. Reacts to reagents, freezes at low heat.',
-        emberCost:   15,
-        type:        'water',
-        icon:        '〜',
-      },
-      {
-        id:          'water_stream',
-        name:        'Stream',
-        description: 'Flowing water with high flow speed. Carries dissolved substances further.',
-        emberCost:   25,
-        type:        'water',
-        icon:        '≈',
-      },
-      {
-        id:          'water_frozen',
-        name:        'Frozen Lake',
-        description: 'Starts fully frozen. Melts near the Hearth. Beautiful moonstone ice.',
-        emberCost:   30,
-        type:        'water',
-        icon:        '❄',
-      },
-    ],
-  },
-  {
-    category: 'Flora',
-    emoji:    '❀',
-    color:    '#7A9E7E',
-    objects:  [
-      {
-        id:          'flora_flower',
-        name:        'Flower Bed',
-        description: 'L-System procedural plant. Releases pollen into nearby water. Grows with heat.',
-        emberCost:   10,
-        type:        'flora',
-        icon:        '❀',
-      },
-      {
-        id:          'flora_moss',
-        name:        'Moss Patch',
-        description: 'Low-growing ground cover. Thrives in ash-water. Absorbs soil runoff.',
-        emberCost:   5,
-        type:        'flora',
-        icon:        '⁘',
-        comingSoon:  true,
-      },
-      {
-        id:          'flora_tree',
-        name:        'Ancient Tree',
-        description: 'Large L-System tree. Takes 6 growth stages. Drops chain_dust into water.',
-        emberCost:   50,
-        type:        'flora',
-        icon:        '🌳',
-        comingSoon:  true,
-      },
-    ],
-  },
-  {
-    category: 'Art',
-    emoji:    '⬡',
-    color:    '#C27C5A',
-    objects:  [
-      {
-        id:          'art_frame',
-        name:        'Art Frame',
-        description: 'Generative art seeded by Forge chain_hash. Mintable as Solana NFT.',
-        emberCost:   50,
-        type:        'lodge',
-        icon:        '⬡',
-      },
-      {
-        id:          'art_mural',
-        name:        'Mural Wall',
-        description: 'Large-format art piece. 3×5 frame grid. Takes 200 $EMBER.',
-        emberCost:   200,
-        type:        'lodge',
-        icon:        '▣',
-        comingSoon:  true,
-      },
-    ],
-  },
-  {
-    category: 'Reagents',
-    emoji:    '◈',
-    color:    '#AA88FF',
-    objects:  [],  // dynamically filled from registry
-    dynamic:  true,
-  },
-  {
-    category: 'Structures',
-    emoji:    '⬛',
-    color:    '#888888',
-    objects:  [
-      {
-        id:          'stone_wall',
-        name:        'Stone Wall',
-        description: 'Blocks water flow. Creates channels and pools.',
-        emberCost:   8,
-        type:        'stone',
-        icon:        '⬛',
-        comingSoon:  true,
-      },
-      {
-        id:          'bridge',
-        name:        'Bridge',
-        description: 'Path over water. Players can walk between plots.',
-        emberCost:   20,
-        type:        'bridge',
-        icon:        '🌉',
-        comingSoon:  true,
-      },
-      {
-        id:          'ruins',
-        name:        'Ancient Ruins',
-        description: 'Leaks ash into nearby water. Creates dark water chemistry.',
-        emberCost:   35,
-        type:        'ruins',
-        icon:        '🏛',
-        comingSoon:  true,
-      },
-      {
-        id:          'lightning_rod',
-        name:        'Lightning Rod',
-        description: 'Rare. During storm events, produces lightning charge reagent.',
-        emberCost:   100,
-        type:        'lightning_rod',
-        icon:        '⚡',
-        comingSoon:  true,
-      },
-    ],
-  },
-  {
-    category: 'Fire',
-    emoji:    '🔥',
-    color:    '#E8842A',
-    objects:  [
-      {
-        id:          'torch',
-        name:        'Torch',
-        description: 'Emits heat. Melts nearby ice. Dries water over time.',
-        emberCost:   12,
-        type:        'fire',
-        icon:        '🔥',
-        comingSoon:  true,
-      },
-      {
-        id:          'forge_fire',
-        name:        'Forge Fire',
-        description: 'High-heat source. Produces ash as byproduct. Connects to Bellows.',
-        emberCost:   40,
-        type:        'fire',
-        icon:        '🌋',
-        comingSoon:  true,
-      },
-    ],
-  },
-]
+const CATEGORY_ORDER = ['Water', 'Flora', 'Art', 'Reagents', 'Structures', 'Fire']
+const REAGENT_CATEGORY_META = { emoji: '◈', color: '#AA88FF' }
 
 // ── Styles ────────────────────────────────────────────────────────
 
@@ -308,28 +149,62 @@ export default function BuilderPanel({
   const [customTitle, setCustomTitle]       = useState('')
 
   const reagents = useMemo(() => getMintableReagents(), [])
+  const partsEnvelope = useContract('/workshop_parts.json', sanctuaryBridge.normalizeWorkshopParts, [])
 
-  // Build dynamic reagent objects
+  // Group canonical parts by category and splice in dynamic reagents
   const allCategories = useMemo(() => {
-    return OBJECT_TYPES.map(cat => {
-      if (!cat.dynamic) return cat
-      return {
-        ...cat,
-        objects: reagents.map(r => ({
-          id:          `reagent_${r.key}`,
-          name:        r.name,
-          description: r.description,
-          emberCost:   5,
-          type:        'reagent',
-          icon:        '◈',
-          reagentKey:  r.key,
-          color:       r.color,
-        })),
+    const groups = new Map()
+    for (const part of partsEnvelope.data) {
+      if (!groups.has(part.category_label)) {
+        groups.set(part.category_label, {
+          category: part.category_label,
+          emoji:    part.category_emoji,
+          color:    part.category_color,
+          objects:  [],
+        })
       }
-    })
-  }, [reagents])
+      groups.get(part.category_label).objects.push({
+        id:          part.part_id,
+        name:        part.name,
+        description: part.description,
+        emberCost:   part.ember_cost,
+        type:        part.object_type,
+        icon:        part.icon,
+        comingSoon:  !part.buildable,
+      })
+    }
+
+    const reagentCategory = {
+      category: 'Reagents',
+      ...REAGENT_CATEGORY_META,
+      objects: reagents.map(r => ({
+        id:          `reagent_${r.key}`,
+        name:        r.name,
+        description: r.description,
+        emberCost:   5,
+        type:        'reagent',
+        icon:        '◈',
+        reagentKey:  r.key,
+        color:       r.color,
+      })),
+    }
+
+    const ordered = []
+    for (const label of CATEGORY_ORDER) {
+      if (label === 'Reagents') { ordered.push(reagentCategory); continue }
+      const group = groups.get(label)
+      if (group) ordered.push(group)
+    }
+    // Never hide seed categories the order list does not know about yet
+    for (const [label, group] of groups) {
+      if (!CATEGORY_ORDER.includes(label)) ordered.push(group)
+    }
+    return ordered
+  }, [partsEnvelope.data, reagents])
 
   if (!visible) return null
+
+  const catalogPending = partsEnvelope.data.length === 0
 
   const activecat  = allCategories.find(c => c.category === activeCategory)
   const canAfford  = selectedObject && emberBalance >= selectedObject.emberCost
@@ -378,6 +253,15 @@ export default function BuilderPanel({
           </span>
         ))}
       </div>
+
+      {/* Catalog availability */}
+      {catalogPending && (
+        <div style={{ color: '#777', fontSize: 10, padding: '6px 0' }}>
+          {partsEnvelope.state === 'error'
+            ? 'Part catalog unavailable.'
+            : 'Loading part catalog…'}
+        </div>
+      )}
 
       {/* Object list */}
       {activecat?.objects.map(obj => (

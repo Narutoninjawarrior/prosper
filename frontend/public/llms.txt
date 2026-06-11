@@ -25,6 +25,7 @@ If your runtime supports WebMCP (`document.modelContext`), this site registers f
 - [Tool registry](https://fellowship-of-the-hearth.web.app/tool_registry.json): reusable interaction and engine capabilities (inspect rail, interaction shell, bellows tick)
 - [Interface modules](https://fellowship-of-the-hearth.web.app/interface_modules.json): routes, overlays, and shells composing the public vessel UI
 - [Lodge apps](https://fellowship-of-the-hearth.web.app/lodge_apps.json): whole app surfaces and engines (vessel, forge, hall, lodge-mind, bellows, registry explorer)
+- [Workshop parts](https://fellowship-of-the-hearth.web.app/workshop_parts.json): canonical Forge part catalog (stamped) — the same seed the workshop-v1 validator and the in-world Build panel read
 
 ## Mission and doctrine
 

@@ -1,7 +1,8 @@
 import * as crypto from 'crypto';
+import catalogSeed from '../data/workshop_parts.json';
 
 export const WORKSHOP_SCHEMA_VERSION = 'workshop-v1';
-export const WORKSHOP_CATALOG_VERSION = 'workshop_parts-v1';
+export const WORKSHOP_CATALOG_VERSION: string = catalogSeed.catalog_version;
 export const WORKSHOP_RECEIPT_VERSION = 'workshop-receipt-v1';
 
 export const WORKSHOP_LIMITS = {
@@ -29,22 +30,26 @@ export type WorkshopCatalogPart = {
   config_keys: string[];
 };
 
-export const WORKSHOP_CATALOG: WorkshopCatalogPart[] = [
-  { part_id: 'water_pool', name: 'Water Pool', category: 'water', ember_cost: 15, footprint: { width: 0.8, depth: 0.8 }, buildable: true, config_keys: [] },
-  { part_id: 'water_stream', name: 'Stream', category: 'water', ember_cost: 25, footprint: { width: 0.8, depth: 0.8 }, buildable: true, config_keys: [] },
-  { part_id: 'water_frozen', name: 'Frozen Lake', category: 'water', ember_cost: 30, footprint: { width: 0.8, depth: 0.8 }, buildable: true, config_keys: [] },
-  { part_id: 'flora_flower', name: 'Flower Bed', category: 'flora', ember_cost: 10, footprint: { width: 0.8, depth: 0.8 }, buildable: true, config_keys: [] },
-  { part_id: 'art_frame', name: 'Art Frame', category: 'art', ember_cost: 50, footprint: { width: 1.2, depth: 0.8 }, buildable: true, config_keys: ['title'] },
-  { part_id: 'flora_moss', name: 'Moss Patch', category: 'flora', ember_cost: 5, footprint: { width: 0.8, depth: 0.8 }, buildable: false, config_keys: [] },
-  { part_id: 'flora_tree', name: 'Ancient Tree', category: 'flora', ember_cost: 50, footprint: { width: 1, depth: 1 }, buildable: false, config_keys: [] },
-  { part_id: 'art_mural', name: 'Mural Wall', category: 'art', ember_cost: 200, footprint: { width: 1.2, depth: 0.8 }, buildable: false, config_keys: ['title'] },
-  { part_id: 'stone_wall', name: 'Stone Wall', category: 'structure', ember_cost: 8, footprint: { width: 1, depth: 0.4 }, buildable: false, config_keys: [] },
-  { part_id: 'bridge', name: 'Bridge', category: 'structure', ember_cost: 20, footprint: { width: 1.5, depth: 0.5 }, buildable: false, config_keys: [] },
-  { part_id: 'ruins', name: 'Ancient Ruins', category: 'structure', ember_cost: 35, footprint: { width: 1.2, depth: 1.2 }, buildable: false, config_keys: [] },
-  { part_id: 'torch', name: 'Torch', category: 'fire', ember_cost: 12, footprint: { width: 0.4, depth: 0.4 }, buildable: false, config_keys: [] },
-  { part_id: 'forge_fire', name: 'Forge Fire', category: 'fire', ember_cost: 40, footprint: { width: 1, depth: 1 }, buildable: false, config_keys: [] },
-  { part_id: 'lightning_rod', name: 'Lightning Rod', category: 'structure', ember_cost: 100, footprint: { width: 0.4, depth: 0.4 }, buildable: false, config_keys: [] },
-];
+// Canonical source: frontend/public/workshop_parts.json (synced to functions/data
+// at build time by the sync-catalog script). Validation uses only the fields
+// below; UI-only fields (icon, colors, descriptions) are ignored here.
+export const WORKSHOP_CATALOG: WorkshopCatalogPart[] = catalogSeed.records.map((record) => ({
+  part_id: record.part_id,
+  name: record.name,
+  category: record.category as WorkshopCatalogPart['category'],
+  ember_cost: record.ember_cost,
+  footprint: { width: record.footprint.width, depth: record.footprint.depth },
+  buildable: record.buildable,
+  config_keys: record.config_keys,
+}));
+
+export const WORKSHOP_CATALOG_MANIFEST = {
+  declared_hash: catalogSeed.manifest_hash,
+  computed_hash: sha256Hex(stableStringify(catalogSeed.records)),
+  get verified(): boolean {
+    return this.declared_hash === this.computed_hash;
+  },
+};
 
 export type WorkshopFinding = {
   code: string;

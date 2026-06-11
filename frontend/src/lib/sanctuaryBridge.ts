@@ -8,6 +8,7 @@ import type {
   ToolContract,
   InterfaceModuleContract,
   LodgeAppContract,
+  WorkshopPartContract,
   ValidationResult,
 } from './contracts';
 import {
@@ -18,6 +19,7 @@ import {
   validateTool as readTool,
   validateInterfaceModule as readInterfaceModule,
   validateLodgeApp as readLodgeApp,
+  validateWorkshopPart as readWorkshopPart,
 } from './contracts';
 
 /** Shown in UI; never paste raw fetch URLs, stack traces, or validator internals here. */
@@ -49,6 +51,7 @@ export type {
   ToolContract,
   InterfaceModuleContract,
   LodgeAppContract,
+  WorkshopPartContract,
   ValidationResult,
 };
 
@@ -59,6 +62,7 @@ type ArtifactSeed = { records?: unknown; manifest_hash?: unknown };
 type ToolSeed = { records?: unknown; manifest_hash?: unknown };
 type InterfaceModuleSeed = { records?: unknown; manifest_hash?: unknown };
 type LodgeAppSeed = { records?: unknown; manifest_hash?: unknown };
+type WorkshopPartSeed = { records?: unknown; manifest_hash?: unknown };
 
 const contractCache = new Map<string, ContractEnvelope<unknown>>();
 
@@ -168,6 +172,20 @@ function normalizeLodgeApps(seed: unknown): ValidationResult<LodgeAppContract[]>
     apps.push(parsed.value);
   }
   return { ok: true, value: apps };
+}
+
+function normalizeWorkshopParts(seed: unknown): ValidationResult<WorkshopPartContract[]> {
+  if (!isRecord(seed)) return { ok: false, error: 'workshop part contract seed is not an object' };
+  const source = (seed as WorkshopPartSeed).records;
+  if (!Array.isArray(source)) return { ok: false, error: 'workshop part contract seed missing records array' };
+
+  const parts: WorkshopPartContract[] = [];
+  for (const entry of source) {
+    const parsed = readWorkshopPart(entry);
+    if (!parsed.ok) return parsed;
+    parts.push(parsed.value);
+  }
+  return { ok: true, value: parts };
 }
 
 async function fetchContract<T>(
@@ -305,4 +323,5 @@ export const sanctuaryBridge = {
   normalizeTools,
   normalizeInterfaceModules,
   normalizeLodgeApps,
+  normalizeWorkshopParts,
 };

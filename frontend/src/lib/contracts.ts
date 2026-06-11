@@ -115,6 +115,26 @@ export type LodgeAppContract = {
   public_route: string;
 };
 
+/**
+ * Canonical Forge part — single source of truth for the BuilderPanel UI and
+ * the workshop-v1 validator (functions/src/workshop.ts reads the same seed).
+ */
+export type WorkshopPartContract = {
+  part_id: string;
+  name: string;
+  description: string;
+  category: string;
+  category_label: string;
+  category_emoji: string;
+  category_color: string;
+  icon: string;
+  object_type: string;
+  ember_cost: number;
+  footprint: { width: number; depth: number };
+  buildable: boolean;
+  config_keys: string[];
+};
+
 /** Runtime Validator Helpers */
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -394,6 +414,46 @@ export function validateLodgeApp(value: unknown): ValidationResult<LodgeAppContr
       updated_at: value.updated_at as string,
       app_kind: value.app_kind as string,
       public_route: value.public_route as string,
+    },
+  };
+}
+
+export function validateWorkshopPart(value: unknown): ValidationResult<WorkshopPartContract> {
+  if (!isRecord(value)) return { ok: false, error: 'WorkshopPart is not an object' };
+
+  const stringFields: Array<keyof WorkshopPartContract> = [
+    'part_id', 'name', 'description', 'category', 'category_label',
+    'category_emoji', 'category_color', 'icon', 'object_type',
+  ];
+  for (const key of stringFields) {
+    if (!isString(value[key])) return { ok: false, error: `WorkshopPart field "${key}" must be a string` };
+  }
+
+  if (!isNumber(value.ember_cost)) return { ok: false, error: 'WorkshopPart ember_cost must be a number' };
+  if (!isBoolean(value.buildable)) return { ok: false, error: 'WorkshopPart buildable must be boolean' };
+  if (!Array.isArray(value.config_keys) || !value.config_keys.every(isString)) {
+    return { ok: false, error: 'WorkshopPart config_keys must be strings' };
+  }
+  if (!isRecord(value.footprint) || !isNumber(value.footprint.width) || !isNumber(value.footprint.depth)) {
+    return { ok: false, error: 'WorkshopPart footprint must contain numeric width and depth' };
+  }
+
+  return {
+    ok: true,
+    value: {
+      part_id: value.part_id as string,
+      name: value.name as string,
+      description: value.description as string,
+      category: value.category as string,
+      category_label: value.category_label as string,
+      category_emoji: value.category_emoji as string,
+      category_color: value.category_color as string,
+      icon: value.icon as string,
+      object_type: value.object_type as string,
+      ember_cost: value.ember_cost as number,
+      footprint: { width: value.footprint.width, depth: value.footprint.depth },
+      buildable: value.buildable as boolean,
+      config_keys: value.config_keys as string[],
     },
   };
 }

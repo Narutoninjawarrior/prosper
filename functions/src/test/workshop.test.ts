@@ -5,6 +5,7 @@ import * as path from 'node:path';
 import {
   validateBlueprint,
   WORKSHOP_CATALOG,
+  WORKSHOP_CATALOG_MANIFEST,
   WORKSHOP_LIMITS,
 } from '../workshop';
 import { executeMcpTool, WORKSHOP_OUTPUT_SCHEMA } from '../mcpServer';
@@ -64,6 +65,17 @@ test('pure validator has no Firebase imports', () => {
 test('catalog has 14 recognized parts and five buildable parts', () => {
   assert.equal(WORKSHOP_CATALOG.length, 14);
   assert.equal(WORKSHOP_CATALOG.filter((item) => item.buildable).length, 5);
+});
+
+test('catalog seed has zero drift: functions copy matches canonical seed and manifest_hash verifies', () => {
+  const canonicalPath = path.resolve(__dirname, '../../../../frontend/public/workshop_parts.json');
+  const copyPath = path.resolve(__dirname, '../../../data/workshop_parts.json');
+  const canonical = fs.readFileSync(canonicalPath, 'utf8');
+  assert.equal(fs.readFileSync(copyPath, 'utf8'), canonical, 'functions/data copy drifted — run npm run sync-catalog');
+  const parsed = JSON.parse(canonical) as { manifest_hash: string; catalog_version: string };
+  assert.equal(WORKSHOP_CATALOG_MANIFEST.declared_hash, parsed.manifest_hash);
+  assert.equal(WORKSHOP_CATALOG_MANIFEST.computed_hash, parsed.manifest_hash, 'manifest_hash stale — restamp the seed');
+  assert.ok(WORKSHOP_CATALOG_MANIFEST.verified);
 });
 
 test('rule codes cover unknown, unbuildable, bounds, grid, overlap, config, and count', () => {

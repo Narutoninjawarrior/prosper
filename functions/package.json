@@ -1,7 +1,8 @@
 {
   "name": "functions",
   "scripts": {
-    "build": "tsc",
+    "sync-catalog": "node -e \"require('fs').copyFileSync(require('path').join(__dirname,'..','frontend','public','workshop_parts.json'), require('path').join(__dirname,'data','workshop_parts.json'))\"",
+    "build": "npm run sync-catalog && tsc",
     "test": "npm run build && node --test lib/src/test/*.test.js",
     "serve": "npm run build && firebase emulators:start --only functions",
     "shell": "npm run build && firebase functions:shell",

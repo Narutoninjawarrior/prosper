@@ -1,0 +1,263 @@
+{
+  "catalog_version": "workshop_parts-v1",
+  "description": "Canonical Forge part catalog. Single source of truth for the BuilderPanel UI and the workshop-v1 validator. The functions/data copy is synced at build time; a test fails on drift.",
+  "records": [
+    {
+      "part_id": "water_pool",
+      "name": "Water Pool",
+      "description": "A still pool of water. Reacts to reagents, freezes at low heat.",
+      "category": "water",
+      "category_label": "Water",
+      "category_emoji": "〜",
+      "category_color": "#4A90D9",
+      "icon": "〜",
+      "object_type": "water",
+      "ember_cost": 15,
+      "footprint": {
+        "width": 0.8,
+        "depth": 0.8
+      },
+      "buildable": true,
+      "config_keys": []
+    },
+    {
+      "part_id": "water_stream",
+      "name": "Stream",
+      "description": "Flowing water with high flow speed. Carries dissolved substances further.",
+      "category": "water",
+      "category_label": "Water",
+      "category_emoji": "〜",
+      "category_color": "#4A90D9",
+      "icon": "≈",
+      "object_type": "water",
+      "ember_cost": 25,
+      "footprint": {
+        "width": 0.8,
+        "depth": 0.8
+      },
+      "buildable": true,
+      "config_keys": []
+    },
+    {
+      "part_id": "water_frozen",
+      "name": "Frozen Lake",
+      "description": "Starts fully frozen. Melts near the Hearth. Beautiful moonstone ice.",
+      "category": "water",
+      "category_label": "Water",
+      "category_emoji": "〜",
+      "category_color": "#4A90D9",
+      "icon": "❄",
+      "object_type": "water",
+      "ember_cost": 30,
+      "footprint": {
+        "width": 0.8,
+        "depth": 0.8
+      },
+      "buildable": true,
+      "config_keys": []
+    },
+    {
+      "part_id": "flora_flower",
+      "name": "Flower Bed",
+      "description": "L-System procedural plant. Releases pollen into nearby water. Grows with heat.",
+      "category": "flora",
+      "category_label": "Flora",
+      "category_emoji": "❀",
+      "category_color": "#7A9E7E",
+      "icon": "❀",
+      "object_type": "flora",
+      "ember_cost": 10,
+      "footprint": {
+        "width": 0.8,
+        "depth": 0.8
+      },
+      "buildable": true,
+      "config_keys": []
+    },
+    {
+      "part_id": "flora_moss",
+      "name": "Moss Patch",
+      "description": "Low-growing ground cover. Thrives in ash-water. Absorbs soil runoff.",
+      "category": "flora",
+      "category_label": "Flora",
+      "category_emoji": "❀",
+      "category_color": "#7A9E7E",
+      "icon": "⁘",
+      "object_type": "flora",
+      "ember_cost": 5,
+      "footprint": {
+        "width": 0.8,
+        "depth": 0.8
+      },
+      "buildable": false,
+      "config_keys": []
+    },
+    {
+      "part_id": "flora_tree",
+      "name": "Ancient Tree",
+      "description": "Large L-System tree. Takes 6 growth stages. Drops chain_dust into water.",
+      "category": "flora",
+      "category_label": "Flora",
+      "category_emoji": "❀",
+      "category_color": "#7A9E7E",
+      "icon": "🌳",
+      "object_type": "flora",
+      "ember_cost": 50,
+      "footprint": {
+        "width": 1,
+        "depth": 1
+      },
+      "buildable": false,
+      "config_keys": []
+    },
+    {
+      "part_id": "art_frame",
+      "name": "Art Frame",
+      "description": "Generative art seeded by Forge chain_hash. Mintable as Solana NFT.",
+      "category": "art",
+      "category_label": "Art",
+      "category_emoji": "⬡",
+      "category_color": "#C27C5A",
+      "icon": "⬡",
+      "object_type": "lodge",
+      "ember_cost": 50,
+      "footprint": {
+        "width": 1.2,
+        "depth": 0.8
+      },
+      "buildable": true,
+      "config_keys": [
+        "title"
+      ]
+    },
+    {
+      "part_id": "art_mural",
+      "name": "Mural Wall",
+      "description": "Large-format art piece. 3×5 frame grid. Takes 200 $EMBER.",
+      "category": "art",
+      "category_label": "Art",
+      "category_emoji": "⬡",
+      "category_color": "#C27C5A",
+      "icon": "▣",
+      "object_type": "lodge",
+      "ember_cost": 200,
+      "footprint": {
+        "width": 1.2,
+        "depth": 0.8
+      },
+      "buildable": false,
+      "config_keys": [
+        "title"
+      ]
+    },
+    {
+      "part_id": "stone_wall",
+      "name": "Stone Wall",
+      "description": "Blocks water flow. Creates channels and pools.",
+      "category": "structure",
+      "category_label": "Structures",
+      "category_emoji": "⬛",
+      "category_color": "#888888",
+      "icon": "⬛",
+      "object_type": "stone",
+      "ember_cost": 8,
+      "footprint": {
+        "width": 1,
+        "depth": 0.4
+      },
+      "buildable": false,
+      "config_keys": []
+    },
+    {
+      "part_id": "bridge",
+      "name": "Bridge",
+      "description": "Path over water. Players can walk between plots.",
+      "category": "structure",
+      "category_label": "Structures",
+      "category_emoji": "⬛",
+      "category_color": "#888888",
+      "icon": "🌉",
+      "object_type": "bridge",
+      "ember_cost": 20,
+      "footprint": {
+        "width": 1.5,
+        "depth": 0.5
+      },
+      "buildable": false,
+      "config_keys": []
+    },
+    {
+      "part_id": "ruins",
+      "name": "Ancient Ruins",
+      "description": "Leaks ash into nearby water. Creates dark water chemistry.",
+      "category": "structure",
+      "category_label": "Structures",
+      "category_emoji": "⬛",
+      "category_color": "#888888",
+      "icon": "🏛",
+      "object_type": "ruins",
+      "ember_cost": 35,
+      "footprint": {
+        "width": 1.2,
+        "depth": 1.2
+      },
+      "buildable": false,
+      "config_keys": []
+    },
+    {
+      "part_id": "lightning_rod",
+      "name": "Lightning Rod",
+      "description": "Rare. During storm events, produces lightning charge reagent.",
+      "category": "structure",
+      "category_label": "Structures",
+      "category_emoji": "⬛",
+      "category_color": "#888888",
+      "icon": "⚡",
+      "object_type": "lightning_rod",
+      "ember_cost": 100,
+      "footprint": {
+        "width": 0.4,
+        "depth": 0.4
+      },
+      "buildable": false,
+      "config_keys": []
+    },
+    {
+      "part_id": "torch",
+      "name": "Torch",
+      "description": "Emits heat. Melts nearby ice. Dries water over time.",
+      "category": "fire",
+      "category_label": "Fire",
+      "category_emoji": "🔥",
+      "category_color": "#E8842A",
+      "icon": "🔥",
+      "object_type": "fire",
+      "ember_cost": 12,
+      "footprint": {
+        "width": 0.4,
+        "depth": 0.4
+      },
+      "buildable": false,
+      "config_keys": []
+    },
+    {
+      "part_id": "forge_fire",
+      "name": "Forge Fire",
+      "description": "High-heat source. Produces ash as byproduct. Connects to Bellows.",
+      "category": "fire",
+      "category_label": "Fire",
+      "category_emoji": "🔥",
+      "category_color": "#E8842A",
+      "icon": "🌋",
+      "object_type": "fire",
+      "ember_cost": 40,
+      "footprint": {
+        "width": 1,
+        "depth": 1
+      },
+      "buildable": false,
+      "config_keys": []
+    }
+  ],
+  "manifest_hash": "2ffa8e1118152cfa0e6014b7fdc07419282f2e64ff5e24904f782d49271af4ec"
+}
