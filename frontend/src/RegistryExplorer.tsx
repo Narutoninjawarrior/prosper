@@ -1,12 +1,11 @@
 /**
- * /registry — Registry Explorer
- * One browseable surface for all four prosper2 registries:
- * Artifacts, Tools, Interface Modules, Lodge Apps.
+ * /registry - Registry Explorer
+ * One browseable surface for all public vessel registries.
  *
  * Read-only. All data flows through sanctuaryBridge (manifest-verified
  * seeds) and is rendered from the canonical NormalizedRegistryItem shape.
  */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useContract, sanctuaryBridge, contractTrustSummary } from './lib/sanctuaryBridge'
 import {
   REGISTRY_SOURCES,
@@ -14,10 +13,14 @@ import {
   fromTool,
   fromInterfaceModule,
   fromLodgeApp,
+  fromMachine,
+  fromApparatus,
   filterRegistryItems,
   type NormalizedRegistryItem,
   type RegistryKind,
 } from './lib/registryAdapter'
+import { loadRegistryInspect, type InspectPayload } from './lib/inspectBridge'
+import InspectRail from './inspect/InspectRail'
 import {
   Archive,
   Bot,
@@ -29,13 +32,13 @@ import {
   Wrench,
 } from 'lucide-react'
 
-const KIND_META: Record<RegistryKind, { label: string; accent: string; icon: React.ReactNode }> = {
-  artifact: { label: 'Artifact', accent: '#A78BFA', icon: <Archive size={13} /> },
-  tool: { label: 'Tool', accent: '#34D399', icon: <Wrench size={13} /> },
-  interface_module: { label: 'Interface Module', accent: '#E8842A', icon: <Layers size={13} /> },
-  lodge_app: { label: 'Lodge App', accent: '#D4A853', icon: <Compass size={13} /> },
-  machine: { label: 'Machine', accent: '#60A5FA', icon: <Bot size={13} /> },
-  apparatus: { label: 'Apparatus', accent: '#F472B6', icon: <Wrench size={13} /> },
+const KIND_META: Record<RegistryKind, { label: string; pluralLabel: string; accent: string; icon: React.ReactNode }> = {
+  artifact: { label: 'Artifact', pluralLabel: 'Artifacts', accent: '#A78BFA', icon: <Archive size={13} /> },
+  tool: { label: 'Tool', pluralLabel: 'Tools', accent: '#34D399', icon: <Wrench size={13} /> },
+  interface_module: { label: 'Interface Module', pluralLabel: 'Interface Modules', accent: '#E8842A', icon: <Layers size={13} /> },
+  lodge_app: { label: 'Lodge App', pluralLabel: 'Lodge Apps', accent: '#D4A853', icon: <Compass size={13} /> },
+  machine: { label: 'Machine', pluralLabel: 'Machines', accent: '#60A5FA', icon: <Bot size={13} /> },
+  apparatus: { label: 'Apparatus', pluralLabel: 'Apparatus', accent: '#F472B6', icon: <Wrench size={13} /> },
 }
 
 const STATUS_META: Record<string, { label: string; color: string }> = {
@@ -56,17 +59,45 @@ const AGENT_USE_CASES = [
   },
   {
     title: 'Load an interface module',
-    detail: 'Interface module records map every public route to its source — the future Forge menu reads from here.',
+    detail: 'Interface module records map every public route to its source so a builder or bot can navigate honestly.',
   },
   {
-    title: 'Study a witnessed build',
-    detail: 'Artifact provenance lines trace each build back to a Lodge tick and its world_state moment.',
+    title: 'Query live apparatus',
+    detail: 'Apparatus records expose real REST and MCP surfaces, so agents can discover endpoints before they call them.',
   },
   {
     title: 'Traverse lineage',
     detail: 'Follow source_pointer and route_pointer across registries to walk from a seed file to a live surface.',
   },
 ]
+
+function isRegistryKind(value: string | null): value is RegistryKind {
+  return value === 'artifact'
+    || value === 'tool'
+    || value === 'interface_module'
+    || value === 'lodge_app'
+    || value === 'machine'
+    || value === 'apparatus'
+}
+
+function updateRegistryUrl(kind: RegistryKind | 'all', status: string, query: string, id?: string | null) {
+  const params = new URLSearchParams(window.location.search)
+
+  if (kind === 'all') params.delete('kind')
+  else params.set('kind', kind)
+
+  if (status === 'all') params.delete('status')
+  else params.set('status', status)
+
+  if (!query.trim()) params.delete('q')
+  else params.set('q', query.trim())
+
+  if (id) params.set('id', id)
+  else params.delete('id')
+
+  const next = params.toString()
+  window.history.replaceState({}, '', `${window.location.pathname}${next ? `?${next}` : ''}`)
+}
 
 function StatusBadge({ status }: { status: string }) {
   const meta = STATUS_META[status] || { label: status, color: '#8E7E6B' }
@@ -81,7 +112,13 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
-function RegistryCard({ item }: { item: NormalizedRegistryItem }) {
+function RegistryCard({
+  item,
+  onInspect,
+}: {
+  item: NormalizedRegistryItem
+  onInspect: (item: NormalizedRegistryItem) => void
+}) {
   const kind = KIND_META[item.kind]
   return (
     <article className="relative flex flex-col gap-3 overflow-hidden rounded-[20px] border border-white/8 bg-white/4 p-5 backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:bg-white/6">
@@ -128,13 +165,22 @@ function RegistryCard({ item }: { item: NormalizedRegistryItem }) {
           </div>
         )}
 
-        <div className="mt-4 flex items-center justify-between border-t border-white/6 pt-3">
-          <a
-            href={item.route_pointer}
-            className="text-[11px] font-semibold text-[#D4A853] no-underline hover:text-[#eadfcd]"
-          >
-            Visit {item.route_pointer} →
-          </a>
+        <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/6 pt-3">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onInspect(item)}
+              className="rounded-full border border-white/10 bg-white/6 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#eadfcd]"
+            >
+              Inspect
+            </button>
+            <a
+              href={item.route_pointer}
+              className="text-[11px] font-semibold text-[#D4A853] no-underline hover:text-[#eadfcd]"
+            >
+              Visit {item.route_pointer} -&gt;
+            </a>
+          </div>
           <span className="text-[10px] text-[#6b5d4b]">{item.updated_at.slice(0, 10)}</span>
         </div>
       </div>
@@ -146,18 +192,33 @@ export default function RegistryExplorer() {
   const [query, setQuery] = useState('')
   const [kindFilter, setKindFilter] = useState<RegistryKind | 'all'>('all')
   const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [inspectPayload, setInspectPayload] = useState<InspectPayload | null>(null)
+  const [inspectTarget, setInspectTarget] = useState<NormalizedRegistryItem | null>(null)
+  const [inspectState, setInspectState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
+  const inspectRequestRef = useRef(0)
 
   const artifactsEnvelope = useContract('/artifact_registry.json', sanctuaryBridge.normalizeArtifacts, [])
   const toolsEnvelope = useContract('/tool_registry.json', sanctuaryBridge.normalizeTools, [])
   const modulesEnvelope = useContract('/interface_modules.json', sanctuaryBridge.normalizeInterfaceModules, [])
   const appsEnvelope = useContract('/lodge_apps.json', sanctuaryBridge.normalizeLodgeApps, [])
+  const machinesEnvelope = useContract('/machine_registry.json', sanctuaryBridge.normalizeMachines, [])
+  const apparatusEnvelope = useContract('/apparatus_registry.json', sanctuaryBridge.normalizeApparatus, [])
 
   const allItems = useMemo<NormalizedRegistryItem[]>(() => [
     ...artifactsEnvelope.data.map(fromArtifact),
     ...toolsEnvelope.data.map(fromTool),
     ...modulesEnvelope.data.map(fromInterfaceModule),
     ...appsEnvelope.data.map(fromLodgeApp),
-  ], [artifactsEnvelope.data, toolsEnvelope.data, modulesEnvelope.data, appsEnvelope.data])
+    ...machinesEnvelope.data.map(fromMachine),
+    ...apparatusEnvelope.data.map(fromApparatus),
+  ], [
+    artifactsEnvelope.data,
+    toolsEnvelope.data,
+    modulesEnvelope.data,
+    appsEnvelope.data,
+    machinesEnvelope.data,
+    apparatusEnvelope.data,
+  ])
 
   const filtered = useMemo(
     () => filterRegistryItems(allItems, { query, kind: kindFilter, status: statusFilter }),
@@ -175,13 +236,82 @@ export default function RegistryExplorer() {
     { label: 'Tools', envelope: toolsEnvelope },
     { label: 'Interface Modules', envelope: modulesEnvelope },
     { label: 'Lodge Apps', envelope: appsEnvelope },
+    { label: 'Machines', envelope: machinesEnvelope },
+    { label: 'Apparatus', envelope: apparatusEnvelope },
   ]
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const kind = params.get('kind')
+    const q = params.get('q')
+    const status = params.get('status')
+
+    if (isRegistryKind(kind)) setKindFilter(kind)
+    if (q) setQuery(q)
+    if (status) setStatusFilter(status)
+  }, [])
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const kind = params.get('kind')
+    const id = params.get('id')
+    if (!isRegistryKind(kind) || !id) return
+
+    const requestId = inspectRequestRef.current + 1
+    inspectRequestRef.current = requestId
+    setInspectState('loading')
+    loadRegistryInspect(kind, id)
+      .then((payload) => {
+        if (inspectRequestRef.current !== requestId) return
+        const item = allItems.find((row) => row.kind === kind && row.id === id) ?? null
+        if (!payload || !item) {
+          setInspectPayload(null)
+          setInspectTarget(null)
+          setInspectState('error')
+          return
+        }
+        setInspectPayload(payload)
+        setInspectTarget(item)
+        setInspectState('ready')
+      })
+      .catch(() => {
+        if (inspectRequestRef.current !== requestId) return
+        setInspectPayload(null)
+        setInspectTarget(null)
+        setInspectState('error')
+      })
+  }, [allItems])
+
+  function openInspect(item: NormalizedRegistryItem) {
+    const requestId = inspectRequestRef.current + 1
+    inspectRequestRef.current = requestId
+    setKindFilter(item.kind)
+    setInspectTarget(item)
+    setInspectState('loading')
+    updateRegistryUrl(item.kind, statusFilter, query, item.id)
+    loadRegistryInspect(item.kind, item.id)
+      .then((payload) => {
+        if (inspectRequestRef.current !== requestId) return
+        setInspectPayload(payload)
+        setInspectState(payload ? 'ready' : 'error')
+      })
+      .catch(() => {
+        if (inspectRequestRef.current !== requestId) return
+        setInspectPayload(null)
+        setInspectState('error')
+      })
+  }
+
+  function closeInspect() {
+    setInspectPayload(null)
+    setInspectTarget(null)
+    setInspectState('idle')
+    updateRegistryUrl(kindFilter, statusFilter, query, null)
+  }
 
   return (
     <div className="min-h-full bg-[radial-gradient(circle_at_top_left,rgba(212,168,83,0.08),transparent_42%),linear-gradient(180deg,#0a0604_0%,#0d0907_55%,#0a0805_100%)] px-6 py-10 text-[#eadfcd]">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
-
-        {/* Hero */}
         <section className="rounded-[28px] border border-[#D4A853]/16 bg-black/30 px-6 py-8 backdrop-blur-sm md:px-8">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
             <div className="max-w-2xl">
@@ -193,9 +323,9 @@ export default function RegistryExplorer() {
                 Everything the vessel knows about itself
               </h1>
               <p className="mt-4 max-w-xl text-base leading-7 text-[#c9bba5]">
-                Artifacts, tools, interface modules, and lodge apps — one browseable surface,
-                read from manifest-verified public seeds. What you see here is exactly what a
-                bot fetching the JSON would see.
+                Artifacts, tools, interface modules, lodge apps, machines, and apparatus live here
+                in one browseable surface. What you see is exactly what a bot fetching the public
+                seeds would see.
               </p>
             </div>
 
@@ -215,8 +345,7 @@ export default function RegistryExplorer() {
             </div>
           </div>
 
-          {/* Verification strip */}
-          <div className="mt-6 grid gap-2 md:grid-cols-4">
+          <div className="mt-6 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
             {envelopes.map(({ label, envelope }) => (
               <div key={label} className="flex items-center gap-2 rounded-xl border border-white/6 bg-black/20 px-3 py-2 text-[10px]">
                 <ShieldCheck size={12} className={envelope.verified ? 'text-[#34D399]' : 'text-[#9b8a76]'} />
@@ -229,7 +358,6 @@ export default function RegistryExplorer() {
           </div>
         </section>
 
-        {/* Search + filters */}
         <section className="flex flex-col gap-3">
           <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/30 px-4 py-3">
             <Search size={15} className="text-[#8a7a64]" />
@@ -237,7 +365,7 @@ export default function RegistryExplorer() {
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search titles, tags, provenance, pointers…"
+              placeholder="Search titles, tags, provenance, pointers..."
               className="w-full bg-transparent text-sm text-[#eadfcd] outline-none placeholder:text-[#6b5d4b]"
             />
             {query && (
@@ -265,7 +393,7 @@ export default function RegistryExplorer() {
             </button>
             {(Object.keys(KIND_META) as RegistryKind[]).map((kind) => {
               const meta = KIND_META[kind]
-              const count = allItems.filter((i) => i.kind === kind).length
+              const count = allItems.filter((item) => item.kind === kind).length
               const active = kindFilter === kind
               return (
                 <button
@@ -277,7 +405,7 @@ export default function RegistryExplorer() {
                     ? { borderColor: `${meta.accent}55`, background: `${meta.accent}18`, color: meta.accent }
                     : { borderColor: 'rgba(255,255,255,0.08)', color: '#8a7a64' }}
                 >
-                  {meta.label}s · {count}
+                  {meta.pluralLabel} · {count}
                 </button>
               )
             })}
@@ -304,11 +432,10 @@ export default function RegistryExplorer() {
           </div>
         </section>
 
-        {/* Grid */}
         {filtered.length > 0 ? (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {filtered.map((item) => (
-              <RegistryCard key={`${item.kind}-${item.id}`} item={item} />
+              <RegistryCard key={`${item.kind}-${item.id}`} item={item} onInspect={openInspect} />
             ))}
           </div>
         ) : (
@@ -319,7 +446,6 @@ export default function RegistryExplorer() {
           </div>
         )}
 
-        {/* Agent use cases */}
         <section className="rounded-[24px] border border-[#34D399]/14 bg-[#34D399]/4 px-6 py-6">
           <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.32em] text-[#34D399]">
             <Bot size={14} />
@@ -335,11 +461,10 @@ export default function RegistryExplorer() {
           </div>
         </section>
 
-        {/* Machine access */}
         <section className="rounded-[24px] border border-white/8 bg-white/3 px-6 py-6">
           <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.32em] text-[#8a7a64]">
             <Database size={13} />
-            Machine access — fetch the seeds directly
+            Machine access - fetch the seeds directly
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             {REGISTRY_SOURCES.map((source) => (
@@ -360,11 +485,35 @@ export default function RegistryExplorer() {
           <p className="mt-4 text-[11px] leading-5 text-[#6b5d4b]">
             Every seed carries a <code className="text-[10px]">manifest_hash</code> (SHA-256 of the
             normalized records array). Read-only today; an MCP/API layer over these same records is
-            the planned next step — no client write paths exist or are implied here.
+            the planned next step - no client write paths exist or are implied here.
           </p>
         </section>
-
       </div>
+
+      <InspectRail
+        visible={inspectState !== 'idle'}
+        draggable
+        accent={inspectPayload?.accent ?? (inspectTarget ? KIND_META[inspectTarget.kind].accent : '#D4A853')}
+        eyebrow={inspectPayload?.eyebrow ?? (inspectTarget ? `${inspectTarget.kind} · ${inspectTarget.status}` : 'inspect')}
+        title={inspectPayload?.title ?? inspectTarget?.title ?? 'Registry record'}
+        summary={inspectState === 'loading'
+          ? 'Loading registry inspect...'
+          : inspectState === 'error'
+            ? 'Inspect payload unavailable.'
+            : inspectPayload?.summary ?? ''}
+        details={inspectPayload?.details ?? []}
+        code={inspectPayload?.code}
+        footer={inspectPayload?.footer ?? ''}
+        actions={[
+          ...(inspectPayload?.actions ?? []).map((action) => ({
+            label: action.label,
+            tone: action.tone,
+            onClick: () => { if (action.href) window.open(action.href, '_blank') },
+          })),
+          { label: 'Close', tone: 'primary', onClick: closeInspect },
+        ]}
+        onClose={closeInspect}
+      />
     </div>
   )
 }

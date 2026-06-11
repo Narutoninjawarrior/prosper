@@ -17,6 +17,8 @@ import {
   fromTool,
   fromInterfaceModule,
   fromLodgeApp,
+  fromMachine,
+  fromApparatus,
   filterRegistryItems,
   type NormalizedRegistryItem,
   type RegistryKind,
@@ -57,11 +59,13 @@ async function loadAllNormalizedItems(): Promise<{
   items: NormalizedRegistryItem[];
   verification: Array<{ registry: string; verified: boolean; state: string }>;
 }> {
-  const [artifacts, tools, modules, apps] = await Promise.all([
+  const [artifacts, tools, modules, apps, machines, apparatus] = await Promise.all([
     loadContract('/artifact_registry.json', sanctuaryBridge.normalizeArtifacts),
     loadContract('/tool_registry.json', sanctuaryBridge.normalizeTools),
     loadContract('/interface_modules.json', sanctuaryBridge.normalizeInterfaceModules),
     loadContract('/lodge_apps.json', sanctuaryBridge.normalizeLodgeApps),
+    loadContract('/machine_registry.json', sanctuaryBridge.normalizeMachines),
+    loadContract('/apparatus_registry.json', sanctuaryBridge.normalizeApparatus),
   ]);
 
   const items: NormalizedRegistryItem[] = [
@@ -69,6 +73,8 @@ async function loadAllNormalizedItems(): Promise<{
     ...(tools.data ?? []).map(fromTool),
     ...(modules.data ?? []).map(fromInterfaceModule),
     ...(apps.data ?? []).map(fromLodgeApp),
+    ...(machines.data ?? []).map(fromMachine),
+    ...(apparatus.data ?? []).map(fromApparatus),
   ];
 
   const verification = [
@@ -76,6 +82,8 @@ async function loadAllNormalizedItems(): Promise<{
     { registry: 'tool_registry', verified: tools.verified, state: tools.state },
     { registry: 'interface_modules', verified: modules.verified, state: modules.state },
     { registry: 'lodge_apps', verified: apps.verified, state: apps.state },
+    { registry: 'machine_registry', verified: machines.verified, state: machines.state },
+    { registry: 'apparatus_registry', verified: apparatus.verified, state: apparatus.state },
   ];
 
   return { items, verification };
@@ -93,13 +101,13 @@ export const AGENT_TOOL_CATALOG = [
   {
     name: 'hearthlands_list_registries',
     description:
-      'List the four Hearthlands registries (artifacts, tools, interface modules, lodge apps) with record counts, seed URLs, and SHA-256 manifest verification state.',
+      'List the public Hearthlands registries (artifacts, tools, interface modules, lodge apps, machines, apparatus) with record counts, seed URLs, and SHA-256 manifest verification state.',
     inputs: 'none',
   },
   {
     name: 'hearthlands_search_registry',
     description:
-      'Search normalized registry records by free-text query, kind (artifact | tool | interface_module | lodge_app), and/or status (live | seeded | mirrored | prototype). Returns normalized items with provenance and pointers.',
+      'Search normalized registry records by free-text query, kind (artifact | tool | interface_module | lodge_app | machine | apparatus), and/or status (live | seeded | mirrored | prototype). Returns normalized items with provenance and pointers.',
     inputs: 'query?, kind?, status?',
   },
   {
@@ -176,7 +184,7 @@ export function registerAgentTools(): boolean {
           query: { type: 'string', description: 'Free-text search across titles, tags, provenance, pointers.' },
           kind: {
             type: 'string',
-            enum: ['artifact', 'tool', 'interface_module', 'lodge_app'],
+            enum: ['artifact', 'tool', 'interface_module', 'lodge_app', 'machine', 'apparatus'],
             description: 'Restrict to one registry kind.',
           },
           status: {
@@ -204,7 +212,7 @@ export function registerAgentTools(): boolean {
       inputSchema: {
         type: 'object',
         properties: {
-          kind: { type: 'string', enum: ['artifact', 'tool', 'interface_module', 'lodge_app'] },
+          kind: { type: 'string', enum: ['artifact', 'tool', 'interface_module', 'lodge_app', 'machine', 'apparatus'] },
           id: { type: 'string', description: 'Record id, e.g. "bellows-harvest-skill".' },
         },
         required: ['kind', 'id'],
