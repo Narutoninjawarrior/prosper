@@ -70,6 +70,36 @@ export type ArtifactContract = {
   file_kind: string;
 };
 
+export type ToolContract = {
+  id: string;
+  title: string;
+  summary: string;
+  provenance: string;
+  status: string;
+  route_pointer: string;
+  source_pointer: string;
+  tags: string[];
+  featured: boolean;
+  updated_at: string;
+  tool_kind: string;
+  realm: string;
+};
+
+export type InterfaceModuleContract = {
+  id: string;
+  title: string;
+  summary: string;
+  provenance: string;
+  status: string;
+  route_pointer: string;
+  source_pointer: string;
+  tags: string[];
+  featured: boolean;
+  updated_at: string;
+  module_kind: string;
+  realm: string;
+};
+
 export type LodgeAppContract = {
   id: string;
   title: string;
@@ -249,6 +279,82 @@ export function validateArtifact(value: unknown): ValidationResult<ArtifactContr
       category: value.category as string,
       seal_state: value.seal_state as string,
       file_kind: value.file_kind as string,
+    },
+  };
+}
+
+export function validateTool(value: unknown): ValidationResult<ToolContract> {
+  if (!isRecord(value)) return { ok: false, error: 'Tool is not an object' };
+
+  const requiredFields: Array<keyof ToolContract> = [
+    'id', 'title', 'summary', 'provenance', 'status', 'route_pointer',
+    'source_pointer', 'updated_at', 'tool_kind', 'realm'
+  ];
+
+  for (const key of requiredFields) {
+    if (!isString(value[key])) return { ok: false, error: `Tool field "${key}" must be a string` };
+  }
+
+  if (!isBoolean(value.featured)) return { ok: false, error: 'Tool featured must be boolean' };
+  if (!Array.isArray(value.tags) || !value.tags.every(isString)) {
+    return { ok: false, error: 'Tool tags must be strings' };
+  }
+
+  return {
+    ok: true,
+    value: {
+      id: value.id as string,
+      title: value.title as string,
+      summary: value.summary as string,
+      provenance: value.provenance as string,
+      status: value.status as string,
+      route_pointer: value.route_pointer as string,
+      source_pointer: value.source_pointer as string,
+      tags: value.tags as string[],
+      featured: value.featured as boolean,
+      updated_at: value.updated_at as string,
+      tool_kind: value.tool_kind as string,
+      realm: value.realm as string,
+    },
+  };
+}
+
+export function validateInterfaceModule(value: unknown): ValidationResult<InterfaceModuleContract> {
+  if (!isRecord(value)) return { ok: false, error: 'Interface module is not an object' };
+
+  const requiredFields: Array<keyof InterfaceModuleContract> = [
+    'id', 'title', 'summary', 'provenance', 'status', 'route_pointer',
+    'source_pointer', 'updated_at', 'module_kind', 'realm'
+  ];
+
+  for (const key of requiredFields) {
+    if (!isString(value[key])) {
+      return { ok: false, error: `Interface module field "${key}" must be a string` };
+    }
+  }
+
+  if (!isBoolean(value.featured)) {
+    return { ok: false, error: 'Interface module featured must be boolean' };
+  }
+  if (!Array.isArray(value.tags) || !value.tags.every(isString)) {
+    return { ok: false, error: 'Interface module tags must be strings' };
+  }
+
+  return {
+    ok: true,
+    value: {
+      id: value.id as string,
+      title: value.title as string,
+      summary: value.summary as string,
+      provenance: value.provenance as string,
+      status: value.status as string,
+      route_pointer: value.route_pointer as string,
+      source_pointer: value.source_pointer as string,
+      tags: value.tags as string[],
+      featured: value.featured as boolean,
+      updated_at: value.updated_at as string,
+      module_kind: value.module_kind as string,
+      realm: value.realm as string,
     },
   };
 }

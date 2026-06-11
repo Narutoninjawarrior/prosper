@@ -345,32 +345,6 @@ export default function ThreeForge({ agentId }: { agentId?: string }) {
           const data = snap.data() as WorldState;
           const currentNodes = (data.nodes || []).filter(n => n && typeof n.x === 'number');
           
-          // Patch 4: Place Genesis Frame
-          const hasGenesis = currentNodes.some(n => n.id === 'lodge-e1476e38');
-          if (!hasGenesis) {
-             const GENESIS_NODE: ForgeNode = {
-               id:          'lodge-e1476e38',
-               object_type: 'lodge',
-               x:           0,
-               y:           1.6,
-               z:           -5.8,
-               chain_hash:  'e1476e38426387610301c09a27ffc90c21bbb6deb40a5ccdece29fb52fdc3f91',
-               seed:        3092837451,
-               algo:        2,
-               heat_level:  2980,
-               title:       'Genesis Tile 3_3',
-               artist:      'Prosper2',
-               ember_cost:  5,
-               minted:      false,
-               placed_by:   'malaky',
-               ts:          Date.now(),
-               color:       '#f43f5e'
-             };
-             try {
-               await import('firebase/firestore').then(m => m.updateDoc(stateRef, { nodes: m.arrayUnion(GENESIS_NODE) }));
-             } catch(e) {}
-          }
-          
           setNodes(currentNodes);
         } else {
           setNodes([]);

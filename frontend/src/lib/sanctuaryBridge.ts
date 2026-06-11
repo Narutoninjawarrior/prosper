@@ -5,6 +5,8 @@ import type {
   RoomContract,
   QuestContract,
   ArtifactContract,
+  ToolContract,
+  InterfaceModuleContract,
   LodgeAppContract,
   ValidationResult,
 } from './contracts';
@@ -13,6 +15,8 @@ import {
   validateRoom as readRoom,
   validateQuest as readQuest,
   validateArtifact as readArtifact,
+  validateTool as readTool,
+  validateInterfaceModule as readInterfaceModule,
   validateLodgeApp as readLodgeApp,
 } from './contracts';
 
@@ -37,12 +41,23 @@ export type ContractEnvelope<T> = {
 };
 
 // Re-export type parameters so dependent components compile without any changes
-export type { MemberContract, RoomContract, QuestContract, ArtifactContract, LodgeAppContract, ValidationResult };
+export type {
+  MemberContract,
+  RoomContract,
+  QuestContract,
+  ArtifactContract,
+  ToolContract,
+  InterfaceModuleContract,
+  LodgeAppContract,
+  ValidationResult,
+};
 
 type MemberSeed = { members?: unknown; manifest_hash?: unknown };
 type RoomSeed = { rooms?: unknown; manifest_hash?: unknown };
 type QuestSeed = { quests?: unknown; manifest_hash?: unknown };
 type ArtifactSeed = { records?: unknown; manifest_hash?: unknown };
+type ToolSeed = { records?: unknown; manifest_hash?: unknown };
+type InterfaceModuleSeed = { records?: unknown; manifest_hash?: unknown };
 type LodgeAppSeed = { records?: unknown; manifest_hash?: unknown };
 
 const contractCache = new Map<string, ContractEnvelope<unknown>>();
@@ -109,6 +124,36 @@ function normalizeArtifacts(seed: unknown): ValidationResult<ArtifactContract[]>
     artifacts.push(parsed.value);
   }
   return { ok: true, value: artifacts };
+}
+
+function normalizeTools(seed: unknown): ValidationResult<ToolContract[]> {
+  if (!isRecord(seed)) return { ok: false, error: 'tool contract seed is not an object' };
+  const source = (seed as ToolSeed).records;
+  if (!Array.isArray(source)) return { ok: false, error: 'tool contract seed missing records array' };
+
+  const tools: ToolContract[] = [];
+  for (const entry of source) {
+    const parsed = readTool(entry);
+    if (!parsed.ok) return parsed;
+    tools.push(parsed.value);
+  }
+  return { ok: true, value: tools };
+}
+
+function normalizeInterfaceModules(seed: unknown): ValidationResult<InterfaceModuleContract[]> {
+  if (!isRecord(seed)) return { ok: false, error: 'interface module contract seed is not an object' };
+  const source = (seed as InterfaceModuleSeed).records;
+  if (!Array.isArray(source)) {
+    return { ok: false, error: 'interface module contract seed missing records array' };
+  }
+
+  const modules: InterfaceModuleContract[] = [];
+  for (const entry of source) {
+    const parsed = readInterfaceModule(entry);
+    if (!parsed.ok) return parsed;
+    modules.push(parsed.value);
+  }
+  return { ok: true, value: modules };
 }
 
 function normalizeLodgeApps(seed: unknown): ValidationResult<LodgeAppContract[]> {
@@ -250,10 +295,14 @@ export const sanctuaryBridge = {
   readRoom,
   readQuest,
   readArtifact,
+  readTool,
+  readInterfaceModule,
   readLodgeApp,
   normalizeMembers,
   normalizeRooms,
   normalizeQuests,
   normalizeArtifacts,
+  normalizeTools,
+  normalizeInterfaceModules,
   normalizeLodgeApps,
 };

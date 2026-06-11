@@ -79,7 +79,7 @@
       "title": "Bellows Engine",
       "summary": "Local Python tick engine — weather, plots, EMBER mining loop.",
       "provenance": "bellows.py + ignite_hearth.py — expects reboot via JSON ledger.",
-      "status": "live",
+      "status": "prototype",
       "route_pointer": "/biosphere",
       "source_pointer": "bellows.py",
       "tags": [
@@ -93,5 +93,5 @@
       "public_route": "/biosphere"
     }
   ],
-  "manifest_hash": "a57bb9edba2c1722f7821316ee80058c20617aca2afcee6e7eaed9e6e4de9c5b"
+  "manifest_hash": "ca2f2762c27407990645ef59c80ee4192afdf7af41c89b68bb3af57fcec50ff5"
 }

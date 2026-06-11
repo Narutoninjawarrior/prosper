@@ -18,6 +18,8 @@ import PublicShell from './PublicShell';
 import WorldRoute from './WorldRoute';
 import BiosphereRoute from './BiosphereRoute';
 import WelcomeRoute from './WelcomeRoute';
+import RegistryExplorer from './RegistryExplorer';
+import AgentAccess from './AgentAccess';
 
 export function AgentNode({ data }: NodeProps) {
   const agentId = data.agent as string;
@@ -132,6 +134,34 @@ function App() {
         <div className="h-full overflow-y-auto">
           <HallOfHonor />
         </div>
+      </PublicShell>
+    );
+  }
+
+  if (window.location.pathname === '/registry') {
+    return (
+      <PublicShell className="min-h-screen w-screen bg-[#020804] text-gray-200">
+        <div className="h-full overflow-y-auto">
+          <RegistryExplorer />
+        </div>
+      </PublicShell>
+    );
+  }
+
+  if (window.location.pathname === '/agent-access') {
+    return (
+      <PublicShell className="min-h-screen w-screen bg-[#020804] text-gray-200">
+        <div className="h-full overflow-y-auto">
+          <AgentAccess />
+        </div>
+      </PublicShell>
+    );
+  }
+
+  if (window.location.pathname === '/3dforge') {
+    return (
+      <PublicShell className="h-screen w-screen bg-[#020804] text-gray-200">
+        <ThreeForge agentId="human" />
       </PublicShell>
     );
   }
