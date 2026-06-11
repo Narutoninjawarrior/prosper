@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Html, Text } from '@react-three/drei'
 import InspectRail from '../inspect/InspectRail'
 import { useContract, sanctuaryBridge } from '../lib/sanctuaryBridge'
+import ChemistryLabOverlay from './ChemistryLabOverlay'
 
 const BIOSPHERE_POSITIONS = {
   reagent_alembic: [5.5, 0, 3.5],
@@ -50,6 +51,7 @@ function ApparatusMesh({ preset }) {
 
 function BiosphereApparatusNode({ record }) {
   const [open, setOpen] = useState(false)
+  const [showChemistryLab, setShowChemistryLab] = useState(false)
   const [payload, setPayload] = useState(null)
   const [state, setState] = useState('idle')
   const position = BIOSPHERE_POSITIONS[record.apparatus_id] ?? [5, 0, 5]
@@ -114,6 +116,11 @@ function BiosphereApparatusNode({ record }) {
               code={payload?.code}
               footer={payload?.footer ?? record.monetization_note}
               actions={[
+                ...(record.apparatus_id === 'reagent_alembic' ? [{
+                  label: 'Open Workbench',
+                  tone: 'warm',
+                  onClick: () => setShowChemistryLab(true),
+                }] : []),
                 ...(payload?.actions ?? []).map((action) => ({
                   label: action.label,
                   tone: action.tone,
@@ -125,6 +132,11 @@ function BiosphereApparatusNode({ record }) {
               onClose={() => setOpen(false)}
             />
           </div>
+          {showChemistryLab && (
+            <div style={{ pointerEvents: 'auto' }}>
+              <ChemistryLabOverlay onClose={() => setShowChemistryLab(false)} />
+            </div>
+          )}
         </Html>
       )}
     </>
