@@ -1,0 +1,75 @@
+{
+  "hosting": {
+    "public": "frontend/dist",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "/mission-control",
+        "destination": "/mission-control.html"
+      },
+      {
+        "source": "/api/mcp",
+        "function": "hearthlandsMcp"
+      },
+      {
+        "source": "/api/registry/list",
+        "function": "agentRegistryList"
+      },
+      {
+        "source": "/api/registry/get",
+        "function": "agentRegistryGet"
+      },
+      {
+        "source": "/api/world/summary",
+        "function": "agentWorldSummary"
+      },
+      {
+        "source": "/api/council/latest",
+        "function": "agentCouncilLatest"
+      },
+      {
+        "source": "/api/embodiment/ledger/latest",
+        "function": "embodimentLedgerLatest"
+      },
+      {
+        "source": "/api/embodiment/ledger",
+        "function": "embodimentLedger"
+      },
+      {
+        "source": "/api/recruit/moltbook",
+        "function": "recruitMoltbook"
+      },
+      {
+        "source": "/api/treasury/intent",
+        "function": "treasuryIntent"
+      },
+      {
+        "source": "/api/lodge-mind/status",
+        "function": "lodgeMindStatus"
+      },
+      {
+        "source": "/api/lodge-mind/context-preview",
+        "function": "lodgeMindContextPreview"
+      },
+      {
+        "source": "/api/welcome",
+        "function": "welcomeHearthlandsAgent"
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  },
+  "firestore": {
+    "rules": "frontend/firestore.rules"
+  },
+  "functions": {
+    "source": "functions",
+    "runtime": "nodejs20"
+  }
+}
