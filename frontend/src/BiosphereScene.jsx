@@ -48,6 +48,7 @@ import { useMultiplayerPresence } from './multiplayer/useMultiplayerPresence'
 import MultiplayerPresence from './multiplayer/MultiplayerPresence'
 import PresenceHud from './multiplayer/PresenceHud'
 import { biosphereSlotPosition } from './multiplayer/multiplayerConfig'
+import SwarmDiagnostics from './multiplayer/SwarmDiagnostics'
 
 import { temperatureAmbientColor, temperatureHemisphereSky } from './biosphere/sim2real'
 
@@ -390,6 +391,8 @@ export default function BiosphereScene({
           resonance={resonance}
         />
       </Canvas>
+
+      <SwarmDiagnostics />
 
       {/* Builder panel */}
       <BuilderPanel
