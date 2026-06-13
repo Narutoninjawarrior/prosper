@@ -169,8 +169,10 @@ export const reagentExecute = functions.https.onRequest(async (req, res) => {
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
 
   try {
-    const { agent_id, action, params } = req.body;
-    if (!agent_id || !action) { res.status(400).json({ error: 'Missing agent_id or action' }); return; }
+  const auth = await requireAuth(req, res);
+  if (!auth) return;
+  const { action, params } = req.body;
+  if (!action) { res.status(400).json({ error: 'Missing action' }); return; }
 
     if (action === 'query_reagent_state') {
       res.status(200).json({ 
@@ -256,8 +258,11 @@ export const skryingOracle = functions.https.onRequest(async (req, res) => {
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
 
   try {
-    const { agent_id, intent_vector, zone } = req.body;
-    if (!agent_id || !intent_vector || !zone) { res.status(400).json({ error: 'Missing agent_id, intent_vector, or zone' }); return; }
+    const auth = await requireAuth(req, res);
+    if (!auth) return;
+    const agent_id = auth.uid;
+    const { intent_vector, zone } = req.body;
+    if (!intent_vector || !zone) { res.status(400).json({ error: 'Missing intent_vector or zone', prototype_note: 'Endpoint is now authenticated.' }); return; }
 
     const memoryQuery = await db.collection('mempalace_stream').where('tags', 'array-contains', zone).orderBy('timestamp', 'desc').limit(5).get();
     let contextString = memoryQuery.docs.map(doc => doc.data().intent).join('\n');
@@ -409,8 +414,11 @@ export const forge_execute = functions.https.onRequest(async (req, res) => {
   if (handleCorsForge(req, res)) return;
   if (req.method !== 'POST') { res.status(405).end(); return; }
 
-  const { agent_id, script_hash, action, params } = req.body;
-  if (!agent_id || !script_hash || !action || !params) { res.status(400).json({ error: 'Missing required Forge parameters' }); return; }
+  const auth = await requireAuth(req, res);
+  if (!auth) return;
+  const agent_id = auth.uid;
+  const { script_hash, action, params } = req.body;
+  if (!script_hash || !action || !params) { res.status(400).json({ error: 'Missing required Forge parameters' }); return; }
 
   const profileSnap = await db.collection('agent_profiles').doc(agent_id).get();
   if (!profileSnap.exists || profileSnap.data()?.forge_credential !== true) { res.status(403).json({ error: 'Agent lacks forge_credential' }); return; }
@@ -466,8 +474,11 @@ export const claim_tile = functions.https.onRequest(async (req, res) => {
   if (handleCorsForge(req, res)) return;
   if (req.method !== 'POST') { res.status(405).end(); return; }
 
-  const { agent_id, x, y, building_type } = req.body;
-  if (!agent_id || x === undefined || y === undefined || !building_type) { res.status(400).json({ error: 'Missing agent_id, x, y, or building_type' }); return; }
+  const auth = await requireAuth(req, res);
+  if (!auth) return;
+  const agent_id = auth.uid;
+  const { x, y, building_type } = req.body;
+  if (x === undefined || y === undefined || !building_type) { res.status(400).json({ error: 'Missing x, y, or building_type' }); return; }
 
   const COST = 5;
   const tile_id = `${x}_${y}`;
@@ -622,6 +633,7 @@ export const welcomeHearthlandsAgent = functions.https.onRequest(async (req, res
             assigned_plot: assignedPlot,
             cottage_label: cottageLabel,
             message: 'Welcome to the Fellowship. Plant your first seed in the Biosphere.',
+            prototype_note: 'This endpoint remains intentionally open for public Moltbook recruitment.',
         });
     } catch (error: any) {
         res.status(500).json({ error: 'Internal server error', details: error.message });

@@ -106,7 +106,7 @@ const Exchange: React.FC = () => {
                             <h4 className="font-bold text-[#10b981]">SECURE FIAT GATEWAY</h4>
                             <p className="mt-1 text-sm leading-relaxed text-[#b7c9be]">
                                 This surface connects directly to Stripe for secure fiat processing.
-                                Tokens are credited to your signed-in Hearthlands account after payment verification.
+                                Sign-in is required. Checkout binds strictly to your verified account, and fulfillment is server-verified. This is not an anonymous purchase API.
                             </p>
                         </div>
                     </div>

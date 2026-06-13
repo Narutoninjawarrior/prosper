@@ -7,6 +7,7 @@
  */
 import { useEffect, useState } from 'react'
 import { AGENT_TOOL_CATALOG, isWebMcpSupported, registerAgentTools } from './lib/agentTools'
+import { fetchActionContracts, type ActionContractRecord } from './lib/actionContracts'
 import { REGISTRY_SOURCES } from './lib/registryAdapter'
 import {
   Bot,
@@ -87,6 +88,7 @@ const SEED_DOCS = [
   { url: '/mission.md', label: 'mission.md', note: 'Mission narrative for humans and crawlers.' },
   { url: '/lodge-interface.json', label: 'lodge-interface.json', note: 'Deep interface map of the Lodge.' },
   { url: '/action_contracts.json', label: 'action_contracts.json', note: 'Machine-readable route capability map: available actions, inspect targets, read endpoints, and write policy per surface.' },
+  { url: '/api_contract.json', label: 'api_contract.json', note: 'Machine-readable API contracts for the Hearthlands Sovereign Ecosystem. Defines operationIds, auth requirements, request/response schemas, and data state protocols.' },
 ]
 
 function Pill({ color, children }: { color: string; children: React.ReactNode }) {
@@ -102,9 +104,13 @@ function Pill({ color, children }: { color: string; children: React.ReactNode })
 
 export default function AgentAccess() {
   const [webMcpActive, setWebMcpActive] = useState(false)
+  const [actionContracts, setActionContracts] = useState<ActionContractRecord[]>([])
 
   useEffect(() => {
     setWebMcpActive(registerAgentTools() && isWebMcpSupported())
+    fetchActionContracts().then((seed) => {
+      if (seed?.records) setActionContracts(seed.records)
+    })
   }, [])
 
   return (
@@ -289,6 +295,48 @@ export default function AgentAccess() {
                 <code className="text-[12px] font-semibold text-[#D4A853]">{doc.url}</code>
                 <p className="mt-2 text-[11px] leading-5 text-[#a08c72]">{doc.note}</p>
               </a>
+            ))}
+          </div>
+        </section>
+
+        <section className="rounded-[24px] border border-[#D4A853]/16 bg-[#D4A853]/4 px-6 py-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.32em] text-[#D4A853]">
+              <Sparkles size={13} />
+              Surface action contracts
+            </div>
+            <Pill color="#D4A853">{actionContracts.length || 0} public surfaces</Pill>
+          </div>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-[#c9bba5]">
+            A route-level capability map for bots and stewards. This is the clearest answer to
+            "what can I do here?", "what is preview-only?", and "where is auth required?" without
+            forcing an agent to reverse-engineer the UI.
+          </p>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {actionContracts.map((surface) => (
+              <div key={surface.surface_id} className="rounded-xl border border-white/6 bg-black/20 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <a href={surface.route} className="no-underline">
+                    <div className="text-[12px] font-semibold text-[#eadfcd]">{surface.title}</div>
+                    <code className="text-[11px] text-[#D4A853]">{surface.route}</code>
+                  </a>
+                  <Pill color={surface.status === 'live' ? '#34D399' : surface.status === 'prototype' ? '#D4A853' : '#9b8a76'}>
+                    {surface.status}
+                  </Pill>
+                </div>
+                <p className="mt-2 text-[11px] leading-5 text-[#a08c72]">{surface.description}</p>
+                <div className="mt-3 grid gap-2 text-[10px] text-[#8E7E6B]">
+                  <div>
+                    <span className="text-[#eadfcd]">actions</span>: {surface.available_actions.join(', ')}
+                  </div>
+                  <div>
+                    <span className="text-[#eadfcd]">inspect</span>: {surface.inspect_targets.join(', ')}
+                  </div>
+                  <div>
+                    <span className="text-[#eadfcd]">policy</span>: {surface.write_policy}
+                  </div>
+                </div>
+              </div>
             ))}
           </div>
         </section>
