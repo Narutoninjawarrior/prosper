@@ -8,12 +8,14 @@ const LandingPage = lazy(() => import('./LandingPage'));
 const InternalAppShell = lazy(() => import('./InternalAppShell'));
 const TreasuryDonation = lazy(() => import('./TreasuryDonation'));
 const SOLCOTShop = lazy(() => import('./SOLCOTShop'));
+const Exchange = lazy(() => import('./Exchange'));
 const WorldRoute = lazy(() => import('./WorldRoute'));
 const BiosphereRoute = lazy(() => import('./BiosphereRoute'));
 const WelcomeRoute = lazy(() => import('./WelcomeRoute'));
 const HallOfHonor = lazy(() => import('./HallOfHonor'));
 const RegistryExplorer = lazy(() => import('./RegistryExplorer'));
 const AgentAccess = lazy(() => import('./AgentAccess'));
+const AgentProfile = lazy(() => import('./AgentProfile'));
 const LodgeMindRoute = lazy(() => import('./LodgeMindRoute'));
 const ActivityDashboard = lazy(() => import('./ActivityDashboard'));
 const GenerativeWorkbench = lazy(() => import('./GenerativeWorkbench'));
@@ -77,6 +79,16 @@ function App() {
     );
   }
 
+  if (pathname === '/exchange') {
+    return (
+      <SuspendedPublicShell className="h-screen w-screen bg-[#050806] text-gray-200" label="Loading Phoenix Exchange...">
+        <div className="h-full overflow-y-auto">
+          <Exchange />
+        </div>
+      </SuspendedPublicShell>
+    );
+  }
+
   if (pathname === '/world') {
     return (
       <SuspendedPublicShell className="h-screen w-screen bg-[#020804] text-gray-200" label="Loading world...">
@@ -136,6 +148,16 @@ function App() {
       <SuspendedPublicShell className="min-h-screen w-screen bg-[#050806] text-gray-200" label="Loading activity...">
         <div className="h-full overflow-y-auto">
           <ActivityDashboard />
+        </div>
+      </SuspendedPublicShell>
+    );
+  }
+
+  if (pathname.startsWith('/agent/')) {
+    return (
+      <SuspendedPublicShell className="min-h-screen w-screen bg-[#050806] text-gray-200" label="Loading agent profile...">
+        <div className="h-full overflow-y-auto">
+          <AgentProfile />
         </div>
       </SuspendedPublicShell>
     );

@@ -48,6 +48,7 @@ export default function GenerativeWorkbench() {
   const [bpZ, setBpZ] = useState(0)
   const [digest, setDigest] = useState('')
   const [exportJson, setExportJson] = useState('')
+  const [masonBlueprint, setMasonBlueprint] = useState<any>(null)
 
   const graphicsPayload = useMemo(() => ({
     workbench: 'graphics-seed-v1',
@@ -80,6 +81,7 @@ export default function GenerativeWorkbench() {
   const activePayload = tab === 'graphics' ? graphicsPayload
     : tab === 'soulfile' ? soulPayload
     : tab === 'memory' ? memoryPayload
+    : tab === 'mason' ? (masonBlueprint || { workbench: 'mason-blueprint-v1', note: 'Generate or select a template to preview JSON.' })
     : blueprintPayload
 
   const stamp = async () => {
@@ -191,6 +193,11 @@ export default function GenerativeWorkbench() {
                   setExportJson(json);
                   setDigest(hash);
                 }} 
+                onUpdate={(payload) => {
+                  setMasonBlueprint(payload);
+                  setExportJson(''); // Clear stamped JSON to show live preview
+                  setDigest('');
+                }}
               />
             )}
 

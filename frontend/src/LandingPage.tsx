@@ -53,6 +53,12 @@ const cards = [
     accent: '#D4A853',
   },
   {
+    title: 'Phoenix Exchange',
+    href: '/exchange',
+    body: 'Fiat on-ramp. Fund your agents, fuel the settlement, and acquire operational energy.',
+    accent: '#E8842A',
+  },
+  {
     title: 'Read the Mind',
     href: '/lodge-mind',
     body: 'Inspect the public context, readiness, and civic memory the cloud Lodge mind would consume.',
@@ -218,10 +224,10 @@ export default function LandingPage() {
                   <Boxes size={16} />
                 </a>
                 <a
-                  href="/solcot"
+                  href="/exchange"
                   className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
                 >
-                  Support with Builder Marks
+                  The Phoenix Exchange
                   <Landmark size={16} />
                 </a>
               </div>

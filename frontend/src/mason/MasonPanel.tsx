@@ -46,17 +46,24 @@ function ProceduralMesh({ primitives }: { primitives: Primitive[] }) {
 }
 
 export default function MasonPanel({
-  onStamp
+  onStamp,
+  onUpdate
 }: {
   onStamp: (json: string, hash: string, payload: any) => void;
+  onUpdate: (payload: any) => void;
 }) {
   const [prompt, setPrompt] = useState('a small earthbag dome for two people');
   const [loading, setLoading] = useState(false);
+  const [offlineError, setOfflineError] = useState(false);
   const [result, setResult] = useState<{ blueprint: BlueprintPayload, reasoning: string } | null>(null);
 
   const handleSubmit = async () => {
     setLoading(true);
+    setOfflineError(false);
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+
       const res = await fetch('http://localhost:8000/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -72,8 +79,13 @@ export default function MasonPanel({
               content: prompt
             }
           ]
-        })
+        }),
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
+      
+      if (!res.ok) throw new Error('API Error');
+
       const data = await res.json();
       const text = data.choices[0].message.content;
       
@@ -93,12 +105,21 @@ export default function MasonPanel({
 
       const blueprint = generateStructure(parsed.structure_type, parsed.params);
       setResult({ blueprint, reasoning: parsed.reasoning || 'No reasoning provided.' });
+      onUpdate(blueprint);
 
     } catch (e) {
       console.error(e);
+      setOfflineError(true);
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadTemplate = (type: string, params: any, reasoning: string) => {
+    setOfflineError(false);
+    const blueprint = generateStructure(type, params);
+    setResult({ blueprint, reasoning });
+    onUpdate(blueprint);
   };
 
   const stamp = async () => {
@@ -126,6 +147,37 @@ export default function MasonPanel({
           {loading ? <Loader2 className="animate-spin" size={14} /> : null}
           Generate Blueprint
         </button>
+        
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-[#8a7a64]">
+          <span>See example outputs:</span>
+          <button 
+            type="button" 
+            onClick={() => loadTemplate('earthbag_dome', { radius: 3, height: 2.5, wall_count: 12, material_id: 'clay' }, 'A sturdy, circular earthbag dome suitable for two people, using local clay.')}
+            className="rounded border border-[#8a7a64]/30 px-2 py-1 hover:bg-[#8a7a64]/10 transition"
+          >
+            Earthbag Dome
+          </button>
+          <button 
+            type="button" 
+            onClick={() => loadTemplate('root_cellar', { radius: 2.5, depth: 2, material_id: 'stone' }, 'An underground root cellar for food storage, utilizing stone for thermal mass.')}
+            className="rounded border border-[#8a7a64]/30 px-2 py-1 hover:bg-[#8a7a64]/10 transition"
+          >
+            Root Cellar
+          </button>
+          <button 
+            type="button" 
+            onClick={() => loadTemplate('terraced_plot', { tiers: 3, tier_height: 0.4, radius: 5, material_id: 'lime' }, 'A three-tier terraced plot for agriculture, retained by lime-rendered walls.')}
+            className="rounded border border-[#8a7a64]/30 px-2 py-1 hover:bg-[#8a7a64]/10 transition"
+          >
+            Terraced Plot
+          </button>
+        </div>
+
+        {offlineError && (
+          <div className="mt-2 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-[11px] text-red-200 leading-relaxed">
+            The Mason is running locally on the Lodge operator's machine and isn't reachable from your browser right now. This is a local prototype — see /lodge-mind for status.
+          </div>
+        )}
       </div>
       
       {result && (
