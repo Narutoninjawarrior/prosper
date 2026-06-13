@@ -326,52 +326,57 @@ export default function ThreeForge({ agentId }: { agentId?: string }) {
   };
 
   useEffect(() => {
-    startInteractionEngine(5000); // Start the interaction engine loops
-    
-    const db = getFirestoreDb();
-    if (!db) {
-      setError('Firebase not configured');
-      setLoading(false);
-      return;
-    }
+    startInteractionEngine(5000);
 
-    const stateRef = doc(db, 'three_forge', 'world_state');
+    let unsubNodes: (() => void) | null = null;
+    let unsubTiles: (() => void) | null = null;
+    let cancelled = false;
 
-    // Real-time listener on Firestore three_forge/world_state
-    const unsubNodes = onSnapshot(
-      stateRef,
-      async snap => {
-        if (snap.exists()) {
-          const data = snap.data() as WorldState;
-          const currentNodes = (data.nodes || []).filter(n => n && typeof n.x === 'number');
-          
-          setNodes(currentNodes);
-        } else {
-          setNodes([]);
+    const init = async () => {
+      const firebaseModule = await import('./firebaseConfig');
+      const configured = await firebaseModule.ensureFirebaseConfigured();
+      if (cancelled) return;
+      if (!configured) { setError('Firebase not configured'); setLoading(false); return; }
+
+      const db = firebaseModule.getFirestoreDb();
+      if (!db || cancelled) { setError('Firebase not configured'); setLoading(false); return; }
+
+      const stateRef = doc(db, 'three_forge', 'world_state');
+
+      unsubNodes = onSnapshot(
+        stateRef,
+        async snap => {
+          if (cancelled) return;
+          if (snap.exists()) {
+            const data = snap.data();
+            setNodes((data.nodes || []).filter((n: ForgeNode) => n && typeof n.x === 'number'));
+          } else {
+            setNodes([]);
+          }
+          setLoading(false);
+        },
+        err => {
+          if (cancelled) return;
+          console.error('ThreeForge nodes snapshot error:', err);
+          setError('Failed to load world state');
+          setLoading(false);
         }
-        setLoading(false);
-      },
-      err => {
-        console.error('ThreeForge nodes snapshot error:', err);
-        setError('Failed to load world state');
-        setLoading(false);
-      }
-    );
+      );
 
-    // Real-time listener on Firestore world_map
-    const unsubTiles = onSnapshot(
-      collection(db, 'world_map'),
-      snap => {
-        const t: WorldMapTile[] = [];
-        snap.forEach(doc => t.push(doc.data() as WorldMapTile));
-        setTiles(t);
-      },
-      err => {
-        console.error('world_map listener error', err);
-      }
-    );
+      unsubTiles = onSnapshot(
+        collection(db, 'world_map'),
+        snap => {
+          if (cancelled) return;
+          const t: WorldMapTile[] = [];
+          snap.forEach(d => t.push(d.data() as WorldMapTile));
+          setTiles(t);
+        },
+        err => { console.error('world_map listener error', err); }
+      );
+    };
 
-    return () => { unsubNodes(); unsubTiles(); };
+    void init();
+    return () => { cancelled = true; if (unsubNodes) unsubNodes(); if (unsubTiles) unsubTiles(); };
   }, []);
 
   if (loading) {

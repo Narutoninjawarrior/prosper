@@ -51,10 +51,43 @@ export type LodgeClaimRow = {
   handle: string;
   profile_url?: string;
   note?: string;
+  status?: string;
+  created_at?: string;
+  reviewed_at?: string;
 };
 
 function readOptionalString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim().length > 0 ? value : undefined;
+}
+
+function readTimestampish(value: unknown): string | undefined {
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? new Date(parsed).toISOString() : undefined;
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const millis = value > 1e12 ? value : value * 1000;
+    return new Date(millis).toISOString();
+  }
+
+  if (typeof value === 'object' && value !== null) {
+    if ('toDate' in value && typeof (value as { toDate?: unknown }).toDate === 'function') {
+      try {
+        const date = (value as { toDate: () => Date }).toDate();
+        return Number.isFinite(date.getTime()) ? date.toISOString() : undefined;
+      } catch {
+        return undefined;
+      }
+    }
+
+    const seconds = (value as { seconds?: unknown }).seconds;
+    if (typeof seconds === 'number' && Number.isFinite(seconds)) {
+      return new Date(seconds * 1000).toISOString();
+    }
+  }
+
+  return undefined;
 }
 
 export async function fetchLiveMembersPreview(max = 40): Promise<LiveFetchResult<LodgeLiveMemberDoc>> {
@@ -149,6 +182,9 @@ export async function fetchApprovedClaims(max = 12): Promise<LiveFetchResult<Lod
         handle,
         profile_url,
         note: typeof d.note === 'string' ? d.note : undefined,
+        status: typeof d.status === 'string' ? d.status : undefined,
+        created_at: readTimestampish(d.created_at),
+        reviewed_at: readTimestampish(d.reviewed_at),
       });
     });
 

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 
 const REAGENTS = [
   { id: 'ember_dust', name: 'Ember Dust', icon: '✨', color: '#E8842A' },
@@ -47,8 +48,8 @@ export default function ChemistryLabOverlay({ onClose }) {
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" style={{ pointerEvents: 'auto' }}>
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" style={{ pointerEvents: 'auto' }}>
       <div className="relative w-full max-w-2xl bg-slate-900/90 border border-[#D4A853]/40 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-xl flex flex-col">
         {/* Header */}
         <div className="p-4 border-b border-white/10 flex justify-between items-center bg-gradient-to-r from-[#D4A853]/20 to-transparent">
@@ -108,8 +109,8 @@ export default function ChemistryLabOverlay({ onClose }) {
                 className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-white focus:border-[#7A9E7E] focus:outline-none focus:ring-1 focus:ring-[#7A9E7E] transition-all"
               >
                 <option value="flora">Flora (Biosphere Plot)</option>
-                <option value="water">Water (Pools & Systems)</option>
-                <option value="lodge">Lodge (Art Frames & Architecture)</option>
+                <option value="water">Water (Pools &amp; Systems)</option>
+                <option value="lodge">Lodge (Art Frames &amp; Architecture)</option>
                 <option value="any">Any General Surface</option>
               </select>
             </div>
@@ -117,7 +118,7 @@ export default function ChemistryLabOverlay({ onClose }) {
             <button 
               onClick={handleMix}
               disabled={loading}
-              className="w-full py-3 mt-4 bg-gradient-to-r from-[#4A90D9] to-[#7A9E7E] hover:from-[#5A9FE9] hover:to-[#8AAEAe] text-black font-bold uppercase tracking-wider rounded-lg shadow-[0_0_20px_rgba(74,144,217,0.3)] hover:shadow-[0_0_30px_rgba(74,144,217,0.5)] transition-all disabled:opacity-50 disabled:cursor-not-allowed transform hover:-translate-y-0.5 active:translate-y-0"
+              className="w-full py-3 mt-4 bg-gradient-to-r from-[#4A90D9] to-[#7A9E7E] hover:from-[#5A9FE9] hover:to-[#8AAEAE] text-black font-bold uppercase tracking-wider rounded-lg shadow-[0_0_20px_rgba(74,144,217,0.3)] hover:shadow-[0_0_30px_rgba(74,144,217,0.5)] transition-all disabled:opacity-50 disabled:cursor-not-allowed transform hover:-translate-y-0.5 active:translate-y-0"
             >
               {loading ? 'Synthesizing...' : 'Preview Synthesis'}
             </button>
@@ -148,7 +149,7 @@ export default function ChemistryLabOverlay({ onClose }) {
             )}
 
             {receipt && !loading && (
-              <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="flex-1 overflow-y-auto space-y-4 pr-2">
                 <div className="space-y-1">
                   <div className="flex justify-between text-xs font-mono">
                     <span className="text-[#8E7E6B]">INPUT A:</span>
@@ -196,6 +197,8 @@ export default function ChemistryLabOverlay({ onClose }) {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
+

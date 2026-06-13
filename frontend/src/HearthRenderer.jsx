@@ -273,8 +273,8 @@ export default function HearthRenderer({ children, heat = 2980 }) {
       {/* Your world objects go here */}
       {children}
 
-      {/* Postprocessing — last so it applies to everything */}
-      <HearthPostProcessing heat={heat} />
+      {/* Postprocessing — temporarily disabled due to severe graphical artifacts with MeshReflectorMaterial */}
+      {/* <HearthPostProcessing heat={heat} /> */}
     </>
   )
 }

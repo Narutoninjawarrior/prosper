@@ -4,6 +4,7 @@ import PublicShell from './PublicShell';
 import Gate from './Gate';
 import { registerAgentTools } from './lib/agentTools';
 
+const LandingPage = lazy(() => import('./LandingPage'));
 const InternalAppShell = lazy(() => import('./InternalAppShell'));
 const TreasuryDonation = lazy(() => import('./TreasuryDonation'));
 const SOLCOTShop = lazy(() => import('./SOLCOTShop'));
@@ -14,6 +15,8 @@ const HallOfHonor = lazy(() => import('./HallOfHonor'));
 const RegistryExplorer = lazy(() => import('./RegistryExplorer'));
 const AgentAccess = lazy(() => import('./AgentAccess'));
 const LodgeMindRoute = lazy(() => import('./LodgeMindRoute'));
+const ActivityDashboard = lazy(() => import('./ActivityDashboard'));
+const GenerativeWorkbench = lazy(() => import('./GenerativeWorkbench'));
 const ThreeForge = lazy(() => import('./ThreeForge'));
 const ForgePage = lazy(() => import('./ForgePage'));
 
@@ -128,6 +131,26 @@ function App() {
     );
   }
 
+  if (pathname === '/activity') {
+    return (
+      <SuspendedPublicShell className="min-h-screen w-screen bg-[#050806] text-gray-200" label="Loading activity...">
+        <div className="h-full overflow-y-auto">
+          <ActivityDashboard />
+        </div>
+      </SuspendedPublicShell>
+    );
+  }
+
+  if (pathname === '/workbench') {
+    return (
+      <SuspendedPublicShell className="min-h-screen w-screen bg-[#050806] text-gray-200" label="Loading workbench...">
+        <div className="h-full overflow-y-auto">
+          <GenerativeWorkbench />
+        </div>
+      </SuspendedPublicShell>
+    );
+  }
+
   if (pathname === '/lodge-mind') {
     return (
       <SuspendedPublicShell className="min-h-screen w-screen bg-[#020804] text-gray-200" label="Loading lodge mind...">
@@ -154,6 +177,17 @@ function App() {
     );
   }
 
+  if (pathname === '/' || pathname === '/explore') {
+    return (
+      <SuspendedPublicShell className="min-h-screen w-screen bg-[#050806]" label="Loading the Hearthlands...">
+        <div className="h-full overflow-y-auto">
+          <LandingPage />
+        </div>
+      </SuspendedPublicShell>
+    );
+  }
+
+  // The rest of the routes, if not matched, go to Hearth OS (/hearth or fallback)
   if (!unlocked) {
     return <Gate onUnlock={handleUnlock} />;
   }
