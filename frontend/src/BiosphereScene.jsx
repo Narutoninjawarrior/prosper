@@ -49,18 +49,22 @@ import MultiplayerPresence from './multiplayer/MultiplayerPresence'
 import PresenceHud from './multiplayer/PresenceHud'
 import { biosphereSlotPosition } from './multiplayer/multiplayerConfig'
 
+import { temperatureAmbientColor, temperatureHemisphereSky } from './biosphere/sim2real'
+
 // ── Scene lighting for the Biosphere ─────────────────────────────
 // Warmer and earthier than the WorldScene — we're in a garden,
 // not on an adventure. The light comes from the Hearth Fire
 // and the late afternoon sky.
 
-function BiosphereLighting({ heat }) {
+function BiosphereLighting({ heat, sim2real }) {
   const warmth = Math.min((heat ?? 2980) / 5000, 1)
+  const ambientColor = temperatureAmbientColor(sim2real?.temperature)
+  const skyColor = temperatureHemisphereSky(sim2real?.temperature)
 
   return (
     <>
       {/* Warm ambient — feels like a garden at 4pm */}
-      <ambientLight intensity={0.35} color="#F5DFC0" />
+      <ambientLight intensity={0.35} color={ambientColor} />
 
       {/* Sun — low angle, casting long shadows across the grid */}
       <directionalLight
@@ -86,7 +90,7 @@ function BiosphereLighting({ heat }) {
       />
 
       {/* Sky fill — blue from above */}
-      <hemisphereLight args={['#87CEEB', '#3D2B1A', 0.3]} />
+      <hemisphereLight args={[skyColor, '#3D2B1A', 0.3]} />
     </>
   )
 }
@@ -205,6 +209,7 @@ export default function BiosphereScene({
   emberBalance  = 2980,
   forgeNodes    = [],       // from Firestore
   biospherePlots = [],
+  sim2real      = null,     // from Open-Meteo via Bellows
   onPlant       = () => {}, // notify parent of plant events
   onHarvest     = () => {}, // notify parent of harvest events
   onEmberSpend  = () => {}, // notify parent of $EMBER spend
@@ -312,7 +317,7 @@ export default function BiosphereScene({
           <Environment preset="sunset" background={false} />
 
           {/* Lighting */}
-          <BiosphereLighting heat={heat} />
+          <BiosphereLighting heat={heat} sim2real={sim2real} />
 
           {/* Ground mist */}
           <GroundMist />
@@ -326,6 +331,7 @@ export default function BiosphereScene({
             onEmberSpend={onEmberSpend}
             externalNodes={forgeNodes}
             externalPlots={biospherePlots}
+            sim2real={sim2real}
           />
           <BiosphereApparatusPlaza />
 

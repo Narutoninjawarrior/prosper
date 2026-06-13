@@ -308,6 +308,7 @@ export default function BiosphereGrid({
   onEmberSpend = () => {},
   externalNodes = [],  // ForgeNode data from Firestore
   externalPlots = [],
+  sim2real     = null,
 }) {
   // Initialize 19-node grid
   const [nodes, setNodes] = useState(() => flowerOfLifeNodes(NODE_RADIUS))
@@ -418,7 +419,7 @@ export default function BiosphereGrid({
               key={`tower-${node.id}`}
               position={[node.x * 1.15, 0, node.z * 1.15]}
               scale={0.7}
-              waterNearby={nodes.some(n =>
+              waterNearby={sim2real?.is_raining || nodes.some(n =>
                 n.active && n.bloomStage >= 2 &&
                 Math.sqrt((n.x - node.x)**2 + (n.z - node.z)**2) < 5
               )}
@@ -428,7 +429,7 @@ export default function BiosphereGrid({
               key={`wind-${node.id}`}
               position={[node.x * 1.15, 0, node.z * 1.15]}
               scale={0.7}
-              windAngle={(i / outerNodes.length) * Math.PI * 2}
+              windAngle={sim2real?.wind_angle ?? ((i / outerNodes.length) * Math.PI * 2)}
               heat={heat}
             />
       ))}
