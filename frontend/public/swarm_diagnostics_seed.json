@@ -1,0 +1,9 @@
+{
+  "renderer_mode": "instanced",
+  "max_remote_instances": 150,
+  "speech_mode": "sdf_text",
+  "current_peer_count": 0,
+  "current_speaking_count": 0,
+  "fps_band": "OPTIMAL",
+  "notes": "Static seed representing the target rendering architecture. Live values are reflected in the HUD overlay."
+}

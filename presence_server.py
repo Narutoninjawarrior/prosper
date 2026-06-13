@@ -112,6 +112,7 @@ async def handle_message(peer: Peer, msg: dict[str, Any]) -> None:
         if now - peer.last_pose_at < POSE_MIN_INTERVAL:
             return
         peer.last_pose_at = now
+        # Compatibility Dialect Shims: x -> target_x, animation -> anim
         peer.target_x = float(msg.get("target_x", msg.get("x", peer.target_x)))
         peer.target_y = float(msg.get("target_y", msg.get("y", peer.target_y)))
         peer.target_z = float(msg.get("target_z", msg.get("z", peer.target_z)))
@@ -241,7 +242,7 @@ async def tick_broadcaster() -> None:
 async def main() -> None:
     print(f"[presence] Listening ws://{HOST}:{PORT} chat_cooldown={CHAT_COOLDOWN_SEC}s")
     asyncio.create_task(tick_broadcaster())
-    async with websockets.serve(handler, HOST, PORT, ping_interval=20, ping_timeout=20):
+    async with websockets.serve(handler, HOST, PORT, ping_interval=60, ping_timeout=120):
         await asyncio.Future()
 
 

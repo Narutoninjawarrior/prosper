@@ -36,7 +36,10 @@ export default function InstancedRemotePeers({ remotePeers = [] }) {
   const dummy = useMemo(() => new THREE.Object3D(), [])
   const tempColor = useMemo(() => new THREE.Color(), [])
   const speechIds = useMemo(
-    () => remotePeers.filter((peer) => peer.message).map((peer) => peer.id),
+    () => remotePeers
+      .filter((peer) => peer.message)
+      .slice(0, 15) // Priority 3: Cap simultaneous visible speech labels
+      .map((peer) => peer.id),
     [remotePeers],
   )
 

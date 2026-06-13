@@ -7,8 +7,8 @@ import { Billboard, Text } from '@react-three/drei'
 import * as THREE from 'three'
 import { SPEECH_FADE_MS } from './multiplayerConfig'
 
-const MAX_DISTANCE = 18
-const FADE_DISTANCE = 12
+const MAX_DISTANCE = 10
+const FADE_DISTANCE = 6
 
 export default function SpeechBubble({ message, messageUntil, name, color = '#D4A853' }) {
   const groupRef = useRef()
