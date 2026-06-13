@@ -6,14 +6,16 @@ import { Canvas } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import { Box, Copy, Download, Sparkles } from 'lucide-react'
 import { sha256Hex, stableStringify } from './lib/grace'
+import MasonPanel from './mason/MasonPanel'
 
-type TabId = 'graphics' | 'soulfile' | 'memory' | 'blueprint'
+type TabId = 'graphics' | 'soulfile' | 'memory' | 'blueprint' | 'mason'
 
 const TABS: Array<{ id: TabId; label: string }> = [
   { id: 'graphics', label: 'Graphics' },
   { id: 'soulfile', label: 'Soulfile' },
   { id: 'memory', label: 'Memory' },
   { id: 'blueprint', label: 'Blueprint' },
+  { id: 'mason', label: 'Mason' },
 ]
 
 function PreviewMesh({ scale, twist, hue }: { scale: number; twist: number; hue: number }) {
@@ -183,33 +185,44 @@ export default function GenerativeWorkbench() {
               </div>
             )}
 
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button type="button" onClick={stamp} className="inline-flex items-center gap-2 rounded-lg bg-[#E8842A] px-4 py-2 font-mono text-[11px] font-semibold text-[#0A0402]">
-                <Box size={14} />
-                Stamp hash
-              </button>
-              <button type="button" onClick={copyAll} className="inline-flex items-center gap-2 rounded-lg border border-white/15 px-4 py-2 font-mono text-[11px] text-[#c9bba5]">
-                <Copy size={14} />
-                Copy JSON + hash
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  await stamp()
-                  const blob = new Blob([`${exportJson}\n\nreceipt_hash: ${digest}`], { type: 'application/json' })
-                  const url = URL.createObjectURL(blob)
-                  const a = document.createElement('a')
-                  a.href = url
-                  a.download = `hearth-workbench-${tab}.json`
-                  a.click()
-                  URL.revokeObjectURL(url)
-                }}
-                className="inline-flex items-center gap-2 rounded-lg border border-white/15 px-4 py-2 font-mono text-[11px] text-[#c9bba5]"
-              >
-                <Download size={14} />
-                Download
-              </button>
-            </div>
+            {tab === 'mason' && (
+              <MasonPanel 
+                onStamp={(json, hash) => {
+                  setExportJson(json);
+                  setDigest(hash);
+                }} 
+              />
+            )}
+
+            {tab !== 'mason' && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button type="button" onClick={stamp} className="inline-flex items-center gap-2 rounded-lg bg-[#E8842A] px-4 py-2 font-mono text-[11px] font-semibold text-[#0A0402]">
+                  <Box size={14} />
+                  Stamp hash
+                </button>
+                <button type="button" onClick={copyAll} className="inline-flex items-center gap-2 rounded-lg border border-white/15 px-4 py-2 font-mono text-[11px] text-[#c9bba5]">
+                  <Copy size={14} />
+                  Copy JSON + hash
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await stamp()
+                    const blob = new Blob([`${exportJson}\n\nreceipt_hash: ${digest}`], { type: 'application/json' })
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = `hearth-workbench-${tab}.json`
+                    a.click()
+                    URL.revokeObjectURL(url)
+                  }}
+                  className="inline-flex items-center gap-2 rounded-lg border border-white/15 px-4 py-2 font-mono text-[11px] text-[#c9bba5]"
+                >
+                  <Download size={14} />
+                  Download
+                </button>
+              </div>
+            )}
           </section>
 
           <section className="rounded-[20px] border border-[#D4A853]/15 bg-[#0a0806]/90 p-5 font-mono text-[11px]">
