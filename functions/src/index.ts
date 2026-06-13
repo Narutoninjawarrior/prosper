@@ -514,6 +514,7 @@ export * from './mcpServer';
 export * from './inspectApi';
 export * from './lodgeMindApi';
 export * from './workshopApi';
+export * from './chemistryApi';
 
 const WELCOME_EMBER = 100;
 const INNER_RING_PLOTS = [1, 2, 3, 4, 5, 6];

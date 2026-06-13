@@ -76,6 +76,14 @@
         "function": "welcomeHearthlandsAgent"
       },
       {
+        "source": "/api/chemistry/preview",
+        "function": "chemistryApi"
+      },
+      {
+        "source": "/api/chemistry/execute",
+        "function": "chemistryApi"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

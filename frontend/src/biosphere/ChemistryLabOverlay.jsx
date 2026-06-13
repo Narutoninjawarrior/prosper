@@ -191,6 +191,37 @@ export default function ChemistryLabOverlay({ onClose }) {
                   <div className="text-[#D4A853] text-[10px] mt-2 text-center uppercase tracking-widest font-mono opacity-80">
                     {receipt.note}
                   </div>
+                  
+                  {receipt.actions.length > 0 && (
+                    <button 
+                      onClick={async () => {
+                        try {
+                          const res = await fetch('/api/chemistry/execute', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              agent_id: 'human_steward',
+                              receipt_hash: receipt.receipt_hash,
+                              payload: {
+                                reagent_a: receipt.reagent_a,
+                                reagent_b: receipt.reagent_b,
+                                target_type: receipt.target_type,
+                                actions: receipt.actions
+                              }
+                            })
+                          });
+                          const data = await res.json();
+                          if (!res.ok) throw new Error(data.error || 'Execution failed');
+                          alert(`Synthesis executed! Chain hash: ${data.chain_hash}`);
+                        } catch (err) {
+                          alert(`Execution failed: ${err.message}`);
+                        }
+                      }}
+                      className="w-full mt-4 py-2 bg-transparent border border-[#D4A853] text-[#D4A853] hover:bg-[#D4A853]/10 font-mono text-xs uppercase tracking-widest rounded transition-colors"
+                    >
+                      Execute Synthesis (Sign)
+                    </button>
+                  )}
                 </div>
               </div>
             )}
