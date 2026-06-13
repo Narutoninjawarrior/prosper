@@ -3,18 +3,22 @@ import * as admin from 'firebase-admin';
 import { Connection, Keypair, PublicKey, Transaction } from '@solana/web3.js';
 import { getOrCreateAssociatedTokenAccount, createTransferInstruction, getAssociatedTokenAddress } from '@solana/spl-token';
 import * as bs58 from 'bs58';
-import { verifyAuth } from './index';
+import { requireAdmin } from './lib/auth';
 
 const db = admin.firestore();
+
+async function resolveAgentRef(agentId: string, firebaseUid?: string) {
+  const uid = firebaseUid || agentId;
+  const linked = await db.collection('agent_profiles').where('firebase_uid', '==', uid).limit(1).get();
+  if (!linked.empty) return linked.docs[0].ref;
+  return db.collection('agent_profiles').doc(agentId);
+}
 
 export const fulfillOrder = functions.https.onRequest(async (req, res) => {
   if (req.method !== 'POST') { res.status(405).end(); return; }
 
-  const uid = await verifyAuth(req);
-  if (!uid) { res.status(401).json({ error: 'unauthenticated' }); return; }
-
-  const adminConfig = process.env.SOVEREIGN_UID || 'malaky_uid';
-  if (uid !== adminConfig && uid !== 'malaky') { res.status(403).json({ error: 'unauthorized' }); return; }
+  const auth = await requireAdmin(req, res);
+  if (!auth) return;
 
   const { orderId, dry_run } = req.body;
   if (!orderId) { res.status(400).json({ error: 'Missing orderId' }); return; }
@@ -30,10 +34,11 @@ export const fulfillOrder = functions.https.onRequest(async (req, res) => {
     }
 
     const agentId = order.agent_id;
+    const firebaseUid = order.firebase_uid as string | undefined;
     const tokenType = order.token; // 'EMBER' or 'SOLCOT'
     const amount = order.amount; // e.g. 1000
 
-    const agentRef = db.collection('agent_profiles').doc(agentId);
+    const agentRef = await resolveAgentRef(agentId, firebaseUid);
     const agentSnap = await agentRef.get();
     if (!agentSnap.exists) {
       res.status(404).json({ error: 'Agent profile not found' }); return;
@@ -132,11 +137,8 @@ export const fulfillOrder = functions.https.onRequest(async (req, res) => {
 export const resetOrderFulfillment = functions.https.onRequest(async (req, res) => {
   if (req.method !== 'POST') { res.status(405).end(); return; }
 
-  const uid = await verifyAuth(req);
-  if (!uid) { res.status(401).json({ error: 'unauthenticated' }); return; }
-
-  const adminConfig = process.env.SOVEREIGN_UID || 'malaky_uid';
-  if (uid !== adminConfig && uid !== 'malaky') { res.status(403).json({ error: 'unauthorized' }); return; }
+  const auth = await requireAdmin(req, res);
+  if (!auth) return;
 
   const { orderId } = req.body;
   if (!orderId) { res.status(400).json({ error: 'Missing orderId' }); return; }

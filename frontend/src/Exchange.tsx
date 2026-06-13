@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { Flame, ShieldCheck, CreditCard } from 'lucide-react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
+import { getFirebaseAuth } from './firebaseAuth';
 
 function EmberCrystal() {
     const meshRef = useRef<any>(null);
@@ -48,21 +49,26 @@ function SolcotCoin() {
 
 const Exchange: React.FC = () => {
     const [status, setStatus] = useState<string | null>(null);
-    const [agentId, setAgentId] = useState('');
 
     const handlePurchase = async (token: 'EMBER' | 'SOLCOT', amount: number, usdPrice: number) => {
-        if (!agentId) {
-            setStatus('Error: Please enter your Agent ID (Public Key).');
+        setStatus(`Initiating Stripe checkout for ${amount} ${token} ($${usdPrice}.00)...`);
+
+        const auth = getFirebaseAuth();
+        const user = auth?.currentUser;
+        if (!user) {
+            setStatus('Error: Sign in to the Hearthlands before purchasing. Checkout binds to your verified account.');
             return;
         }
-        
-        setStatus(`Initiating Stripe checkout for ${amount} ${token} ($${usdPrice}.00)...`);
-        
+
         try {
+            const idToken = await user.getIdToken();
             const response = await fetch('https://us-central1-fellowship-of-the-hearth.cloudfunctions.net/createCheckoutSession', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ token, amount, agentId })
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${idToken}`,
+                },
+                body: JSON.stringify({ token, amount }),
             });
             const data = await response.json();
             if (data.url) {
@@ -99,23 +105,10 @@ const Exchange: React.FC = () => {
                         <div>
                             <h4 className="font-bold text-[#10b981]">SECURE FIAT GATEWAY</h4>
                             <p className="mt-1 text-sm leading-relaxed text-[#b7c9be]">
-                                This surface connects directly to Stripe for secure fiat processing. 
-                                Tokens will be credited to the provided Agent ID (Ed25519 Public Key) upon successful payment verification.
+                                This surface connects directly to Stripe for secure fiat processing.
+                                Tokens are credited to your signed-in Hearthlands account after payment verification.
                             </p>
                         </div>
-                    </div>
-
-                    <div className="mb-8">
-                        <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.2em] text-[#89a598]">
-                            Target Agent ID (Public Key)
-                        </label>
-                        <input 
-                            type="text" 
-                            placeholder="Enter Ed25519 Public Key (e.g., Dm4ZC6HfQsocFUgjmdDysM8MUQdwuN7uhBcnLmhRBdYR)"
-                            className="w-full rounded-xl border border-white/10 bg-black/40 p-4 font-mono text-sm text-white placeholder-white/30 outline-none transition-colors focus:border-[#E8842A]/50 focus:bg-black/60"
-                            value={agentId}
-                            onChange={(e) => setAgentId(e.target.value)}
-                        />
                     </div>
 
                     <div className="grid gap-6 md:grid-cols-2">

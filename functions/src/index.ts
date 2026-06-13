@@ -2,22 +2,11 @@ import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import * as nacl from 'tweetnacl';
 import * as bs58 from 'bs58';
+import { requireAuth, requireAdmin } from './lib/auth';
 const crypto = require('crypto');
 
 admin.initializeApp();
 const db = admin.firestore();
-
-export async function verifyAuth(req: functions.Request): Promise<string | null> {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-  const idToken = authHeader.split('Bearer ')[1];
-  try {
-    const decodedToken = await admin.auth().verifyIdToken(idToken);
-    return decodedToken.uid;
-  } catch (err) {
-    return null;
-  }
-}
 
 interface BountyClaimPayload {
   quest_id: string;
@@ -225,8 +214,8 @@ export const registerAgent = functions.https.onRequest(async (req, res) => {
   if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
 
-  const uid = await verifyAuth(req);
-  if (!uid) { res.status(401).json({ error: 'unauthenticated' }); return; }
+  const auth = await requireAuth(req, res);
+  if (!auth) return;
 
   try {
     const { public_key, agent_name, initial_metadata } = req.body;
@@ -242,6 +231,7 @@ export const registerAgent = functions.https.onRequest(async (req, res) => {
 
     await agentRef.set({
       public_key,
+      firebase_uid: auth.uid,
       agent_name: agent_name || `Agent-${public_key.slice(0, 8)}`,
       reputation: 50,
       total_claims: 0,
@@ -293,24 +283,38 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_mock', { api
 
 export const createCheckoutSession = functions.https.onRequest(async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
-  if (req.method === 'OPTIONS') { res.set('Access-Control-Allow-Methods', 'POST'); res.set('Access-Control-Allow-Headers', 'Content-Type'); res.status(204).send(''); return; }
+  if (req.method === 'OPTIONS') {
+    res.set('Access-Control-Allow-Methods', 'POST');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.status(204).send('');
+    return;
+  }
+  if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
+
+  const auth = await requireAuth(req, res);
+  if (!auth) return;
 
   try {
-    const { token, amount, agentId } = req.body;
+    const { token, amount } = req.body;
     let price = 0;
     let desc = '';
     if (token === 'EMBER' && amount === 1000) { price = 1000; desc = '1,000 $EMBER'; }
     else if (token === 'SOLCOT' && amount === 1) { price = 25000; desc = '1.00 $SOLCOT'; }
     else { res.status(400).send('Invalid token/amount configuration'); return; }
 
+    const verifiedUid = auth.uid;
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [{ price_data: { currency: 'usd', product_data: { name: desc }, unit_amount: price }, quantity: 1 }],
       mode: 'payment',
       success_url: 'https://fellowship-of-the-hearth.web.app?payment=success',
       cancel_url: 'https://fellowship-of-the-hearth.web.app?payment=canceled',
-      client_reference_id: agentId,
-      metadata: { token, amount: amount.toString() }
+      client_reference_id: verifiedUid,
+      metadata: {
+        token,
+        amount: amount.toString(),
+        firebase_uid: verifiedUid,
+      },
     });
     res.status(200).json({ url: session.url });
   } catch (error: any) {
@@ -330,20 +334,25 @@ export const stripeWebhook = functions.https.onRequest(async (req, res) => {
 
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as any;
-    const agentId = session.client_reference_id;
+    const firebaseUid = session.metadata?.firebase_uid;
     const token = session.metadata?.token;
     const amount = parseInt(session.metadata?.amount || '0', 10);
-    if (agentId && token && amount) {
+    const referenceUid = session.client_reference_id;
+
+    if (!firebaseUid || referenceUid !== firebaseUid) {
+      console.error('checkout.session.completed missing or mismatched firebase_uid metadata', session.id);
+    } else if (token && amount > 0) {
       try {
         const orderRef = db.collection('orders').doc(session.id);
         await orderRef.set({
-          agent_id: agentId,
-          token: token,
-          amount: amount,
+          firebase_uid: firebaseUid,
+          agent_id: firebaseUid,
+          token,
+          amount,
           status: 'paid',
           fulfillment_status: 'not_started',
           stripe_session_id: session.id,
-          created_at: admin.firestore.FieldValue.serverTimestamp()
+          created_at: admin.firestore.FieldValue.serverTimestamp(),
         });
       } catch (e) {
         console.error(e);
@@ -356,7 +365,7 @@ export const stripeWebhook = functions.https.onRequest(async (req, res) => {
 function handleCorsForge(req: any, res: any) {
   res.set('Access-Control-Allow-Origin', '*');
   res.set('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-  res.set('Access-Control-Allow-Headers', 'Content-Type,X-Agent-ID');
+  res.set('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Agent-ID');
   if (req.method === 'OPTIONS') { res.status(204).send(''); return true; }
   return false;
 }
@@ -365,14 +374,14 @@ export const grant_forge_credential = functions.https.onRequest(async (req, res)
   if (handleCorsForge(req, res)) return;
   if (req.method !== 'POST') { res.status(405).end(); return; }
 
-  const uid = await verifyAuth(req);
-  if (!uid) { res.status(401).json({ error: 'unauthenticated' }); return; }
+  const auth = await requireAdmin(req, res);
+  if (!auth) return;
 
   const { target_agent_id } = req.body;
-  // Use verified server-side identity instead of trusting a plain string in the payload.
-  // To keep it narrow, we ensure the caller is authenticated and restrict to a known admin config or simply trust the verified UID if it's the sovereign.
-  const adminConfig = process.env.SOVEREIGN_UID || 'malaky_uid';
-  if (uid !== adminConfig && uid !== 'malaky') { res.status(403).json({ error: 'Only Sovereign can grant credentials.' }); return; }
+  if (!target_agent_id || typeof target_agent_id !== 'string') {
+    res.status(400).json({ error: 'target_agent_id is required' });
+    return;
+  }
 
   const profileRef = db.collection('agent_profiles').doc(target_agent_id);
   await profileRef.set({ forge_credential: true }, { merge: true });
@@ -487,13 +496,19 @@ export const claim_tile = functions.https.onRequest(async (req, res) => {
 export const admin_sync_balance = functions.https.onRequest(async (req, res) => {
   if (req.method !== 'POST') { res.status(405).end(); return; }
 
-  const uid = await verifyAuth(req);
-  if (!uid) { res.status(401).json({ error: 'unauthenticated' }); return; }
+  const auth = await requireAdmin(req, res);
+  if (!auth) return;
 
-  const adminConfig = process.env.SOVEREIGN_UID || 'malaky_uid';
-  if (uid !== adminConfig && uid !== 'malaky') { res.status(403).json({ error: 'unauthorized' }); return; }
-  
   const { target_agent_id, balance } = req.body;
+  if (!target_agent_id || typeof target_agent_id !== 'string') {
+    res.status(400).json({ error: 'target_agent_id is required' });
+    return;
+  }
+  if (typeof balance !== 'number' || !Number.isFinite(balance)) {
+    res.status(400).json({ error: 'balance must be a finite number' });
+    return;
+  }
+
   await db.collection('agent_profiles').doc(target_agent_id).set({ ember_balance: balance }, { merge: true });
   res.status(200).json({ status: 'synced', target_agent_id, balance });
 });
