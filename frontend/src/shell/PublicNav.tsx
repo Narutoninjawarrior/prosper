@@ -10,6 +10,8 @@ const LINKS = [
   { href: '/forge', label: 'Forge' },
   { href: '/agent-access', label: 'Agents' },
   { href: '/hall', label: 'Hall' },
+  { href: '/lodge-mind', label: 'Mind' },
+  { href: '/exchange', label: 'Exchange' },
 ]
 
 export default function PublicNav({ compact = false }: { compact?: boolean }) {

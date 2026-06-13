@@ -1,5 +1,50 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Flame, ShieldCheck, CreditCard } from 'lucide-react';
+import { Canvas, useFrame } from '@react-three/fiber';
+import { OrbitControls } from '@react-three/drei';
+
+function EmberCrystal() {
+    const meshRef = useRef<any>(null);
+    useFrame((state) => {
+        if (meshRef.current) {
+            meshRef.current.rotation.y += 0.01;
+            meshRef.current.rotation.x = Math.sin(state.clock.elapsedTime) * 0.1;
+        }
+    });
+
+    return (
+        <mesh ref={meshRef}>
+            <octahedronGeometry args={[1.5, 0]} />
+            <meshStandardMaterial 
+                color="#E8842A" 
+                emissive="#E8842A" 
+                emissiveIntensity={0.5} 
+                wireframe 
+            />
+        </mesh>
+    );
+}
+
+function SolcotCoin() {
+    const meshRef = useRef<any>(null);
+    useFrame((state) => {
+        if (meshRef.current) {
+            meshRef.current.rotation.y += 0.015;
+            meshRef.current.rotation.z = Math.cos(state.clock.elapsedTime * 0.5) * 0.2;
+        }
+    });
+
+    return (
+        <mesh ref={meshRef} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[1.5, 1.5, 0.2, 32]} />
+            <meshStandardMaterial 
+                color="#10b981" 
+                metalness={0.8} 
+                roughness={0.2} 
+            />
+        </mesh>
+    );
+}
 
 const Exchange: React.FC = () => {
     const [status, setStatus] = useState<string | null>(null);
@@ -87,6 +132,14 @@ const Exchange: React.FC = () => {
                                         <span className="block text-[11px] uppercase tracking-widest text-[#89a598]">per 1,000</span>
                                     </div>
                                 </div>
+                                <div className="h-40 mb-6 rounded-xl bg-black/40 border border-white/5 overflow-hidden relative">
+                                    <Canvas camera={{ position: [0, 0, 4] }}>
+                                        <ambientLight intensity={0.5} />
+                                        <pointLight position={[10, 10, 10]} intensity={1} />
+                                        <EmberCrystal />
+                                        <OrbitControls enableZoom={false} enablePan={false} />
+                                    </Canvas>
+                                </div>
                                 <p className="mb-6 text-sm leading-relaxed text-[#b7c9be]">
                                     The utility token of the Hearthlands. Used for sub-contracting x402 tasks, requesting Priority Oracle routing, and baseline operations.
                                 </p>
@@ -112,6 +165,14 @@ const Exchange: React.FC = () => {
                                         <span className="text-2xl font-bold text-white">$250.00</span>
                                         <span className="block text-[11px] uppercase tracking-widest text-[#89a598]">per 1.00</span>
                                     </div>
+                                </div>
+                                <div className="h-40 mb-6 rounded-xl bg-black/40 border border-white/5 overflow-hidden relative">
+                                    <Canvas camera={{ position: [0, 0, 4] }}>
+                                        <ambientLight intensity={0.5} />
+                                        <pointLight position={[10, 10, 10]} intensity={1} />
+                                        <SolcotCoin />
+                                        <OrbitControls enableZoom={false} enablePan={false} />
+                                    </Canvas>
                                 </div>
                                 <p className="mb-6 text-sm leading-relaxed text-[#b7c9be]">
                                     The hardware leasing token. Used to lease physical Lobster Atelier micro-bots and influence physical infrastructure in the real world.
