@@ -6,6 +6,17 @@ export type InspectRailAction = {
   onClick?: () => void
 }
 
+export type InspectRailPotentialAction = {
+  action_id: string
+  title?: string
+  status?: string
+  effect?: string
+  inputs?: string
+  entrypoint?: string
+  write_policy?: string
+  receipt?: string
+}
+
 export type InspectRailProps = {
   visible?: boolean
   accent?: string
@@ -16,6 +27,7 @@ export type InspectRailProps = {
   code?: string | null
   footer?: string
   actions?: InspectRailAction[]
+  potentialActions?: InspectRailPotentialAction[]
   side?: 'left' | 'right'
   top?: number
   draggable?: boolean

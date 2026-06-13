@@ -32,6 +32,7 @@ export default function InspectRail({
   code = null,
   footer = '',
   actions = [],
+  potentialActions = [],
   side = 'right',
   top = 112,
   draggable = false,
@@ -215,6 +216,55 @@ export default function InspectRail({
                 >
                   {action.label}
                 </button>
+              ))}
+            </div>
+          )}
+
+          {!!potentialActions.length && (
+            <div style={{ marginTop: 12, display: 'grid', gap: 8 }}>
+              <div style={{ color: accent, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.18em' }}>
+                Potential actions
+              </div>
+              {potentialActions.map((action) => (
+                <div
+                  key={action.action_id}
+                  style={{
+                    borderRadius: 10,
+                    background: 'rgba(255,255,255,0.04)',
+                    border: '1px solid rgba(255,255,255,0.06)',
+                    padding: '10px 10px 9px',
+                    display: 'grid',
+                    gap: 5,
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
+                    <div style={{ color: '#FAF6EF', fontSize: 11 }}>
+                      {action.title || action.action_id}
+                    </div>
+                    {action.status && (
+                      <span
+                        style={{
+                          borderRadius: 999,
+                          border: `1px solid ${accent}44`,
+                          background: `${accent}14`,
+                          color: accent,
+                          padding: '2px 8px',
+                          fontSize: 9,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.12em',
+                        }}
+                      >
+                        {action.status}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ color: '#8E7E6B', fontSize: 10 }}>{action.action_id}</div>
+                  {action.effect && <div style={{ color: '#B89C82', fontSize: 10, lineHeight: 1.5 }}>{action.effect}</div>}
+                  {action.inputs && <div style={{ color: '#777', fontSize: 10 }}>inputs: {action.inputs}</div>}
+                  {action.entrypoint && <div style={{ color: '#777', fontSize: 10 }}>entrypoint: {action.entrypoint}</div>}
+                  {action.write_policy && <div style={{ color: '#777', fontSize: 10 }}>policy: {action.write_policy}</div>}
+                  {action.receipt && <div style={{ color: '#777', fontSize: 10 }}>receipt: {action.receipt}</div>}
+                </div>
               ))}
             </div>
           )}

@@ -1,14 +1,22 @@
 /**
- * Registry-driven apparatus meshes for /biosphere — positions from apparatus_registry.json.
+ * Registry-driven apparatus meshes for /world — positions from apparatus_registry.json.
  */
 import { useCallback, useEffect, useState } from 'react'
 import { Html, Text } from '@react-three/drei'
 import InspectRail from '../inspect/InspectRail'
 import { useContract, sanctuaryBridge } from '../lib/sanctuaryBridge'
-import ChemistryLabOverlay from './ChemistryLabOverlay'
 
-const BIOSPHERE_POSITIONS = {
-  reagent_alembic: [5.5, 0, 3.5],
+const PLAZA_POSITIONS = {
+  automation_beacon: [-3, 0, 2],
+  reagent_alembic: [4, 0, 2],
+  creativity_forge: [-2, 0, 3],
+  duel_pit: [6, 0, 0],
+  registry_compass: [3, 0, -3],
+  world_pulse_sensor: [-8, 0, -4],
+  treasury_atm: [8, 0, 10],
+  validator_bench: [-9, 0, -5],
+  blueprint_diffoscope: [-7, 0, -5],
+  art_reserve_kiosk: [10, 0, -2],
 }
 
 const PRESET_COLORS = {
@@ -26,10 +34,37 @@ const PRESET_COLORS = {
 
 function ApparatusMesh({ preset }) {
   switch (preset) {
+    case 'clock-tower':
+      return (
+        <group>
+          <mesh position={[0, 1.2, 0]} castShadow>
+            <cylinderGeometry args={[0.12, 0.22, 2.2, 8]} />
+            <meshStandardMaterial color="#5C3D1E" roughness={0.9} />
+          </mesh>
+          <mesh position={[0, 2.45, 0]}>
+            <sphereGeometry args={[0.32, 16, 16]} />
+            <meshStandardMaterial color="#E8842A" emissive="#FF6600" emissiveIntensity={0.55} />
+          </mesh>
+        </group>
+      )
+    case 'wire-octahedron':
+      return (
+        <mesh position={[0, 0.9, 0]}>
+          <octahedronGeometry args={[0.55, 0]} />
+          <meshStandardMaterial color="#7A9E7E" emissive="#D4A853" emissiveIntensity={0.35} wireframe />
+        </mesh>
+      )
+    case 'arena-platform':
+      return (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]} receiveShadow>
+          <cylinderGeometry args={[1.4, 1.5, 0.08, 24]} />
+          <meshStandardMaterial color="#AA88FF" emissive="#AA88FF" emissiveIntensity={0.2} />
+        </mesh>
+      )
     case 'glass-still':
       return (
         <group>
-          <mesh position={[0, 0.5, 0]} castShadow>
+          <mesh position={[0, 0.5, 0]}>
             <cylinderGeometry args={[0.35, 0.45, 0.25, 12]} />
             <meshStandardMaterial color="#888" metalness={0.4} roughness={0.3} />
           </mesh>
@@ -43,20 +78,19 @@ function ApparatusMesh({ preset }) {
       return (
         <mesh position={[0, 0.6, 0]} castShadow>
           <boxGeometry args={[0.7, 1.1, 0.7]} />
-          <meshStandardMaterial color="#7A9E7E" emissive="#4A90D9" emissiveIntensity={0.15} roughness={0.75} />
+          <meshStandardMaterial color="#C27C5A" emissive="#E8842A" emissiveIntensity={0.15} roughness={0.75} />
         </mesh>
       )
   }
 }
 
-function BiosphereApparatusNode({ record }) {
+function RegistryApparatusNode({ record }) {
   const [open, setOpen] = useState(false)
-  const [showChemistryLab, setShowChemistryLab] = useState(false)
   const [payload, setPayload] = useState(null)
   const [state, setState] = useState('idle')
-  const position = BIOSPHERE_POSITIONS[record.apparatus_id] ?? [5, 0, 5]
+  const position = PLAZA_POSITIONS[record.apparatus_id] ?? [0, 0, 0]
   const preset = record.mesh?.preset ?? 'default'
-  const color = PRESET_COLORS[preset] ?? '#4A90D9'
+  const color = PRESET_COLORS[preset] ?? '#E8842A'
 
   const load = useCallback(async () => {
     setState('loading')
@@ -66,7 +100,7 @@ function BiosphereApparatusNode({ record }) {
       setPayload(await res.json())
       setState('ready')
     } catch (err) {
-      console.error('[BiosphereApparatus]', record.apparatus_id, err)
+      console.error('[Apparatus]', record.apparatus_id, err)
       setState('error')
     }
   }, [record.apparatus_id])
@@ -115,42 +149,7 @@ function BiosphereApparatusNode({ record }) {
               ]}
               code={payload?.code}
               footer={payload?.footer ?? record.monetization_note}
-              potentialActions={[
-                {
-                  action_id: 'inspect_registry_record',
-                  title: 'Open registry record',
-                  status: 'available',
-                  effect: 'Jump to the apparatus registry entry for full provenance, capabilities, and route pointers.',
-                  entrypoint: `/registry?kind=apparatus&id=${record.apparatus_id}`,
-                  write_policy: 'read-only',
-                },
-                {
-                  action_id: 'inspect_record_api',
-                  title: 'Query inspect API',
-                  status: 'available',
-                  effect: 'Fetch the structured inspect payload the UI uses for this apparatus.',
-                  entrypoint: `/api/inspect/record?ref=apparatus:${record.apparatus_id}`,
-                  write_policy: 'read-only',
-                },
-                ...(record.apparatus_id === 'reagent_alembic'
-                  ? [{
-                      action_id: 'preview_reagent_synthesis',
-                      title: 'Preview reagent synthesis',
-                      status: 'available',
-                      effect: 'Generate a deterministic chemistry preview and SHA-256 receipt without mutating world state.',
-                      inputs: 'reagent_a, reagent_b, target_type',
-                      entrypoint: 'POST /api/chemistry/preview',
-                      write_policy: 'preview-only - no persistence',
-                      receipt: 'chemistry preview receipt',
-                    }]
-                  : []),
-              ]}
               actions={[
-                ...(record.apparatus_id === 'reagent_alembic' ? [{
-                  label: 'Open Workbench',
-                  tone: 'warm',
-                  onClick: () => setShowChemistryLab(true),
-                }] : []),
                 ...(payload?.actions ?? []).map((action) => ({
                   label: action.label,
                   tone: action.tone,
@@ -162,24 +161,19 @@ function BiosphereApparatusNode({ record }) {
               onClose={() => setOpen(false)}
             />
           </div>
-          {showChemistryLab && (
-            <div style={{ pointerEvents: 'auto' }}>
-              <ChemistryLabOverlay onClose={() => setShowChemistryLab(false)} />
-            </div>
-          )}
         </Html>
       )}
     </>
   )
 }
 
-export default function BiosphereApparatusPlaza() {
+export default function RegistryApparatusPlaza() {
   const envelope = useContract('/apparatus_registry.json', sanctuaryBridge.normalizeApparatus, [])
-  const biosphereApparatus = envelope.data.filter(
-    (row) => row.mesh?.scene === 'biosphere'
+  const worldApparatus = envelope.data.filter(
+    (row) => row.mesh?.scene === 'world' && row.apparatus_id !== 'ceremony_hearth',
   )
 
-  return biosphereApparatus.map((record) => (
-    <BiosphereApparatusNode key={record.apparatus_id} record={record} />
+  return worldApparatus.map((record) => (
+    <RegistryApparatusNode key={record.apparatus_id} record={record} />
   ))
 }

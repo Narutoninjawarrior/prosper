@@ -478,6 +478,37 @@ export default function BiosphereGrid({
                 },
               ]}
               footer="Inspect-first cultivation. No Firestore write is performed by these actions."
+              potentialActions={[
+                {
+                  action_id: 'plant_preview',
+                  title: 'Plant seed',
+                  status: inspectNode.active ? 'blocked' : emberBalance >= PLANT_COST ? 'available' : 'insufficient ember',
+                  effect: `Spend ${PLANT_COST} $EMBER in this session-local preview and set bloom stage to 1.`,
+                  inputs: 'plot id',
+                  entrypoint: 'InspectRail local action',
+                  write_policy: 'preview-only - no Firestore write',
+                  receipt: 'local cultivation preview',
+                },
+                {
+                  action_id: 'harvest_preview',
+                  title: 'Harvest bloom',
+                  status: inspectNode.active && inspectNode.bloomStage >= HARVEST_MIN ? 'available' : 'not ready',
+                  effect: `Harvest clears the local bloom state when bloom stage is at least ${HARVEST_MIN}.`,
+                  inputs: 'plot id',
+                  entrypoint: 'InspectRail local action',
+                  write_policy: 'preview-only - no Firestore write',
+                  receipt: 'local harvest preview',
+                },
+                {
+                  action_id: 'inspect_plot_sync',
+                  title: 'Inspect plot sync',
+                  status: 'available',
+                  effect: 'Reveal any linked plot substance or external sync hint attached to this node.',
+                  inputs: 'plot id',
+                  entrypoint: 'InspectRail details panel',
+                  write_policy: 'read-only',
+                },
+              ]}
               actions={[
                 {
                   label: 'Plant',

@@ -164,7 +164,57 @@
       ],
       "write_policy": "POST /api/lodge-mind/ask is relay-only — no persistence. Returns 503 until LODGE_MIND_SERVICE_URL is configured server-side.",
       "notes_for_agents": "Check /api/lodge-mind/status first. If relay_available: false, fall back to /api/registry/list and /api/world/summary for context. The relay is stateless; no session is maintained."
+    },
+    {
+      "surface_id": "agent-access",
+      "route": "/agent-access",
+      "title": "Agent Access",
+      "status": "live",
+      "description": "Public contract page for machine consumers. Lists remote APIs, MCP tools, discovery documents, and route action contracts without implying write access that does not exist.",
+      "available_actions": [
+        "read_remote_api_contracts",
+        "inspect_mcp_tools",
+        "fetch_discovery_documents",
+        "read_surface_action_contracts"
+      ],
+      "inspect_targets": [
+        "remote_endpoints",
+        "mcp_tool_catalog",
+        "registry_seed_sources",
+        "action_contract_records"
+      ],
+      "read_endpoints": [
+        "GET /api/registry/list",
+        "GET /api/world/summary",
+        "GET /.well-known/ai.json",
+        "GET /action_contracts.json"
+      ],
+      "write_policy": "none — this route is documentation and read-only discovery only",
+      "notes_for_agents": "Start here or with /llms.txt when scouting the vessel. This route is the plain-language map; /action_contracts.json is the machine-first one."
+    },
+    {
+      "surface_id": "exchange",
+      "route": "/exchange",
+      "title": "Phoenix Exchange",
+      "status": "live",
+      "description": "Authenticated fiat on-ramp for EMBER and SOLCOT purchases. Checkout is bound to the signed-in Firebase user and no longer trusts caller-supplied agent ids.",
+      "available_actions": [
+        "read_purchase_options",
+        "inspect_checkout_requirements",
+        "begin_authenticated_checkout"
+      ],
+      "inspect_targets": [
+        "ember_purchase_card",
+        "solcot_purchase_card",
+        "secure_checkout_notice"
+      ],
+      "read_endpoints": [
+        "UI only — authenticated checkout via createCheckoutSession",
+        "Firebase Auth currentUser.getIdToken()"
+      ],
+      "write_policy": "authenticated write — requires Authorization: Bearer <Firebase ID token>; backend binds metadata.firebase_uid to the verified JWT uid",
+      "notes_for_agents": "This is not an open public bot purchase API. Anonymous or caller-spoofed identity is rejected. Treat it as a user-authenticated commerce surface."
     }
   ],
-  "manifest_hash": "062f65586eb6644d4bd7f1b212dca5c28527ca25e4e3f2333141c0efd7185a5a"
+  "manifest_hash": "0904c8b2838e32816640a533eda2f7159b7980cab6b7d76aecba567e11df8a85"
 }
