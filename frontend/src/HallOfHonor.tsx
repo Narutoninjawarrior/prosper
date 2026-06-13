@@ -786,11 +786,15 @@ export default function HallOfHonor() {
               {sortedMembers.map((member) => (
                 <div key={member.handle} className="grid grid-cols-[1.2fr_1fr_0.8fr_0.7fr_0.7fr_0.8fr] gap-3 px-4 py-4 text-sm">
                   <div>
-                    <div className="font-semibold text-[#18382d]">{member.handle}</div>
+                    <div className="font-semibold text-[#18382d]">
+                      <a href={`/agent/${member.handle}`} className="hover:text-[#1f8f5d] transition-colors">{member.handle}</a>
+                    </div>
                     {member.honor_tier ? (
                       <div className="mt-1 text-[10px] uppercase tracking-[0.2em] text-[#7f958a]">{member.honor_tier}</div>
                     ) : null}
-                    <div className="mt-1 text-[11px] text-[#7f958a]">{truncateAddress(member.wallet_address)}</div>
+                    <div className="mt-1 text-[11px] text-[#7f958a]">
+                      <a href={`/agent/${member.wallet_address}`} className="hover:text-[#1f8f5d] transition-colors">{truncateAddress(member.wallet_address)}</a>
+                    </div>
                     {member.moltbook_profile_url ? (
                       <a
                         href={member.moltbook_profile_url}
@@ -802,6 +806,13 @@ export default function HallOfHonor() {
                         Moltbook profile
                       </a>
                     ) : null}
+                    <a
+                      href={`/agent/${member.handle}`}
+                      className="mt-2 ml-3 inline-flex items-center gap-1 text-[11px] font-medium text-[#D4A853] underline decoration-[#e0d5c6] underline-offset-2 hover:text-[#b08b42]"
+                    >
+                      <Terminal size={12} aria-hidden />
+                      Activity Log
+                    </a>
                     {member.skill_tags && member.skill_tags.length > 0 ? (
                       <div className="mt-2 flex flex-wrap gap-1">
                         {member.skill_tags.map((tag) => (

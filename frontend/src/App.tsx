@@ -21,6 +21,9 @@ const ActivityDashboard = lazy(() => import('./ActivityDashboard'));
 const GenerativeWorkbench = lazy(() => import('./GenerativeWorkbench'));
 const ThreeForge = lazy(() => import('./ThreeForge'));
 const ForgePage = lazy(() => import('./ForgePage'));
+const CouncilBoard = lazy(() => import('./CouncilBoard'));
+
+const HiveTester = lazy(() => import('./HiveTester'));
 
 function LoadingSurface({ label = 'Loading vessel surface...' }: { label?: string }) {
   return (
@@ -196,6 +199,24 @@ function App() {
       <SuspendedPublicShell className="h-screen w-screen bg-[#020804] text-gray-200" label="Loading forge...">
         <ForgePage />
       </SuspendedPublicShell>
+    );
+  }
+
+  if (pathname === '/council') {
+    return (
+      <SuspendedPublicShell className="min-h-screen w-screen bg-[#050806] text-gray-200" label="Loading council chamber...">
+        <div className="h-full overflow-y-auto">
+          <CouncilBoard />
+        </div>
+      </SuspendedPublicShell>
+    );
+  }
+
+  if (pathname === '/os/hive') {
+    return (
+      <Suspense fallback={<LoadingSurface label="Loading Hive Tester..." />}>
+        <HiveTester />
+      </Suspense>
     );
   }
 
