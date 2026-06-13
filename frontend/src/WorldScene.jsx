@@ -38,6 +38,9 @@ import StewardMount   from './steward/StewardMount'
 import CommunityPulse from './community/CommunityPulse'
 import CommunityFeed  from './community/CommunityFeed'
 import GemmaPresence  from './community/GemmaPresence'
+import { useMultiplayerPresence } from './multiplayer/useMultiplayerPresence'
+import MultiplayerPresence from './multiplayer/MultiplayerPresence'
+import PresenceHud from './multiplayer/PresenceHud'
 
 // ── Zone definitions ──────────────────────────────────────────────
 const ZONES = {
@@ -128,38 +131,6 @@ function ZonePortal({ position, color, label, onEnter }) {
   )
 }
 
-// ── Player character ──────────────────────────────────────────────
-function PlayerCharacter({ position, moving }) {
-  const groupRef = useRef()
-
-  useFrame(({ clock }) => {
-    if (!groupRef.current) return
-    // Gentle bob when moving
-    if (moving) {
-      groupRef.current.position.y = Math.abs(Math.sin(clock.elapsedTime * 6)) * 0.08
-    } else {
-      groupRef.current.position.y = 0
-    }
-  })
-
-  return (
-    <group ref={groupRef} position={position}>
-      {/* Body */}
-      <mesh position={[0, 0.5, 0]} castShadow>
-        <capsuleGeometry args={[0.2, 0.6, 4, 8]} />
-        <meshStandardMaterial color="#C27C5A" roughness={0.8} />
-      </mesh>
-      {/* Head */}
-      <mesh position={[0, 1.15, 0]} castShadow>
-        <sphereGeometry args={[0.18, 12, 12]} />
-        <meshStandardMaterial color="#F5E0C0" roughness={0.9} />
-      </mesh>
-      {/* Ember glow */}
-      <pointLight position={[0, 0.8, 0]} color="#E8842A" intensity={0.3} distance={2} />
-    </group>
-  )
-}
-
 // ── Ground plane with click-to-move ──────────────────────────────
 function ClickGround({ onMove }) {
   const mesh = useRef()
@@ -229,6 +200,29 @@ function WorldContent({
   const [stewardSignal, setStewardSignal] = useState(0)
   const playerRef = useRef(new THREE.Vector3(0, 0, 2))
 
+  const {
+    localId,
+    localName,
+    localMessage,
+    localMessageUntil,
+    remotePeers,
+    sendChat,
+    setDisplayName,
+    status,
+    lastChatError,
+    chatCooldownLeft,
+    canChat,
+  } = useMultiplayerPresence({
+    enabled: true,
+    agentKey: 'human',
+    getPose: () => ({
+      x: playerRef.current.x,
+      y: playerRef.current.y,
+      z: playerRef.current.z,
+      anim: moving ? 'walk' : 'idle',
+    }),
+  })
+
   // Click-to-move
   const handleMove = useCallback((point) => {
     setTargetPos(point.clone())
@@ -274,8 +268,17 @@ function WorldContent({
         {/* Click-to-move ground */}
         <ClickGround onMove={handleMove} />
 
-        {/* Player */}
-        <PlayerCharacter position={playerPos} moving={moving} />
+        {/* Multiplayer Avatars (Local + Remote) */}
+        <MultiplayerPresence
+          localId={localId}
+          localName={localName}
+          localTarget={playerPos}
+          localAnim={moving ? 'walk' : 'idle'}
+          localMoving={moving}
+          localMessage={localMessage}
+          localMessageUntil={localMessageUntil}
+          remotePeers={remotePeers}
+        />
 
         {/* Walk target */}
         <WalkTarget position={targetPos} />
@@ -326,6 +329,17 @@ function WorldContent({
 
       {/* Builder panel overlay */}
       <Html fullscreen>
+        <PresenceHud
+          status={status}
+          displayName={localName}
+          onNameChange={setDisplayName}
+          onSend={sendChat}
+          lastChatError={lastChatError}
+          chatCooldownLeft={chatCooldownLeft}
+          canChat={canChat}
+          remotePeers={remotePeers}
+        />
+
         <BuilderPanel
           visible={builderOpen}
           emberBalance={emberBalance}

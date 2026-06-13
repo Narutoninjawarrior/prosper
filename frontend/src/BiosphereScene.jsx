@@ -44,6 +44,10 @@ import WelcomePlotHighlight from './biosphere/WelcomePlotHighlight'
 import RecruitmentOverlay from './RecruitmentOverlay'
 import { flowerOfLifeNodes } from './biosphere/resonance'
 import BiosphereApparatusPlaza from './biosphere/BiosphereApparatusPlaza'
+import { useMultiplayerPresence } from './multiplayer/useMultiplayerPresence'
+import MultiplayerPresence from './multiplayer/MultiplayerPresence'
+import PresenceHud from './multiplayer/PresenceHud'
+import { biosphereSlotPosition } from './multiplayer/multiplayerConfig'
 
 // ── Scene lighting for the Biosphere ─────────────────────────────
 // Warmer and earthier than the WorldScene — we're in a garden,
@@ -220,6 +224,28 @@ export default function BiosphereScene({
     ? null
     : flowerOfLifeNodes(3.5).find((node) => node.id === welcomePlotId) ?? null
 
+  const {
+    localId,
+    localName,
+    localMessage,
+    localMessageUntil,
+    remotePeers,
+    sendChat,
+    setDisplayName,
+    status,
+    lastChatError,
+    chatCooldownLeft,
+    canChat,
+  } = useMultiplayerPresence({
+    enabled: true,
+    agentKey: 'human',
+    getPose: () => {
+      // In Biosphere, players don't walk, they just stand in their designated slot
+      const [x, y, z] = biosphereSlotPosition(sessionStorage.getItem('hearth_presence_id') || 'guest');
+      return { x, y, z, anim: 'idle' };
+    },
+  })
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKey = (e) => {
@@ -231,7 +257,18 @@ export default function BiosphereScene({
   }, [])
 
   return (
-    <div style={{ width: '100%', height: '100vh', background: '#0A0402' }}>
+    <div style={{ width: '100%', height: '100vh', background: '#0A0402', position: 'relative' }}>
+      <PresenceHud
+        status={status}
+        displayName={localName}
+        onNameChange={setDisplayName}
+        onSend={sendChat}
+        lastChatError={lastChatError}
+        chatCooldownLeft={chatCooldownLeft}
+        canChat={canChat}
+        remotePeers={remotePeers}
+      />
+
       <Canvas
         camera={{
           position: [0, 16, 14],   // slightly top-down, farm overview
@@ -291,6 +328,22 @@ export default function BiosphereScene({
             externalPlots={biospherePlots}
           />
           <BiosphereApparatusPlaza />
+
+          {/* Multiplayer Avatars (Local + Remote) */}
+          <MultiplayerPresence
+            localId={localId}
+            localName={localName}
+            localTarget={{
+              x: biosphereSlotPosition(localId || 'guest')[0],
+              y: biosphereSlotPosition(localId || 'guest')[1],
+              z: biosphereSlotPosition(localId || 'guest')[2]
+            }}
+            localAnim="idle"
+            localMoving={false}
+            localMessage={localMessage}
+            localMessageUntil={localMessageUntil}
+            remotePeers={remotePeers}
+          />
 
           <GemmaPresence
             position={[0, 1.8, 0.6]}
