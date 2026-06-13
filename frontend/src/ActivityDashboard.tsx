@@ -73,10 +73,20 @@ function RowLine({ row }: { row: ActivityRow }) {
   );
 }
 
+type SourceFilter = 'all' | 'experiment' | 'claim' | 'embodiment';
+
+const SOURCE_FILTERS: Array<{ id: SourceFilter; label: string; color: string }> = [
+  { id: 'all', label: 'All', color: '#D4A853' },
+  { id: 'experiment', label: 'Experiment', color: '#34D399' },
+  { id: 'claim', label: 'Claim', color: '#f3c98b' },
+  { id: 'embodiment', label: 'Embodiment', color: '#AA88FF' },
+];
+
 export default function ActivityDashboard() {
   const [bundle, setBundle] = useState<Awaited<ReturnType<typeof fetchActivityBundle>> | null>(null);
   const [loading, setLoading] = useState(true);
   const [tick, setTick] = useState<{ tick?: number; heat?: number; ember_balance?: number } | null>(null);
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
 
   const load = async () => {
     setLoading(true);
@@ -96,6 +106,9 @@ export default function ActivityDashboard() {
   }, []);
 
   const live = bundle?.data_state === 'live';
+  const filteredRows = sourceFilter === 'all'
+    ? (bundle?.rows ?? [])
+    : (bundle?.rows ?? []).filter(r => r.source === sourceFilter);
 
   return (
     <div className="min-h-full bg-[radial-gradient(circle_at_top,rgba(232,132,42,0.12),transparent_40%),#050806] px-6 py-10 text-[#eadfcd]">
@@ -122,7 +135,7 @@ export default function ActivityDashboard() {
               )}
               {tick && (
                 <div className="mt-2 text-[#D4A853]">
-                  tick {tick.tick} - heat {tick.heat} - ember {tick.ember_balance}
+                  tick {tick.tick} · heat {tick.heat} · ember {tick.ember_balance}
                 </div>
               )}
             </div>
@@ -158,36 +171,53 @@ export default function ActivityDashboard() {
         </section>
 
         <section className="rounded-[20px] border border-[#D4A853]/15 bg-[#0a0806]/80 p-4">
-          <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.24em] text-[#D4A853]">
               <Activity size={13} />
               Activity stream
             </div>
-            <button
-              type="button"
-              onClick={load}
-              className="rounded-full border border-white/10 bg-white/5 px-3 py-1 font-mono text-[10px] text-[#c9bba5] hover:bg-white/10"
-            >
-              Refresh
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              {SOURCE_FILTERS.map(f => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setSourceFilter(f.id)}
+                  className="rounded-full px-3 py-1 font-mono text-[10px] transition-all"
+                  style={{
+                    border: sourceFilter === f.id ? `1px solid ${f.color}55` : '1px solid rgba(255,255,255,0.08)',
+                    background: sourceFilter === f.id ? `${f.color}18` : 'rgba(255,255,255,0.03)',
+                    color: sourceFilter === f.id ? f.color : '#8E7E6B',
+                  }}
+                >
+                  {f.label}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={load}
+                className="rounded-full border border-white/10 bg-white/5 px-3 py-1 font-mono text-[10px] text-[#c9bba5] hover:bg-white/10"
+              >
+                Refresh
+              </button>
+            </div>
           </div>
 
           {loading && <p className="font-mono text-sm text-[#8E7E6B]">Polling public surfaces...</p>}
 
-          {!loading && bundle && bundle.rows.length === 0 && (
+          {!loading && bundle && filteredRows.length === 0 && (
             <div className="rounded-xl border border-dashed border-[#5C3D1E] bg-black/20 px-4 py-8 text-center font-mono text-sm text-[#8E7E6B]">
-              {bundle.note}
+              {sourceFilter === 'all' ? bundle.note : `No ${sourceFilter} rows yet. ${bundle.note}`}
             </div>
           )}
 
           <div className="grid gap-2">
-            {bundle?.rows.map((row) => <RowLine key={row.id} row={row} />)}
+            {filteredRows.map((row) => <RowLine key={row.id} row={row} />)}
           </div>
         </section>
 
         <p className="font-mono text-[10px] text-[#5E5143]">
           <Radio size={11} className="mr-1 inline" />
-          {bundle?.note} - Auto-refresh 15s - Client writes disabled by Firestore rules.
+          {bundle?.note} · Auto-refresh 15s · <a href="/action_contracts.json" className="text-[#D4A853] no-underline hover:text-white">action_contracts.json</a> · Client writes disabled by Firestore rules.
         </p>
       </div>
     </div>

@@ -86,6 +86,7 @@ const SEED_DOCS = [
   { url: '/.well-known/ai.json', label: 'ai.json', note: 'Structured discovery manifest with every machine endpoint.' },
   { url: '/mission.md', label: 'mission.md', note: 'Mission narrative for humans and crawlers.' },
   { url: '/lodge-interface.json', label: 'lodge-interface.json', note: 'Deep interface map of the Lodge.' },
+  { url: '/action_contracts.json', label: 'action_contracts.json', note: 'Machine-readable route capability map: available actions, inspect targets, read endpoints, and write policy per surface.' },
 ]
 
 function Pill({ color, children }: { color: string; children: React.ReactNode }) {
