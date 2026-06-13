@@ -7,7 +7,7 @@ const crypto = require('crypto');
 admin.initializeApp();
 const db = admin.firestore();
 
-async function verifyAuth(req: functions.Request): Promise<string | null> {
+export async function verifyAuth(req: functions.Request): Promise<string | null> {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
   const idToken = authHeader.split('Bearer ')[1];
@@ -334,16 +334,16 @@ export const stripeWebhook = functions.https.onRequest(async (req, res) => {
     const token = session.metadata?.token;
     const amount = parseInt(session.metadata?.amount || '0', 10);
     if (agentId && token && amount) {
-      const agentRef = db.collection('agent_profiles').doc(agentId);
       try {
-        await db.runTransaction(async (t) => {
-          const doc = await t.get(agentRef);
-          if (!doc.exists) {
-            t.set(agentRef, { public_key: agentId, agent_name: `Wallet-${agentId.slice(0,6)}`, ember_balance: token === 'EMBER' ? amount : 0, solcot_balance: token === 'SOLCOT' ? amount : 0, reputation: 50, created_at: admin.firestore.FieldValue.serverTimestamp() });
-          } else {
-            const field = token === 'EMBER' ? 'ember_balance' : 'solcot_balance';
-            t.update(agentRef, { [field]: admin.firestore.FieldValue.increment(amount) });
-          }
+        const orderRef = db.collection('orders').doc(session.id);
+        await orderRef.set({
+          agent_id: agentId,
+          token: token,
+          amount: amount,
+          status: 'paid',
+          fulfillment_status: 'not_started',
+          stripe_session_id: session.id,
+          created_at: admin.firestore.FieldValue.serverTimestamp()
         });
       } catch (e) {
         console.error(e);
@@ -515,6 +515,7 @@ export * from './inspectApi';
 export * from './lodgeMindApi';
 export * from './workshopApi';
 export * from './chemistryApi';
+export * from './fulfillmentApi';
 
 const WELCOME_EMBER = 100;
 const INNER_RING_PLOTS = [1, 2, 3, 4, 5, 6];
