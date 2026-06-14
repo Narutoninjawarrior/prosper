@@ -30,6 +30,7 @@ export function useMultiplayerPresence({
   const identity = useRef(loadLocalIdentity())
   const [status, setStatus] = useState('offline')
   const [peers, setPeers] = useState({})
+  const [receipts, setReceipts] = useState([])
   const [lastChatError, setLastChatError] = useState(null)
   const [chatCooldownLeft, setChatCooldownLeft] = useState(0)
   const wsRef = useRef(null)
@@ -129,6 +130,8 @@ export function useMultiplayerPresence({
           }))
         } else if (msg.type === 'chat_rejected') {
           setLastChatError(`Wait ${msg.retry_after_sec}s (slow Solarpunk speech)`)
+        } else if (msg.type === 'receipt') {
+          setReceipts(prev => [msg, ...prev].slice(0, 50))
         }
       } catch (e) {
         console.warn('[presence] bad frame', e)
@@ -230,5 +233,6 @@ export function useMultiplayerPresence({
     lastChatError,
     chatCooldownLeft,
     canChat: chatCooldownLeft <= 0 && status === 'connected',
+    receipts,
   }
 }

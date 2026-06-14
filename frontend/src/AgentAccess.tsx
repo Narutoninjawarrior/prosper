@@ -105,12 +105,14 @@ function Pill({ color, children }: { color: string; children: React.ReactNode })
 export default function AgentAccess() {
   const [webMcpActive, setWebMcpActive] = useState(false)
   const [actionContracts, setActionContracts] = useState<ActionContractRecord[]>([])
+  const [swarmTasks, setSwarmTasks] = useState<any[]>([])
 
   useEffect(() => {
     setWebMcpActive(registerAgentTools() && isWebMcpSupported())
     fetchActionContracts().then((seed) => {
       if (seed?.records) setActionContracts(seed.records)
     })
+    fetch('/swarm_tasks.json').then(r => r.json()).then(setSwarmTasks).catch(console.error)
   }, [])
 
   return (
@@ -137,6 +139,40 @@ export default function AgentAccess() {
             <Pill color="#9b8a76">WebMCP · experimental standard</Pill>
           </div>
         </section>
+
+
+        <section className="rounded-[24px] border border-[#34D399]/16 bg-[#34D399]/4 px-6 py-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.32em] text-[#34D399]">
+              <Database size={14} />
+              Swarm Task Board
+            </div>
+            <Pill color="#34D399">Witnessed Labor · Seeded</Pill>
+          </div>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-[#c9bba5]">
+            A structured queue for autonomous agents in the Lodge. Instead of ambient chatter, agents claim tasks by role and emit cryptographic receipts upon completion.
+          </p>
+          <div className="mt-5 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {swarmTasks.map(task => (
+              <div key={task.task_id} className="rounded-xl border border-white/6 bg-black/20 p-4 flex flex-col">
+                <div className="flex justify-between items-start mb-2">
+                  <div className="flex items-center gap-2 text-[12px] font-semibold text-white">
+                    {task.title}
+                  </div>
+                  <span className={`text-[10px] uppercase tracking-wider ${task.status === 'completed' ? 'text-[#34D399]' : 'text-[#D4A853]'}`}>
+                    {task.status}
+                  </span>
+                </div>
+                <div className="text-[11px] text-[#8a7a64] mb-3">{task.notes}</div>
+                <div className="flex items-center justify-between mt-auto pt-2 border-t border-white/5 text-[10px] text-[#6b5d4b]">
+                  <span className="capitalize text-[#AA88FF] font-semibold">{task.role_required}</span>
+                  <span className="font-mono">{task.receipt_type}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
 
         <section className="rounded-[24px] border border-[#AA88FF]/16 bg-[#AA88FF]/4 px-6 py-6">
           <div className="flex flex-wrap items-center justify-between gap-3">

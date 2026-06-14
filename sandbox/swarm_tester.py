@@ -2,6 +2,7 @@ import asyncio
 import websockets
 import json
 import random
+import hashlib
 import time
 import math
 import logging
@@ -74,7 +75,7 @@ async def bot_behavior(agent: Dict):
                     agent["x"] += (dx / dist) * 1.5
                     agent["z"] += (dz / dist) * 1.5
 
-                # Occasionally speak
+                # Occasionally speak or emit a receipt
                 action = "move"
                 chat = ""
                 if random.random() < 0.05:
@@ -85,6 +86,21 @@ async def bot_behavior(agent: Dict):
                         chat = random.choice(["Inspecting apparatus.", "Checking registry records.", "Verifying world state."])
                     elif agent["role"] == "guardian":
                         chat = random.choice(["Monitoring presence diagnostics.", "Watching world summary.", "Scanning perimeter."])
+                
+                # Check for Task Completion
+                if random.random() < 0.02: # 2% chance per loop to complete a task
+                    task_id = f"tsk_{random.randint(1,3):03d}"
+                    receipt_hash = hashlib.sha256(f"{agent['id']}_{time.time()}".encode()).hexdigest()[:16]
+                    receipt_payload = {
+                        "type": "receipt",
+                        "id": agent["id"],
+                        "task_id": task_id,
+                        "status": "completed",
+                        "summary": f"Task {task_id} processed locally by {agent['role']}.",
+                        "receipt_hash": receipt_hash
+                    }
+                    await websocket.send(json.dumps(receipt_payload))
+                    logging.info(f"Agent {agent['id']} emitted receipt for {task_id}")
 
                 # Send update
                 payload = {

@@ -4,6 +4,8 @@
 import { useEffect, useState } from 'react';
 import { Activity, Bot, Radio, Terminal } from 'lucide-react';
 import { fetchActivityBundle, type ActivityRow } from './lib/activityFeed';
+// @ts-ignore
+import { useMultiplayerPresence } from './multiplayer/useMultiplayerPresence';
 
 function formatRelativeTime(timestamp?: string): string {
   if (!timestamp) return 'unknown';
@@ -73,11 +75,12 @@ function RowLine({ row }: { row: ActivityRow }) {
   );
 }
 
-type SourceFilter = 'all' | 'experiment' | 'claim' | 'embodiment';
+type SourceFilter = 'all' | 'experiment' | 'claim' | 'embodiment' | 'pulse';
 
 const SOURCE_FILTERS: Array<{ id: SourceFilter; label: string; color: string }> = [
   { id: 'all', label: 'All', color: '#D4A853' },
-  { id: 'experiment', label: 'Experiment', color: '#34D399' },
+  { id: 'pulse', label: 'Swarm Pulse', color: '#34D399' },
+  { id: 'experiment', label: 'Experiment', color: '#8ce0b4' },
   { id: 'claim', label: 'Claim', color: '#f3c98b' },
   { id: 'embodiment', label: 'Embodiment', color: '#AA88FF' },
 ];
@@ -105,10 +108,33 @@ export default function ActivityDashboard() {
     return () => window.clearInterval(id);
   }, []);
 
-  const live = bundle?.data_state === 'live';
+  const { receipts } = useMultiplayerPresence({
+    enabled: true,
+    agentKey: 'dashboard-observer',
+    getPose: () => ({ x: 0, y: 0, z: 0, anim: 'idle' })
+  });
+
+  const live = bundle?.data_state === 'live' || receipts.length > 0;
+  
+  const swarmRows: ActivityRow[] = receipts.map((r: any) => ({
+    id: `swarm-${r.receipt_hash || Math.random()}`,
+    timestamp: new Date(r.timestamp * 1000).toISOString(),
+    agent_id: r.name || r.id,
+    action_type: `task_${r.status}`,
+    summary: r.summary,
+    receipt_hash: r.receipt_hash,
+    source: 'pulse'
+  }));
+
+  const combinedRows = [...(bundle?.rows ?? []), ...swarmRows].sort((a, b) => {
+    const ta = Date.parse(a.timestamp) || 0;
+    const tb = Date.parse(b.timestamp) || 0;
+    return tb - ta;
+  });
+
   const filteredRows = sourceFilter === 'all'
-    ? (bundle?.rows ?? [])
-    : (bundle?.rows ?? []).filter(r => r.source === sourceFilter);
+    ? combinedRows
+    : combinedRows.filter(r => r.source === sourceFilter);
 
   return (
     <div className="min-h-full bg-[radial-gradient(circle_at_top,rgba(232,132,42,0.12),transparent_40%),#050806] px-6 py-10 text-[#eadfcd]">

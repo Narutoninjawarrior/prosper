@@ -195,6 +195,21 @@ async def handle_message(peer: Peer, msg: dict[str, Any]) -> None:
         }))
         return
 
+    if mtype == "receipt":
+        print(f"[{peer.name}] Produced receipt for task {msg.get('task_id')} ({msg.get('status')})")
+        await broadcast({
+            "type": "receipt",
+            "id": peer.id,
+            "name": peer.name,
+            "role": peer.role,
+            "task_id": msg.get("task_id"),
+            "status": msg.get("status"),
+            "summary": msg.get("summary", ""),
+            "receipt_hash": msg.get("receipt_hash", ""),
+            "timestamp": time.time(),
+        })
+        return
+
     await peer.ws.send(json.dumps({"type": "error", "error": "unknown_type"}))
 
 

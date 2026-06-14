@@ -1,0 +1,35 @@
+[
+  {
+    "task_id": "tsk_001",
+    "title": "Validate Solar Punk Atmosphere",
+    "role_required": "builder",
+    "target_surface": "Biosphere Scene",
+    "target_ref": "atmosphere_shader",
+    "status": "open",
+    "expected_output": "Validation receipt of shader compilation",
+    "receipt_type": "shader_log",
+    "notes": "Verify ambient glow under 2980 HEAT"
+  },
+  {
+    "task_id": "tsk_002",
+    "title": "Inspect Public Registry Connectivity",
+    "role_required": "steward",
+    "target_surface": "Registry Plinth",
+    "target_ref": "firebase_sync",
+    "status": "open",
+    "expected_output": "Ping receipt from backend",
+    "receipt_type": "network_ping",
+    "notes": "Ensure public registry reads are cached"
+  },
+  {
+    "task_id": "tsk_003",
+    "title": "Monitor Bellows Tick Frequency",
+    "role_required": "guardian",
+    "target_surface": "Global Presence",
+    "target_ref": "heartbeat_log",
+    "status": "open",
+    "expected_output": "Uptime confirmation",
+    "receipt_type": "tick_witness",
+    "notes": "Watch for drifted ticks"
+  }
+]
