@@ -43,6 +43,7 @@ import {
   BiosphereHearth,
 } from './SolarpunkStructures'
 import InspectRail from '../inspect/InspectRail'
+import { appendAgentMemoryEvent } from '../lib/agentMemory'
 
 // ── Constants ─────────────────────────────────────────────────────
 const PLANT_COST   = 5     // $EMBER to plant
@@ -337,6 +338,14 @@ export default function BiosphereGrid({
   // Plant handler
   const handlePlant = useCallback((nodeId) => {
     if (emberBalance < PLANT_COST) return
+    void appendAgentMemoryEvent({
+      eventType: 'task_cultivation_preview',
+      summary: `Preview planted cultivation node ${nodeId}`,
+      metadata: {
+        ref: `plot:${nodeId}`,
+        action: 'plant',
+      },
+    })
     onEmberSpend(PLANT_COST)
     onPlant(nodeId)
     setNodes(prev => prev.map(n =>
@@ -346,11 +355,31 @@ export default function BiosphereGrid({
 
   // Harvest handler
   const handleHarvest = useCallback((nodeId) => {
+    void appendAgentMemoryEvent({
+      eventType: 'task_cultivation_witnessed',
+      summary: `Preview harvested cultivation node ${nodeId}`,
+      metadata: {
+        ref: `plot:${nodeId}`,
+        action: 'harvest',
+      },
+    })
     onHarvest(nodeId)
     setNodes(prev => prev.map(n =>
       n.id === nodeId ? { ...n, active: false, bloomStage: 0 } : n
     ))
   }, [onHarvest])
+
+  const handleInspectNode = useCallback((nodeId) => {
+    void appendAgentMemoryEvent({
+      eventType: 'inspect_plot',
+      summary: `Inspected cultivation node ${nodeId}`,
+      metadata: {
+        ref: `plot:${nodeId}`,
+        surface: 'biosphere',
+      },
+    })
+    setInspectNodeId(nodeId)
+  }, [])
 
   // Solarpunk structure placement (fixed locations)
   const outerNodes = nodes.filter(n => n.ring === 'outer')
@@ -407,7 +436,7 @@ export default function BiosphereGrid({
           node={node}
           resonanceNodeIds={resonanceNodeIds}
           resonanceColor={resonanceColor}
-          onInspect={setInspectNodeId}
+          onInspect={handleInspectNode}
           emberBalance={emberBalance}
         />
       ))}

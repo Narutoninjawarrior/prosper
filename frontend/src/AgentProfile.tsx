@@ -27,6 +27,8 @@ type PassportTask = {
   status: string;
   timestamp?: string;
   source: string;
+  task_id?: string;
+  receipt_hash?: string;
 };
 
 type PassportMemoryEvent = {
@@ -61,10 +63,23 @@ type PassportBundle = {
   };
   continuity: {
     last_apparatus_inspected: string | null;
+    last_task_transition?: PassportTask | null;
+    last_receipt?: PassportReceipt | null;
+    last_identity_verification?: string | null;
     recent_receipts: PassportReceipt[];
     recent_tasks: PassportTask[];
     recent_inspects: PassportMemoryEvent[];
     memory_events: PassportMemoryEvent[];
+    action_timeline?: Array<{
+      id: string;
+      kind: 'identity' | 'inspect' | 'task' | 'receipt';
+      label: string;
+      source: string;
+      timestamp?: string;
+      status?: string;
+      ref?: string;
+      receipt_hash?: string;
+    }>;
     candidate_tasks?: Array<Record<string, unknown>>;
     export_url: string;
   };
@@ -283,6 +298,30 @@ export default function AgentProfile() {
                 <div className="mt-2 font-mono text-white">{passport.continuity.last_apparatus_inspected || 'none witnessed yet'}</div>
               </div>
               <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
+                <div className="text-[10px] uppercase tracking-[0.24em] text-[#89a598]">Last task transition</div>
+                <div className="mt-2 text-white">
+                  {passport.continuity.last_task_transition
+                    ? `${passport.continuity.last_task_transition.title} · ${passport.continuity.last_task_transition.status}`
+                    : 'no witnessed task transitions yet'}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
+                <div className="text-[10px] uppercase tracking-[0.24em] text-[#89a598]">Last receipt</div>
+                <div className="mt-2 text-white">
+                  {passport.continuity.last_receipt
+                    ? `${passport.continuity.last_receipt.label} · ${formatTime(passport.continuity.last_receipt.timestamp)}`
+                    : 'no recent receipts yet'}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
+                <div className="text-[10px] uppercase tracking-[0.24em] text-[#89a598]">Last identity verification</div>
+                <div className="mt-2 text-white">
+                  {passport.continuity.last_identity_verification
+                    ? formatTime(passport.continuity.last_identity_verification)
+                    : 'identity not verified yet'}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
                 <div className="text-[10px] uppercase tracking-[0.24em] text-[#89a598]">Memory policy</div>
                 <div className="mt-2">{passport.policy.memory_append}</div>
               </div>
@@ -304,6 +343,36 @@ export default function AgentProfile() {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-3">
+          <SectionCard title="Action Timeline" icon={<Activity size={20} />}>
+            <div className="grid gap-3">
+              {passport.continuity.action_timeline && passport.continuity.action_timeline.length > 0 ? passport.continuity.action_timeline.map((entry) => (
+                <div key={entry.id} className="rounded-2xl border border-white/8 bg-black/20 p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-sm font-semibold text-white">{entry.label}</div>
+                    <div className="text-[11px] text-[#89a598]">{formatTime(entry.timestamp)}</div>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.24em]">
+                    <span className="rounded-full border border-white/10 px-2 py-1 text-[#34D399]">{entry.kind}</span>
+                    {entry.status && (
+                      <span className="rounded-full border border-white/10 px-2 py-1 text-[#D4A853]">{entry.status}</span>
+                    )}
+                    <span className="rounded-full border border-white/10 px-2 py-1 text-[#89a598]">{entry.source}</span>
+                  </div>
+                  {(entry.ref || entry.receipt_hash) && (
+                    <div className="mt-3 space-y-1 font-mono text-[11px] text-[#D4A853]">
+                      {entry.ref && <div>{entry.ref}</div>}
+                      {entry.receipt_hash && <div className="break-all">{entry.receipt_hash}</div>}
+                    </div>
+                  )}
+                </div>
+              )) : (
+                <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 px-4 py-8 text-sm text-[#89a598]">
+                  No action timeline exists yet. It begins filling in when this agent actually inspects, validates, asks, or witnesses work through authenticated surfaces.
+                </div>
+              )}
+            </div>
+          </SectionCard>
+
           <SectionCard title="Recent Receipts" icon={<Hash size={20} />}>
             <div className="grid gap-3">
               {passport.continuity.recent_receipts.length > 0 ? passport.continuity.recent_receipts.map((row) => (
@@ -335,6 +404,12 @@ export default function AgentProfile() {
                     <span className="rounded-full border border-white/10 px-2 py-1 text-[#34D399]">{task.type}</span>
                     <span className="rounded-full border border-white/10 px-2 py-1 text-[#D4A853]">{task.status}</span>
                   </div>
+                  {(task.task_id || task.receipt_hash) && (
+                    <div className="mt-3 space-y-1 font-mono text-[11px] text-[#D4A853]">
+                      {task.task_id && <div>{task.task_id}</div>}
+                      {task.receipt_hash && <div className="break-all">{task.receipt_hash}</div>}
+                    </div>
+                  )}
                 </div>
               )) : (
                 <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 px-4 py-8 text-sm text-[#89a598]">

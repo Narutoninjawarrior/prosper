@@ -31,6 +31,7 @@ export function useMultiplayerPresence({
   const [status, setStatus] = useState('offline')
   const [peers, setPeers] = useState({})
   const [receipts, setReceipts] = useState([])
+  const [taskEvents, setTaskEvents] = useState([])
   const [lastChatError, setLastChatError] = useState(null)
   const [chatCooldownLeft, setChatCooldownLeft] = useState(0)
   const wsRef = useRef(null)
@@ -132,6 +133,8 @@ export function useMultiplayerPresence({
           setLastChatError(`Wait ${msg.retry_after_sec}s (slow Solarpunk speech)`)
         } else if (msg.type === 'receipt') {
           setReceipts(prev => [msg, ...prev].slice(0, 50))
+        } else if (msg.type === 'task_event') {
+          setTaskEvents(prev => [msg, ...prev].slice(0, 80))
         }
       } catch (e) {
         console.warn('[presence] bad frame', e)
@@ -234,5 +237,6 @@ export function useMultiplayerPresence({
     chatCooldownLeft,
     canChat: chatCooldownLeft <= 0 && status === 'connected',
     receipts,
+    taskEvents,
   }
 }

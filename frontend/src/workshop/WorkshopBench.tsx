@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Bot, Check, Clipboard, Hammer, Loader2, ShieldCheck } from 'lucide-react';
+import { appendAgentMemoryEvent } from '../lib/agentMemory';
 
 type CatalogPart = {
   part_id: string;
@@ -126,6 +127,16 @@ export default function WorkshopBench() {
         throw new Error('error' in body && body.error ? body.error : `validator returned ${response.status}`);
       }
       setReceipt(body);
+      void appendAgentMemoryEvent({
+        eventType: 'receipt_workshop_validation',
+        summary: `Validated blueprint ${typeof (blueprint as { title?: unknown }).title === 'string' ? (blueprint as { title: string }).title : 'draft blueprint'}`,
+        metadata: {
+          ref: 'workshop:validate',
+          receipt_hash: body.receipt_hash,
+          valid: body.valid,
+          total_ember: body.cost_estimate.total_ember,
+        },
+      });
     } catch (error) {
       setRequestError(error instanceof Error ? error.message : 'Workshop backend unreachable');
     } finally {

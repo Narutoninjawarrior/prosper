@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { getFirebaseAuth } from '../firebaseAuth';
+import { appendAgentMemoryEvent } from '../lib/agentMemory';
 
 const REAGENTS = [
   { id: 'ember_dust', name: 'Ember Dust', icon: '✨', color: '#E8842A' },
@@ -42,6 +43,17 @@ export default function ChemistryLabOverlay({ onClose }) {
       }
       const data = await res.json();
       setReceipt(data);
+      void appendAgentMemoryEvent({
+        eventType: 'receipt_chemistry_preview',
+        summary: `Previewed chemistry synthesis for ${targetType}`,
+        metadata: {
+          ref: 'apparatus:reagent_alembic',
+          reagent_a: reagentA,
+          reagent_b: reagentB,
+          target_type: targetType,
+          receipt_hash: data.receipt_hash,
+        },
+      });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -221,6 +233,16 @@ export default function ChemistryLabOverlay({ onClose }) {
                           });
                           const data = await res.json();
                           if (!res.ok) throw new Error(data.error || 'Execution failed');
+                          void appendAgentMemoryEvent({
+                            eventType: 'receipt_chemistry_execute',
+                            summary: `Executed chemistry synthesis for ${receipt.target_type}`,
+                            metadata: {
+                              ref: 'apparatus:reagent_alembic',
+                              target_type: receipt.target_type,
+                              receipt_hash: receipt.receipt_hash,
+                              chain_hash: data.chain_hash,
+                            },
+                          });
                           alert(`Synthesis executed! Chain hash: ${data.chain_hash}`);
                         } catch (err) {
                           alert(`Execution failed: ${err.message}`);

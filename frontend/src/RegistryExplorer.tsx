@@ -20,6 +20,7 @@ import {
   type RegistryKind,
 } from './lib/registryAdapter'
 import { loadRegistryInspect, type InspectPayload } from './lib/inspectBridge'
+import { appendAgentMemoryEvent } from './lib/agentMemory'
 import InspectRail from './inspect/InspectRail'
 import {
   Archive,
@@ -188,6 +189,18 @@ function RegistryCard({
   )
 }
 
+function witnessRegistryInspect(item: NormalizedRegistryItem) {
+  void appendAgentMemoryEvent({
+    eventType: 'inspect_registry_record',
+    summary: `Inspected ${item.kind} ${item.title}`,
+    metadata: {
+      ref: `${item.kind}:${item.id}`,
+      route: item.route_pointer,
+      status: item.status,
+    },
+  })
+}
+
 export default function RegistryExplorer() {
   const [query, setQuery] = useState('')
   const [kindFilter, setKindFilter] = useState<RegistryKind | 'all'>('all')
@@ -270,6 +283,7 @@ export default function RegistryExplorer() {
           setInspectState('error')
           return
         }
+        witnessRegistryInspect(item)
         setInspectPayload(payload)
         setInspectTarget(item)
         setInspectState('ready')
@@ -292,6 +306,7 @@ export default function RegistryExplorer() {
     loadRegistryInspect(item.kind, item.id)
       .then((payload) => {
         if (inspectRequestRef.current !== requestId) return
+        witnessRegistryInspect(item)
         setInspectPayload(payload)
         setInspectState(payload ? 'ready' : 'error')
       })

@@ -12,6 +12,7 @@ import {
   Layers3,
   ScrollText,
 } from 'lucide-react'
+import { appendAgentMemoryEvent } from './lib/agentMemory'
 
 type MindStatus = {
   mode: 'offline' | 'readiness' | 'connected'
@@ -114,6 +115,15 @@ export default function LodgeMindRoute() {
         throw new Error(data.detail || data.error || `HTTP ${res.status}`)
       }
       setAskResult(data)
+      void appendAgentMemoryEvent({
+        eventType: 'task_lodge_mind_ask',
+        summary: `Asked Lodge Mind: ${askPrompt.trim().slice(0, 80)}`,
+        metadata: {
+          ref: 'lodge_mind:ask',
+          surface: '/lodge-mind',
+          provider: status?.provider || 'unknown',
+        },
+      })
     } catch (err) {
       setAskError(err instanceof Error ? err.message : String(err))
     } finally {

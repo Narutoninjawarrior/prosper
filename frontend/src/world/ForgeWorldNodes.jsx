@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { Html } from '@react-three/drei'
 import InspectRail from '../inspect/InspectRail'
 import { forgeNodeToInspect } from '../lib/inspectBridge'
+import { appendAgentMemoryEvent } from '../lib/agentMemory'
 
 function ForgeNodeMesh({ node, color, onInspect }) {
   const scale = 0.35 + Math.min((node.heat_level ?? 0) / 8000, 0.4)
@@ -51,6 +52,18 @@ export default function ForgeWorldNodes({ nodes = [] }) {
   const [selection, setSelection] = useState(null)
   const inspect = selection ? forgeNodeToInspect(selection) : null
 
+  function handleInspect(node) {
+    void appendAgentMemoryEvent({
+      eventType: 'inspect_world_object',
+      summary: `Inspected world node ${node.object_type || node.id}`,
+      metadata: {
+        ref: `world_node:${node.id}`,
+        object_type: node.object_type || 'unknown',
+      },
+    })
+    setSelection(node)
+  }
+
   if (!nodes.length) return null
 
   return (
@@ -62,7 +75,7 @@ export default function ForgeWorldNodes({ nodes = [] }) {
             key={node.id}
             node={node}
             color={color}
-            onInspect={setSelection}
+            onInspect={handleInspect}
           />
         )
       })}

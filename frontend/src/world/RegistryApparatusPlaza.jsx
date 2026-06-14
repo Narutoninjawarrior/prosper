@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Html, Text } from '@react-three/drei'
 import InspectRail from '../inspect/InspectRail'
 import { useContract, sanctuaryBridge } from '../lib/sanctuaryBridge'
+import { appendAgentMemoryEvent } from '../lib/agentMemory'
 
 const PLAZA_POSITIONS = {
   automation_beacon: [-3, 0, 2],
@@ -115,6 +116,15 @@ function RegistryApparatusNode({ record }) {
         position={position}
         onClick={(e) => {
           e.stopPropagation()
+          void appendAgentMemoryEvent({
+            eventType: 'inspect_apparatus',
+            summary: `Inspected ${record.name} in the world`,
+            metadata: {
+              ref: `apparatus:${record.apparatus_id}`,
+              scene: 'world',
+              status: record.status,
+            },
+          })
           setOpen(true)
         }}
         onPointerOver={(e) => {

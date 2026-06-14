@@ -108,7 +108,7 @@ export default function ActivityDashboard() {
     return () => window.clearInterval(id);
   }, []);
 
-  const { receipts } = useMultiplayerPresence({
+  const { receipts, taskEvents } = useMultiplayerPresence({
     enabled: true,
     agentKey: 'dashboard-observer',
     getPose: () => ({ x: 0, y: 0, z: 0, anim: 'idle' })
@@ -116,6 +116,16 @@ export default function ActivityDashboard() {
 
   const live = bundle?.data_state === 'live' || receipts.length > 0;
   
+  const swarmTaskRows: ActivityRow[] = taskEvents.map((event: any, index: number) => ({
+    id: `swarm-task-${event.task_id || event.id}-${event.status}-${index}`,
+    timestamp: new Date((event.timestamp || Date.now() / 1000) * 1000).toISOString(),
+    agent_id: event.name || event.id,
+    action_type: `task_${event.status || 'open'}`,
+    summary: event.summary || `Task ${event.task_id || 'unknown'} changed state.`,
+    receipt_hash: event.receipt_hash,
+    source: 'pulse',
+  }));
+
   const swarmRows: ActivityRow[] = receipts.map((r: any) => ({
     id: `swarm-${r.receipt_hash || Math.random()}`,
     timestamp: new Date(r.timestamp * 1000).toISOString(),
@@ -126,7 +136,7 @@ export default function ActivityDashboard() {
     source: 'pulse'
   }));
 
-  const combinedRows = [...(bundle?.rows ?? []), ...swarmRows].sort((a, b) => {
+  const combinedRows = [...(bundle?.rows ?? []), ...swarmTaskRows, ...swarmRows].sort((a, b) => {
     const ta = Date.parse(a.timestamp) || 0;
     const tb = Date.parse(b.timestamp) || 0;
     return tb - ta;

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Html, Text } from '@react-three/drei'
 import InspectRail from '../inspect/InspectRail'
 import { useContract, sanctuaryBridge } from '../lib/sanctuaryBridge'
+import { appendAgentMemoryEvent } from '../lib/agentMemory'
 import ChemistryLabOverlay from './ChemistryLabOverlay'
 
 const BIOSPHERE_POSITIONS = {
@@ -81,6 +82,15 @@ function BiosphereApparatusNode({ record }) {
         position={position}
         onClick={(e) => {
           e.stopPropagation()
+          void appendAgentMemoryEvent({
+            eventType: 'inspect_apparatus',
+            summary: `Inspected ${record.name} in the biosphere`,
+            metadata: {
+              ref: `apparatus:${record.apparatus_id}`,
+              scene: 'biosphere',
+              status: record.status,
+            },
+          })
           setOpen(true)
         }}
         onPointerOver={(e) => {

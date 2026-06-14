@@ -5,10 +5,12 @@
  * in-browser WebMCP tool surface works. Read-only; nothing here implies a
  * backend API that does not exist.
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { AGENT_TOOL_CATALOG, isWebMcpSupported, registerAgentTools } from './lib/agentTools'
 import { fetchActionContracts, type ActionContractRecord } from './lib/actionContracts'
 import { REGISTRY_SOURCES } from './lib/registryAdapter'
+// @ts-ignore
+import { useMultiplayerPresence } from './multiplayer/useMultiplayerPresence'
 import {
   Bot,
   Cable,
@@ -127,6 +129,11 @@ export default function AgentAccess() {
   const [webMcpActive, setWebMcpActive] = useState(false)
   const [actionContracts, setActionContracts] = useState<ActionContractRecord[]>([])
   const [swarmTasks, setSwarmTasks] = useState<any[]>([])
+  const { taskEvents, receipts } = useMultiplayerPresence({
+    enabled: true,
+    agentKey: 'agent-access-observer',
+    getPose: () => ({ x: 0, y: 0, z: 0, anim: 'idle' }),
+  })
 
   useEffect(() => {
     setWebMcpActive(registerAgentTools() && isWebMcpSupported())
@@ -135,6 +142,78 @@ export default function AgentAccess() {
     })
     fetch('/swarm_tasks.json').then(r => r.json()).then(setSwarmTasks).catch(console.error)
   }, [])
+
+  const liveSwarmTasks = useMemo(() => {
+    const taskMap = new Map(
+      swarmTasks.map((task) => [
+        task.task_id,
+        {
+          ...task,
+          status: task.status || 'open',
+          assigned_agent: null as string | null,
+          receipt_hash: null as string | null,
+          updated_at: null as string | null,
+        },
+      ]),
+    )
+
+    for (const event of taskEvents as any[]) {
+      const taskId = event?.task_id
+      if (!taskId) continue
+      const current = taskMap.get(taskId) || {
+        task_id: taskId,
+        title: taskId,
+        role_required: event.role || 'agent',
+        target_surface: 'Presence stream',
+        target_ref: taskId,
+        status: 'open',
+        notes: 'Observed from the live swarm stream.',
+        receipt_type: 'receipt',
+        assigned_agent: null,
+        receipt_hash: null,
+        updated_at: null,
+      }
+      taskMap.set(taskId, {
+        ...current,
+        status: event.status || current.status,
+        assigned_agent: event.name || event.id || current.assigned_agent,
+        receipt_hash: event.receipt_hash || current.receipt_hash,
+        updated_at: event.timestamp ? new Date(event.timestamp * 1000).toISOString() : current.updated_at,
+      })
+    }
+
+    for (const receipt of receipts as any[]) {
+      const taskId = receipt?.task_id
+      if (!taskId) continue
+      const current = taskMap.get(taskId) || {
+        task_id: taskId,
+        title: taskId,
+        role_required: receipt.role || 'agent',
+        target_surface: 'Presence stream',
+        target_ref: taskId,
+        status: 'open',
+        notes: 'Observed from the live swarm stream.',
+        receipt_type: 'receipt',
+        assigned_agent: null,
+        receipt_hash: null,
+        updated_at: null,
+      }
+      taskMap.set(taskId, {
+        ...current,
+        status: receipt.status || 'witnessed',
+        assigned_agent: receipt.name || receipt.id || current.assigned_agent,
+        receipt_hash: receipt.receipt_hash || current.receipt_hash,
+        updated_at: receipt.timestamp ? new Date(receipt.timestamp * 1000).toISOString() : current.updated_at,
+      })
+    }
+
+    return Array.from(taskMap.values())
+  }, [receipts, swarmTasks, taskEvents])
+
+  const liveSwarmStates = useMemo(
+    () => Array.from(new Set(liveSwarmTasks.map((task) => task.status))).join(' · ') || 'open',
+    [liveSwarmTasks],
+  )
 
   return (
     <div className="min-h-full bg-[radial-gradient(circle_at_top_right,rgba(52,211,153,0.07),transparent_40%),linear-gradient(180deg,#0a0604_0%,#0c0a07_55%,#0a0805_100%)] px-6 py-10 text-[#eadfcd]">
@@ -172,20 +251,33 @@ export default function AgentAccess() {
             <Pill color="#34D399">Witnessed Labor · Seeded</Pill>
           </div>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-[#c9bba5]">
-            A structured queue for autonomous agents in the Lodge. Instead of ambient chatter, agents claim tasks by role and emit cryptographic receipts upon completion.
+            A structured queue for autonomous agents in the Lodge. Seeded tasks begin open, then the live presence stream can move them through claimed, in progress, witnessed, and archived without implying a hidden assignment backend. Current observed states: <span className="text-[#34D399]">{liveSwarmStates}</span>.
           </p>
           <div className="mt-5 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            {swarmTasks.map(task => (
+            {liveSwarmTasks.map((task) => (
               <div key={task.task_id} className="rounded-xl border border-white/6 bg-black/20 p-4 flex flex-col">
                 <div className="flex justify-between items-start mb-2">
                   <div className="flex items-center gap-2 text-[12px] font-semibold text-white">
                     {task.title}
                   </div>
-                  <span className={`text-[10px] uppercase tracking-wider ${task.status === 'completed' ? 'text-[#34D399]' : 'text-[#D4A853]'}`}>
+                  <span className={`text-[10px] uppercase tracking-wider ${
+                    task.status === 'archived'
+                      ? 'text-[#8a7a64]'
+                      : task.status === 'witnessed'
+                        ? 'text-[#34D399]'
+                        : task.status === 'in_progress'
+                          ? 'text-[#60A5FA]'
+                          : 'text-[#D4A853]'
+                  }`}>
                     {task.status}
                   </span>
                 </div>
                 <div className="text-[11px] text-[#8a7a64] mb-3">{task.notes}</div>
+                <div className="mb-3 space-y-1 text-[10px] text-[#b7c9be]">
+                  <div>surface: <span className="text-[#eadfcd]">{task.target_surface || 'Presence stream'}</span></div>
+                  {task.assigned_agent && <div>agent: <span className="font-mono text-[#34D399]">{task.assigned_agent}</span></div>}
+                  {task.receipt_hash && <div className="break-all font-mono text-[#D4A853]">{task.receipt_hash}</div>}
+                </div>
                 <div className="flex items-center justify-between mt-auto pt-2 border-t border-white/5 text-[10px] text-[#6b5d4b]">
                   <span className="capitalize text-[#AA88FF] font-semibold">{task.role_required}</span>
                   <span className="font-mono">{task.receipt_type}</span>

@@ -152,6 +152,21 @@ async def handle_message(peer: Peer, msg: dict[str, Any]) -> None:
         # In the future, this is where we log reputation on the Hall of Honor!
         return
 
+    if mtype == "task_event":
+        print(f"[presence] {peer.name} task {msg.get('task_id')} -> {msg.get('status')}")
+        await broadcast({
+            "type": "task_event",
+            "id": peer.id,
+            "name": peer.name,
+            "role": peer.role,
+            "task_id": msg.get("task_id"),
+            "status": msg.get("status"),
+            "summary": msg.get("summary", ""),
+            "receipt_hash": msg.get("receipt_hash", ""),
+            "timestamp": time.time(),
+        })
+        return
+
     if mtype == "chat":
         text = str(msg.get("text", "")).strip()[:280]
         if not text:

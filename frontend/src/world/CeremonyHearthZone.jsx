@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Html } from '@react-three/drei'
 import CottageCommons from './CottageCommons'
 import InspectRail from '../inspect/InspectRail'
+import { appendAgentMemoryEvent } from '../lib/agentMemory'
 
 export default function CeremonyHearthZone({
   position = [-4, 0, -2],
@@ -47,6 +48,14 @@ export default function CeremonyHearthZone({
         position={position}
         onClick={(e) => {
           e.stopPropagation()
+          void appendAgentMemoryEvent({
+            eventType: 'inspect_hearth_ceremony',
+            summary: 'Opened the ceremony hearth',
+            metadata: {
+              ref: 'hearth:ceremony',
+              heat,
+            },
+          })
           setOpen(true)
         }}
         onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = 'pointer' }}

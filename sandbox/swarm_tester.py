@@ -22,6 +22,7 @@ NAMES = ["Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta", "Eta", "Theta", "
 
 # Flower of Life / Metatron's Cube bounds
 RADIUS_MAX = 20.0
+TASK_IDS = ["tsk_001", "tsk_002", "tsk_003"]
 
 def generate_agent(index: int) -> Dict:
     angle = (index / SWARM_SIZE) * math.pi * 2
@@ -87,20 +88,43 @@ async def bot_behavior(agent: Dict):
                     elif agent["role"] == "guardian":
                         chat = random.choice(["Monitoring presence diagnostics.", "Watching world summary.", "Scanning perimeter."])
                 
-                # Check for Task Completion
-                if random.random() < 0.02: # 2% chance per loop to complete a task
-                    task_id = f"tsk_{random.randint(1,3):03d}"
-                    receipt_hash = hashlib.sha256(f"{agent['id']}_{time.time()}".encode()).hexdigest()[:16]
-                    receipt_payload = {
-                        "type": "receipt",
+                if random.random() < 0.03:
+                    task_id = random.choice(TASK_IDS)
+                    await websocket.send(json.dumps({
+                        "type": "task_event",
                         "id": agent["id"],
                         "task_id": task_id,
-                        "status": "completed",
-                        "summary": f"Task {task_id} processed locally by {agent['role']}.",
-                        "receipt_hash": receipt_hash
-                    }
-                    await websocket.send(json.dumps(receipt_payload))
-                    logging.info(f"Agent {agent['id']} emitted receipt for {task_id}")
+                        "status": "claimed",
+                        "summary": f"{agent['role']} claimed {task_id}.",
+                    }))
+                    await asyncio.sleep(random.uniform(0.05, 0.2))
+                    await websocket.send(json.dumps({
+                        "type": "task_event",
+                        "id": agent["id"],
+                        "task_id": task_id,
+                        "status": "in_progress",
+                        "summary": f"{agent['role']} is working {task_id}.",
+                    }))
+                    if random.random() < 0.65:
+                        await asyncio.sleep(random.uniform(0.05, 0.25))
+                        receipt_hash = hashlib.sha256(f"{agent['id']}_{task_id}_{time.time()}".encode()).hexdigest()[:16]
+                        await websocket.send(json.dumps({
+                            "type": "receipt",
+                            "id": agent["id"],
+                            "task_id": task_id,
+                            "status": "witnessed",
+                            "summary": f"Task {task_id} witnessed from {agent['role']}.",
+                            "receipt_hash": receipt_hash
+                        }))
+                        await websocket.send(json.dumps({
+                            "type": "task_event",
+                            "id": agent["id"],
+                            "task_id": task_id,
+                            "status": "archived",
+                            "summary": f"{task_id} archived after witnessed receipt.",
+                            "receipt_hash": receipt_hash,
+                        }))
+                        logging.info(f"Agent {agent['id']} advanced {task_id} to witnessed/archived")
 
                 # Send update
                 payload = {

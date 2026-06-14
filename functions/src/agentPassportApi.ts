@@ -38,6 +38,37 @@ type PassportMemoryEvent = {
   metadata?: Record<string, unknown>;
 };
 
+type PassportTimelineEntry = {
+  id: string;
+  kind: 'identity' | 'inspect' | 'task' | 'receipt';
+  label: string;
+  source: string;
+  timestamp?: string;
+  status?: string;
+  ref?: string;
+  receipt_hash?: string;
+};
+
+type PassportReceiptRow = {
+  kind: string;
+  label: string;
+  receipt_hash?: string;
+  apparatus_id?: string;
+  timestamp?: string;
+  source: string;
+};
+
+type PassportTaskRow = {
+  id: string;
+  type: string;
+  title: string;
+  status: string;
+  timestamp?: string;
+  source: string;
+  task_id?: string;
+  receipt_hash?: string;
+};
+
 function applyCors(res: functions.Response, methods = 'GET, POST, OPTIONS'): void {
   res.set('Access-Control-Allow-Origin', '*');
   res.set('Access-Control-Allow-Methods', methods);
@@ -87,6 +118,15 @@ function cleanMetadata(value: unknown): Record<string, unknown> | undefined {
     return ['string', 'number', 'boolean'].includes(typeof entry) || entry === null;
   });
   return entries.length > 0 ? Object.fromEntries(entries.slice(0, 16)) : undefined;
+}
+
+function inferTaskStatus(eventType: string, metadata?: Record<string, unknown>): string {
+  if (typeof metadata?.status === 'string' && metadata.status.trim()) {
+    return metadata.status.trim();
+  }
+  const normalized = eventType.replace(/^task_/, '');
+  if (!normalized || normalized === eventType) return 'witnessed';
+  return normalized;
 }
 
 function normalizeMoltbookAgent(value: unknown): VerifiedMoltbookAgent | null {
@@ -285,7 +325,7 @@ async function buildAgentPassport(agentId: string) {
       })
     : [];
 
-  const recentReceipts = [
+  const recentReceipts: PassportReceiptRow[] = [
     ...(experimentSnap ? experimentSnap.docs.map((doc) => {
       const data = doc.data();
       return {
@@ -311,7 +351,7 @@ async function buildAgentPassport(agentId: string) {
     .sort((a, b) => Date.parse(b.timestamp || '') - Date.parse(a.timestamp || ''))
     .slice(0, 12);
 
-  const recentTasks = [
+  const recentTasks: PassportTaskRow[] = [
     ...(claimSnap ? claimSnap.docs.map((doc) => {
       const data = doc.data();
       return {
@@ -329,9 +369,11 @@ async function buildAgentPassport(agentId: string) {
         id: event.id,
         type: event.event_type,
         title: event.summary,
-        status: 'witnessed',
+        status: inferTaskStatus(event.event_type, event.metadata),
         timestamp: event.created_at,
         source: event.source,
+        task_id: typeof event.metadata?.task_id === 'string' ? event.metadata.task_id : undefined,
+        receipt_hash: typeof event.metadata?.receipt_hash === 'string' ? event.metadata.receipt_hash : undefined,
       })),
   ]
     .sort((a, b) => Date.parse(b.timestamp || '') - Date.parse(a.timestamp || ''))
@@ -358,9 +400,54 @@ async function buildAgentPassport(agentId: string) {
       }
     : {
         provider: 'moltbook_beta',
-        linked: false,
-        state: MOLTBOOK_ENABLED ? 'available' : 'disabled',
+      linked: false,
+      state: MOLTBOOK_ENABLED ? 'available' : 'disabled',
       };
+
+  const actionTimeline: PassportTimelineEntry[] = [
+    ...memoryEvents
+      .filter((event) => event.event_type.startsWith('inspect_'))
+      .map((event) => ({
+        id: event.id,
+        kind: 'inspect' as const,
+        label: event.summary,
+        source: event.source,
+        timestamp: event.created_at,
+        ref: typeof event.metadata?.ref === 'string' ? event.metadata.ref : undefined,
+      })),
+    ...recentTasks.map((task) => ({
+      id: `task-${task.id}`,
+      kind: 'task' as const,
+      label: task.title,
+      source: task.source,
+      timestamp: task.timestamp,
+      status: task.status,
+      ref: typeof task.task_id === 'string' ? task.task_id : undefined,
+      receipt_hash: typeof task.receipt_hash === 'string' ? task.receipt_hash : undefined,
+    })),
+    ...recentReceipts.map((row, index) => ({
+      id: `receipt-${row.source}-${row.label}-${index}`,
+      kind: 'receipt' as const,
+      label: row.label,
+      source: row.source,
+      timestamp: row.timestamp,
+      receipt_hash: row.receipt_hash,
+      ref: row.apparatus_id,
+    })),
+    ...(externalIdentity.linked && externalIdentity.last_verified_at
+      ? [{
+          id: 'identity-last-verified',
+          kind: 'identity' as const,
+          label: 'Moltbook beta identity verified',
+          source: 'moltbook_beta',
+          timestamp: externalIdentity.last_verified_at,
+          status: 'verified',
+          ref: typeof externalIdentity.profile?.id === 'string' ? externalIdentity.profile.id : undefined,
+        }]
+      : []),
+  ]
+    .sort((a, b) => Date.parse(b.timestamp || '') - Date.parse(a.timestamp || ''))
+    .slice(0, 16);
 
   const candidateTasks = swarmTasks
     .filter((task) => typeof task === 'object' && task !== null)
@@ -389,10 +476,14 @@ async function buildAgentPassport(agentId: string) {
     identity: externalIdentity,
     continuity: {
       last_apparatus_inspected: latestInspect?.metadata?.ref ?? null,
+      last_task_transition: recentTasks[0] ?? null,
+      last_receipt: recentReceipts[0] ?? null,
+      last_identity_verification: externalIdentity.linked ? externalIdentity.last_verified_at ?? null : null,
       recent_receipts: recentReceipts,
       recent_tasks: recentTasks,
       recent_inspects: recentInspects,
       memory_events: memoryEvents,
+      action_timeline: actionTimeline,
       candidate_tasks: candidateTasks,
       export_url: `/api/agent/passport?id=${encodeURIComponent(agentId)}&format=export`,
     },
