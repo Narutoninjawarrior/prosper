@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Bot, Check, Clipboard, Hammer, Loader2, ShieldCheck } from 'lucide-react';
-import { appendAgentMemoryEvent } from '../lib/agentMemory';
+import { appendAgentMemoryEvent, appendAgentTaskEvent } from '../lib/agentMemory';
 
 type CatalogPart = {
   part_id: string;
@@ -116,6 +116,25 @@ export default function WorkshopBench() {
     }
 
     setValidating(true);
+    const taskId = `workshop_validate_${Date.now().toString(36)}`;
+    void appendAgentTaskEvent({
+      taskId,
+      status: 'claimed',
+      summary: `Claimed workshop validation for ${typeof (blueprint as { title?: unknown }).title === 'string' ? (blueprint as { title: string }).title : 'draft blueprint'}`,
+      metadata: {
+        ref: 'workshop:validate',
+        surface: '/forge',
+      },
+    });
+    void appendAgentTaskEvent({
+      taskId,
+      status: 'in_progress',
+      summary: `Workshop validation in progress for ${typeof (blueprint as { title?: unknown }).title === 'string' ? (blueprint as { title: string }).title : 'draft blueprint'}`,
+      metadata: {
+        ref: 'workshop:validate',
+        surface: '/forge',
+      },
+    });
     try {
       const response = await fetch('/api/workshop/validate', {
         method: 'POST',
@@ -126,6 +145,18 @@ export default function WorkshopBench() {
       if (!response.ok || !('receipt_hash' in body)) {
         throw new Error('error' in body && body.error ? body.error : `validator returned ${response.status}`);
       }
+      void appendAgentTaskEvent({
+        taskId,
+        status: 'witnessed',
+        summary: `Workshop validation witnessed for ${typeof (blueprint as { title?: unknown }).title === 'string' ? (blueprint as { title: string }).title : 'draft blueprint'}`,
+        receiptHash: body.receipt_hash,
+        metadata: {
+          ref: 'workshop:validate',
+          surface: '/forge',
+          valid: body.valid,
+          total_ember: body.cost_estimate.total_ember,
+        },
+      });
       setReceipt(body);
       void appendAgentMemoryEvent({
         eventType: 'receipt_workshop_validation',

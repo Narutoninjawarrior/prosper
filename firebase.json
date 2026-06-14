@@ -48,6 +48,10 @@
         "function": "agentPassportApi"
       },
       {
+        "source": "/api/agent/task/event",
+        "function": "agentPassportApi"
+      },
+      {
         "source": "/api/workshop/catalog",
         "function": "workshopApi"
       },

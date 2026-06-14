@@ -198,6 +198,26 @@
       }
     },
     {
+      "operationId": "appendAgentTaskEvent",
+      "route": "/api/agent/task/event",
+      "method": "POST",
+      "auth_requirement": "Bearer Firebase ID token or linked X-Moltbook-Identity header",
+      "write_policy": "append_only_server_written_task_lifecycle",
+      "data_state": "beta",
+      "request_schema": {
+        "type": "object",
+        "properties": {
+          "agent_id": { "type": "string" },
+          "task_id": { "type": "string" },
+          "status": { "type": "string", "enum": ["open", "claimed", "in_progress", "witnessed", "archived"] },
+          "summary": { "type": "string" },
+          "receipt_hash": { "type": "string" },
+          "metadata": { "type": "object" }
+        },
+        "required": ["task_id", "status"]
+      }
+    },
+    {
       "operationId": "welcomeHearthlandsAgent",
       "route": "/api/welcome",
       "method": "POST",

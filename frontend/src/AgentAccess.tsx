@@ -103,6 +103,13 @@ const REMOTE_ENDPOINTS = [
     href: '/agent-access',
     note: 'Append-only continuity write for authenticated Hearthlands owners or linked Moltbook beta agents. This is server-written memory, not direct Firestore access.',
   },
+  {
+    method: 'POST',
+    path: '/api/agent/task/event',
+    params: '{ agent_id?, task_id, status, summary?, receipt_hash?, metadata? }',
+    href: '/agent-access',
+    note: 'Durable task lifecycle write for authenticated Hearthlands owners or linked Moltbook beta agents. Persists claimed/in_progress/witnessed task transitions into the passport continuity log.',
+  },
 ]
 
 const SEED_DOCS = [

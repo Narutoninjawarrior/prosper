@@ -8,6 +8,16 @@ type ContinuityEventInput = {
   moltbookIdentityToken?: string | null
 }
 
+type TaskEventInput = {
+  agentId?: string
+  taskId: string
+  status: 'open' | 'claimed' | 'in_progress' | 'witnessed' | 'archived'
+  summary?: string
+  receiptHash?: string
+  metadata?: Record<string, string | number | boolean | null | undefined>
+  moltbookIdentityToken?: string | null
+}
+
 type ContinuityEventResult =
   | { ok: true; skipped: false; eventId?: string }
   | { ok: false; skipped: true; reason: 'anonymous' }
@@ -53,6 +63,65 @@ export async function appendAgentMemoryEvent({
         ...(agentId ? { agent_id: agentId } : {}),
         event_type: eventType,
         summary,
+        metadata: cleanMetadata(metadata),
+      }),
+    })
+
+    const body = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      return {
+        ok: false,
+        skipped: false,
+        reason: typeof body.error === 'string' ? body.error : `HTTP ${response.status}`,
+      }
+    }
+
+    return {
+      ok: true,
+      skipped: false,
+      eventId: typeof body.event_id === 'string' ? body.event_id : undefined,
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      skipped: false,
+      reason: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+export async function appendAgentTaskEvent({
+  agentId,
+  taskId,
+  status,
+  summary,
+  receiptHash,
+  metadata,
+  moltbookIdentityToken,
+}: TaskEventInput): Promise<ContinuityEventResult> {
+  const auth = getFirebaseAuth()
+  const user = auth?.currentUser ?? null
+  const firebaseToken = user ? await user.getIdToken().catch(() => null) : null
+  const externalToken = moltbookIdentityToken?.trim() || null
+
+  if (!firebaseToken && !externalToken) {
+    return { ok: false, skipped: true, reason: 'anonymous' }
+  }
+
+  try {
+    const response = await fetch('/api/agent/task/event', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(firebaseToken ? { Authorization: `Bearer ${firebaseToken}` } : {}),
+        ...(externalToken ? { 'X-Moltbook-Identity': externalToken } : {}),
+      },
+      body: JSON.stringify({
+        ...(agentId ? { agent_id: agentId } : {}),
+        task_id: taskId,
+        status,
+        ...(summary ? { summary } : {}),
+        ...(receiptHash ? { receipt_hash: receiptHash } : {}),
         metadata: cleanMetadata(metadata),
       }),
     })

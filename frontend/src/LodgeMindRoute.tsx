@@ -12,7 +12,7 @@ import {
   Layers3,
   ScrollText,
 } from 'lucide-react'
-import { appendAgentMemoryEvent } from './lib/agentMemory'
+import { appendAgentMemoryEvent, appendAgentTaskEvent } from './lib/agentMemory'
 
 type MindStatus = {
   mode: 'offline' | 'readiness' | 'connected'
@@ -99,9 +99,30 @@ export default function LodgeMindRoute() {
 
   const handleAsk = async () => {
     if (!askPrompt.trim() || !askAvailable) return
+    const taskId = `lodge_mind_ask_${Date.now().toString(36)}`
     setAskLoading(true)
     setAskError(null)
     setAskResult(null)
+    void appendAgentTaskEvent({
+      taskId,
+      status: 'claimed',
+      summary: `Claimed Lodge Mind ask: ${askPrompt.trim().slice(0, 80)}`,
+      metadata: {
+        ref: 'lodge_mind:ask',
+        surface: '/lodge-mind',
+        provider: status?.provider || 'unknown',
+      },
+    })
+    void appendAgentTaskEvent({
+      taskId,
+      status: 'in_progress',
+      summary: `Lodge Mind ask in progress: ${askPrompt.trim().slice(0, 80)}`,
+      metadata: {
+        ref: 'lodge_mind:ask',
+        surface: '/lodge-mind',
+        provider: status?.provider || 'unknown',
+      },
+    })
     try {
       const res = await fetch('/api/lodge-mind/ask', {
         method: 'POST',
@@ -115,6 +136,16 @@ export default function LodgeMindRoute() {
         throw new Error(data.detail || data.error || `HTTP ${res.status}`)
       }
       setAskResult(data)
+      void appendAgentTaskEvent({
+        taskId,
+        status: 'witnessed',
+        summary: `Lodge Mind ask witnessed: ${askPrompt.trim().slice(0, 80)}`,
+        metadata: {
+          ref: 'lodge_mind:ask',
+          surface: '/lodge-mind',
+          provider: status?.provider || 'unknown',
+        },
+      })
       void appendAgentMemoryEvent({
         eventType: 'task_lodge_mind_ask',
         summary: `Asked Lodge Mind: ${askPrompt.trim().slice(0, 80)}`,

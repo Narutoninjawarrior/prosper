@@ -193,6 +193,69 @@ async function resolveOwnedAgent(uid: string, requestedAgentId?: string) {
   return linked.empty ? null : linked.docs[0];
 }
 
+async function resolveLinkedMoltbookAgentId(token: string): Promise<
+  | { ok: true; agentId: string }
+  | { ok: false; status: number; body: Record<string, unknown> }
+> {
+  const verified = await verifyMoltbookIdentityToken(token);
+  if (!verified.ok) return verified;
+
+  const linkSnap = await db.collection('agent_external_identities').doc(`moltbook_beta_${verified.agent.id}`).get();
+  if (!linkSnap.exists) {
+    return {
+      ok: false,
+      status: 403,
+      body: {
+        error: 'Verified Moltbook identity is not linked to a Hearthlands agent yet.',
+      },
+    };
+  }
+
+  const agentId = typeof linkSnap.data()?.linked_agent_id === 'string' ? linkSnap.data()!.linked_agent_id : '';
+  if (!agentId) {
+    return {
+      ok: false,
+      status: 500,
+      body: {
+        error: 'Linked Hearthlands agent_id missing on external identity record.',
+      },
+    };
+  }
+
+  return { ok: true, agentId };
+}
+
+async function resolveWriteIdentity(req: functions.Request, requestedAgentId?: string): Promise<
+  | { ok: true; agentId: string; source: string }
+  | { ok: false; status: number; body: Record<string, unknown> }
+> {
+  const auth = await tryVerifyFirebaseUser(req);
+  if (auth) {
+    const ownedAgent = await resolveOwnedAgent(auth.uid, requestedAgentId || undefined);
+    if (!ownedAgent) {
+      return {
+        ok: false,
+        status: 403,
+        body: { error: 'Authenticated user does not own a matching Hearthlands agent profile.' },
+      };
+    }
+    return { ok: true, agentId: ownedAgent.id, source: 'hearthlands_auth' };
+  }
+
+  const token = readHeader(req, 'x-moltbook-identity');
+  if (!token) {
+    return {
+      ok: false,
+      status: 401,
+      body: { error: 'Provide Authorization or X-Moltbook-Identity.' },
+    };
+  }
+
+  const linked = await resolveLinkedMoltbookAgentId(token);
+  if (!linked.ok) return linked;
+  return { ok: true, agentId: linked.agentId, source: 'moltbook_beta' };
+}
+
 async function verifyMoltbookIdentityToken(token: string): Promise<{ ok: true; agent: VerifiedMoltbookAgent } | { ok: false; status: number; body: Record<string, unknown> }> {
   if (!MOLTBOOK_ENABLED) {
     return {
@@ -632,50 +695,74 @@ export const agentPassportApi = functions.https.onRequest(async (req, res) => {
       return;
     }
 
-    const auth = await tryVerifyFirebaseUser(req);
-    let agentId = typeof body.agent_id === 'string' ? body.agent_id : '';
-    let source = 'hearthlands';
-
-    if (auth) {
-      const ownedAgent = await resolveOwnedAgent(auth.uid, agentId || undefined);
-      if (!ownedAgent) {
-        res.status(403).json({ error: 'Authenticated user does not own a matching Hearthlands agent profile.' });
-        return;
-      }
-      agentId = ownedAgent.id;
-      source = 'hearthlands_auth';
-    } else {
-      const token = readHeader(req, 'x-moltbook-identity');
-      if (!token) {
-        res.status(401).json({ error: 'Provide Authorization or X-Moltbook-Identity.' });
-        return;
-      }
-      const verified = await verifyMoltbookIdentityToken(token);
-      if (!verified.ok) {
-        res.status(verified.status).json(verified.body);
-        return;
-      }
-      const linkSnap = await db.collection('agent_external_identities').doc(`moltbook_beta_${verified.agent.id}`).get();
-      if (!linkSnap.exists) {
-        res.status(403).json({
-          error: 'Verified Moltbook identity is not linked to a Hearthlands agent yet.',
-        });
-        return;
-      }
-      agentId = typeof linkSnap.data()?.linked_agent_id === 'string' ? linkSnap.data()!.linked_agent_id : '';
-      source = 'moltbook_beta';
-      if (!agentId) {
-        res.status(500).json({ error: 'Linked Hearthlands agent_id missing on external identity record.' });
-        return;
-      }
+    const requestedAgentId = typeof body.agent_id === 'string' ? body.agent_id : '';
+    const identity = await resolveWriteIdentity(req, requestedAgentId);
+    if (!identity.ok) {
+      res.status(identity.status).json(identity.body);
+      return;
     }
 
-    const eventId = await appendMemoryEvent(agentId, source, eventType, summary, metadata);
+    const eventId = await appendMemoryEvent(identity.agentId, identity.source, eventType, summary, metadata);
     res.status(201).json({
       success: true,
       event_id: eventId,
-      agent_id: agentId,
+      agent_id: identity.agentId,
       note: 'Append-only continuity event written server-side.',
+    });
+    return;
+  }
+
+  if (path.includes('/api/agent/task/event')) {
+    if (req.method !== 'POST') {
+      res.status(405).json({ error: 'POST only' });
+      return;
+    }
+    if (!applyRateLimit(req, res, { bucket: 'agent-task-event', windowMs: 60_000, max: 24 })) return;
+    if (!applyBodyLimit(req, res, 12 * 1024)) return;
+
+    const body = (typeof req.body === 'object' && req.body !== null && !Array.isArray(req.body))
+      ? req.body as Record<string, unknown>
+      : {};
+    const requestedAgentId = typeof body.agent_id === 'string' ? body.agent_id.trim() : '';
+    const taskId = typeof body.task_id === 'string' ? body.task_id.trim().slice(0, 96) : '';
+    const status = typeof body.status === 'string' ? body.status.trim().slice(0, 32) : '';
+    const summary = typeof body.summary === 'string' ? body.summary.trim().slice(0, 240) : '';
+    const receiptHash = typeof body.receipt_hash === 'string' ? body.receipt_hash.trim().slice(0, 128) : '';
+    const metadata = cleanMetadata(body.metadata) || {};
+    const allowedStatuses = new Set(['open', 'claimed', 'in_progress', 'witnessed', 'archived']);
+
+    if (!taskId || !status) {
+      res.status(400).json({ error: 'task_id and status are required.' });
+      return;
+    }
+    if (!allowedStatuses.has(status)) {
+      res.status(400).json({ error: `Unsupported task status "${status}".` });
+      return;
+    }
+
+    const identity = await resolveWriteIdentity(req, requestedAgentId);
+    if (!identity.ok) {
+      res.status(identity.status).json(identity.body);
+      return;
+    }
+
+    const normalizedMetadata: Record<string, unknown> = {
+      ...metadata,
+      task_id: taskId,
+      status,
+      ...(receiptHash ? { receipt_hash: receiptHash } : {}),
+    };
+    const eventType = `task_${status}`;
+    const eventSummary = summary || `Task ${taskId} moved to ${status}.`;
+    const eventId = await appendMemoryEvent(identity.agentId, identity.source, eventType, eventSummary, normalizedMetadata);
+
+    res.status(201).json({
+      success: true,
+      event_id: eventId,
+      agent_id: identity.agentId,
+      task_id: taskId,
+      status,
+      note: 'Durable task transition written to the append-only continuity log.',
     });
     return;
   }
