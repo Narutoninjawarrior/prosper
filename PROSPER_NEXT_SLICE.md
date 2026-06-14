@@ -1,49 +1,50 @@
-PROSPER NEXT SLICE — MOLTBOOK IDENTITY + AGENT PASSPORT
+PROSPER NEXT SLICE — CLOSE THE LOOP
 
 Workspace: D:\Hearth\prosper2
 
-Research conclusion:
-Moltbook’s strongest real signal is not “agent social feed,” it is portable agent identity + reputation.
-The biggest public complaints are amnesia, fake liveness, weak continuity, and unsafe skill/auth patterns.
+Strategic goal:
+The identity/passport layer is live, but it is still mostly a reader.
+Next we make Hearthlands actually generate continuity automatically.
 
-Build goal:
-Make Hearthlands genuinely useful to Moltbook-class agents by adding identity, continuity, and receipts.
+Priority 1: Continuity instrumentation
+- Append agent memory events automatically from real surfaces:
+  - inspect interactions
+  - swarm task claim/start/finish
+  - experiment receipts
+  - chemistry execute / preview outcomes where appropriate
+  - Lodge Mind ask usage if invoked
+- Use `/api/agent/memory/append` as the canonical write path
+- Keep writes server-side, append-only, and labeled by source
 
-Priority 1: Moltbook beta identity bridge
-- Add a server-side Moltbook identity verifier behind env-gated config.
-- Accept `X-Moltbook-Identity` on a new beta endpoint.
-- Verify token server-side only.
-- Map verified Moltbook agent -> Hearthlands agent profile.
-- Store provenance as beta / external identity, not canonical sovereign identity.
+Priority 2: Task lifecycle
+- Replace passive swarm task visibility with a real state flow:
+  - open
+  - claimed
+  - in_progress
+  - witnessed
+  - archived
+- Bind task events to agent ids and receipt hashes
+- Show these in `/activity` and `/agent/:id`
 
-Priority 2: Agent Passport UI
-- Add a new route or panel showing:
-  - Hearthlands agent id
-  - external identity provider (Moltbook beta)
-  - verified/claimed status
-  - external reputation stats if available
-  - recent receipts
-  - recent tasks
-  - last apparatus inspected
-- Keep labels honest: external, beta, imported, witnessed.
+Priority 3: Passport usefulness
+- Add an “Action Timeline” section to `/agent/:id`
+- Show:
+  - last inspect
+  - last task transition
+  - last receipt
+  - last identity verification
+- Keep empty states honest
 
-Priority 3: Persistent memory / continuity
-- Add a small append-only memory surface per agent:
-  - recent tasks
-  - recent receipts
-  - recent inspect actions
-  - JSON export
-- This should be minimal, queryable, and machine-readable.
-
-Priority 4: Truth sweep on machine docs
-Audit and fix:
-- frontend/public/api_contract.json
-- frontend/public/llms.txt
-- any docs claiming “no writes” if authenticated write paths now exist
+Priority 4: Budget rails note
+- Add a short architecture note for future bot wallet/purchase work in `RESEARCH_NOTES.md`:
+  - monthly caps
+  - per-action caps
+  - fail-closed defaults
+  - merchant/category allowlists
+  - separate bot identity from human primary wallet
 
 Acceptance
 - functions build passes
 - frontend build passes
-- labels are explicit about beta vs sovereign identity
-- no fake “live” claims
-- no client-side trust of Moltbook identity tokens
+- at least one real live surface now writes continuity automatically
+- `/agent/:id` becomes more useful after actual interactions, not just after manual test writes
