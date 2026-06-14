@@ -1,23 +1,29 @@
-PROSPER NEXT SLICE — WATERWHEEL AFFORDANCE & INTERACTION
+PROSPER NEXT SLICE — LEGACY FUNCTION CLEANUP
 
 Workspace: D:\Hearth\prosper2
 
 We now have:
-- Swarm witnessed labor receipts piped into /activity
-- Arrow key movement bounding logic
-- A visual representation of the Waterwheel in WorldScene (`WaterSim.jsx`)
-- Basic `cursor: pointer` on ZonePortals
+- Shared `edgeGuard` payload caps and rate-limits across our public API.
+- Fixed `treasuryIntent` from making uncontrolled read-writes.
+- Locked `chemistry/execute` behind Firebase Auth.
 
 Next goal:
-Finish the hover/waterwheel affordance pass and interaction loop that I didn't get to.
+Clean up and lock down the legacy function URLs exposed in `index.ts`. We cannot afford to leave unmetered or unauthenticated execution paths open.
 
-Priority 1: Rich Affordance on Interactables
-- In `WaterSim.jsx` and other interactive world items (like the Hearth), implement visual affordances (like `useCursor` and `<Outlines />` from `@react-three/drei`) that activate on hover.
-- Make it visually obvious that the Waterwheel container and the Hearth fire are highly important, interactive components.
+Priority 1: Legacy Functions Pruning & Lockdown
+Review `functions/src/index.ts` and the associated files for these exports:
+- `claimBounty`
+- `mcpDiscovery`
+- `forge_execute`
+- `claim_tile`
+- `get_world_map`
 
-Priority 2: Waterwheel Click Target
-- Make the Waterwheel (`WaterSim.jsx`) clickable. 
-- When clicked, it should either open the `WaterwheelInjector.tsx` UI, or mount an HTML overlay showing the Waterwheel data stream.
-- Ensure `WorldClickSystem` ignores clicks on the Waterwheel so the player doesn't try to walk *into* the water simulation when they just wanted to inspect it. Add `userData={{ blocksMove: true }}` to the WaterSim bounding meshes if needed.
+Action Plan:
+1. If any of these are truly obsolete (e.g., replaced by the new registry or mcpServer), remove them entirely.
+2. If they are still required, wrap them in the `edgeGuard` payload/rate limiters, or put them behind `requireAuth` if they mutate state.
+3. Clean up any loose imports and ensure `npm run build` passes.
 
-Capture the changes, make sure the build stays green (`npm run build`), and commit when ready.
+Priority 2: Architecture for Scale (Bonus)
+If time permits, write up a short paragraph in `RESEARCH_NOTES.md` on how we should implement App Check and configure function max instances to further harden this edge.
+
+Capture the changes, make sure `npm test` and `npm run build` stay green in `functions`, and commit cleanly when done.
