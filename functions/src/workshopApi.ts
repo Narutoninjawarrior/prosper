@@ -7,6 +7,7 @@ import {
   WORKSHOP_SCHEMA_VERSION,
   WorkshopMode,
 } from './workshop';
+import { applyBodyLimit, applyRateLimit } from './lib/edgeGuard';
 
 function applyCors(res: functions.Response): void {
   res.set('Access-Control-Allow-Origin', '*');
@@ -31,6 +32,7 @@ export const workshopApi = functions.https.onRequest(async (req, res) => {
       res.status(405).json({ error: 'Method not allowed. Catalog is read-only GET.' });
       return;
     }
+    if (!applyRateLimit(req, res, { bucket: 'workshop-catalog', windowMs: 60_000, max: 90 })) return;
     res.set('Cache-Control', 'public, max-age=300, s-maxage=300');
     res.status(200).json({
       schema_version: WORKSHOP_SCHEMA_VERSION,
@@ -47,10 +49,8 @@ export const workshopApi = functions.https.onRequest(async (req, res) => {
       res.status(405).json({ error: 'Method not allowed. Validate with POST; no state is mutated.' });
       return;
     }
-    if (req.rawBody && req.rawBody.length > WORKSHOP_LIMITS.max_payload_bytes) {
-      res.status(400).json({ error: `Payload exceeds ${WORKSHOP_LIMITS.max_payload_bytes} bytes.` });
-      return;
-    }
+    if (!applyRateLimit(req, res, { bucket: 'workshop-validate', windowMs: 60_000, max: 24 })) return;
+    if (!applyBodyLimit(req, res, WORKSHOP_LIMITS.max_payload_bytes)) return;
 
     let body: unknown = req.body;
     if (typeof body === 'string') {

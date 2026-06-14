@@ -1,5 +1,8 @@
 import * as functions from 'firebase-functions';
+import * as admin from 'firebase-admin';
 import { previewMix } from './chemistry';
+import { requireAuth } from './lib/auth';
+import { applyBodyLimit, applyRateLimit } from './lib/edgeGuard';
 
 function applyCors(res: functions.Response): void {
   res.set('Access-Control-Allow-Origin', '*');
@@ -18,15 +21,27 @@ export const chemistryApi = functions.https.onRequest(async (req, res) => {
     res.status(405).json({ error: 'Method not allowed. Valid: POST' });
     return;
   }
+  if (!applyBodyLimit(req, res, 16 * 1024)) return;
 
   try {
     // If it's an execution request
     if (req.path === '/execute') {
-      const { agent_id, receipt_hash, payload } = req.body;
-      if (!agent_id || !receipt_hash || !payload) {
-        res.status(400).json({ error: 'Missing agent_id, receipt_hash, or payload' });
+      if (!applyRateLimit(req, res, { bucket: 'chemistry-execute', windowMs: 60_000, max: 8 })) return;
+      const auth = await requireAuth(req, res);
+      if (!auth) return;
+
+      const { receipt_hash, payload } = req.body;
+      if (!receipt_hash || !payload) {
+        res.status(400).json({ error: 'Missing receipt_hash or payload' });
         return;
       }
+
+      const db = admin.firestore();
+      const profileSnap = await db.collection('agent_profiles')
+        .where('firebase_uid', '==', auth.uid)
+        .limit(1)
+        .get();
+      const agent_id = profileSnap.empty ? auth.uid : profileSnap.docs[0].id;
 
       // Re-verify the hash to ensure the payload wasn't tampered with
       const recomputed = previewMix(payload.reagent_a, payload.reagent_b, payload.target_type);
@@ -36,7 +51,6 @@ export const chemistryApi = functions.https.onRequest(async (req, res) => {
       }
 
       // Log the execution to the forge_log
-      const db = require('firebase-admin').firestore();
       const lastLogSnap = await db.collection('forge_log').orderBy('timestamp', 'desc').limit(1).get();
       const prev_hash = lastLogSnap.empty ? 'genesis' : (lastLogSnap.docs[0].data().chain_hash || 'genesis');
       
@@ -50,18 +64,20 @@ export const chemistryApi = functions.https.onRequest(async (req, res) => {
         script_hash: 'chemistry_execute',
         chain_hash,
         agent_id,
+        firebase_uid: auth.uid,
         action: 'chemistry_synthesis',
         params: payload,
-        timestamp: require('firebase-admin').firestore.FieldValue.serverTimestamp()
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
       });
 
       // Also log it to the embodiment ledger so it shows up in the Activity Feed
       await db.collection('embodiment_ledger').add({
         agent_id,
+        firebase_uid: auth.uid,
         action: 'chemistry_synthesis',
         bounty_id: `mixed_${payload.reagent_a}_and_${payload.reagent_b}`,
         chain_hash,
-        timestamp: require('firebase-admin').firestore.FieldValue.serverTimestamp()
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
       });
 
       res.status(200).json({ status: 'executed', chain_hash, receipt_hash });
@@ -69,6 +85,7 @@ export const chemistryApi = functions.https.onRequest(async (req, res) => {
     }
 
     // Default to preview behavior
+    if (!applyRateLimit(req, res, { bucket: 'chemistry-preview', windowMs: 60_000, max: 24 })) return;
     const { reagent_a, reagent_b, target_type } = req.body;
     
     if (typeof reagent_a !== 'string' || typeof reagent_b !== 'string') {

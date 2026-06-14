@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
+import { getFirebaseAuth } from '../firebaseAuth';
 
 const REAGENTS = [
   { id: 'ember_dust', name: 'Ember Dust', icon: '✨', color: '#E8842A' },
@@ -196,11 +197,19 @@ export default function ChemistryLabOverlay({ onClose }) {
                     <button 
                       onClick={async () => {
                         try {
+                          const auth = getFirebaseAuth();
+                          const user = auth?.currentUser;
+                          if (!user) {
+                            throw new Error('Sign in with Hearthlands before executing a synthesis.');
+                          }
+                          const token = await user.getIdToken();
                           const res = await fetch('/api/chemistry/execute', {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
+                            headers: {
+                              'Content-Type': 'application/json',
+                              'Authorization': `Bearer ${token}`
+                            },
                             body: JSON.stringify({
-                              agent_id: 'human_steward',
                               receipt_hash: receipt.receipt_hash,
                               payload: {
                                 reagent_a: receipt.reagent_a,
@@ -232,4 +241,3 @@ export default function ChemistryLabOverlay({ onClose }) {
     document.body
   );
 }
-

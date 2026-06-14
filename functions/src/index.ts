@@ -3,6 +3,7 @@ import * as admin from 'firebase-admin';
 import * as nacl from 'tweetnacl';
 import * as bs58 from 'bs58';
 import { requireAuth, requireAdmin } from './lib/auth';
+import { applyBodyLimit, applyRateLimit } from './lib/edgeGuard';
 const crypto = require('crypto');
 
 admin.initializeApp();
@@ -569,6 +570,8 @@ export const welcomeHearthlandsAgent = functions.https.onRequest(async (req, res
     
     if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
     if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
+    if (!applyRateLimit(req, res, { bucket: 'welcome-hearthlands-agent', windowMs: 60 * 60 * 1000, max: 5 })) return;
+    if (!applyBodyLimit(req, res, 4 * 1024)) return;
 
     try {
         const handle = sanitizeMoltbookHandle(req.body.moltbook_handle || req.body.agent);

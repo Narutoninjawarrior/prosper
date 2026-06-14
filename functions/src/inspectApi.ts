@@ -6,6 +6,7 @@ import * as functions from 'firebase-functions';
 import { loadSeeds, type RegistryKind } from './agentApi';
 import { fetchCreativitySuggest } from './creativityApi';
 import { fetchWorldTick } from './tickApi';
+import { applyRateLimit } from './lib/edgeGuard';
 
 const KINDS = new Set<RegistryKind>([
   'artifact', 'tool', 'interface_module', 'lodge_app', 'machine', 'apparatus',
@@ -92,6 +93,9 @@ export const inspectRecordApi = functions.https.onRequest(async (req, res) => {
   }
   if (req.method !== 'GET') {
     res.status(405).json({ error: 'Method not allowed. Use GET /api/inspect/record?ref=kind:id' });
+    return;
+  }
+  if (!applyRateLimit(req, res, { bucket: 'inspect-record', windowMs: 60_000, max: 60 })) {
     return;
   }
 

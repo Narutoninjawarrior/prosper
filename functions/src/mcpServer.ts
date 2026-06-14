@@ -22,6 +22,7 @@ import {
   VALID_STATUSES,
 } from './agentApi';
 import { validateBlueprint } from './workshop';
+import { applyBodyLimit, applyRateLimit } from './lib/edgeGuard';
 
 const SUPPORTED_PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
 const DEFAULT_PROTOCOL_VERSION = '2025-06-18';
@@ -304,6 +305,8 @@ export const hearthlandsMcp = functions.https.onRequest(async (req, res) => {
     res.status(405).json({ error: 'Method not allowed.' });
     return;
   }
+  if (!applyRateLimit(req, res, { bucket: 'hearthlands-mcp', windowMs: 60_000, max: 30 })) return;
+  if (!applyBodyLimit(req, res, 32 * 1024)) return;
 
   const body = req.body as JsonRpcRequest | undefined;
   if (!body || typeof body !== 'object' || Array.isArray(body)) {

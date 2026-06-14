@@ -4,6 +4,13 @@
 import * as crypto from 'crypto'
 import * as admin from 'firebase-admin'
 import * as functions from 'firebase-functions'
+import { applyBodyLimit, applyRateLimit } from './lib/edgeGuard'
+
+const STATUS_CACHE_MS = 30 * 1000
+const CONTEXT_CACHE_MS = 15 * 1000
+
+let statusCache: { loadedAt: number; value: Record<string, unknown> } | null = null
+let contextCache: { loadedAt: number; value: Record<string, unknown> } | null = null
 
 function applyCors(res: functions.Response, methods = 'GET, OPTIONS'): void {
   res.set('Access-Control-Allow-Origin', '*')
@@ -17,6 +24,9 @@ async function countCollection(name: string): Promise<number> {
 }
 
 export async function fetchLodgeMindStatus() {
+  if (statusCache && Date.now() - statusCache.loadedAt < STATUS_CACHE_MS) {
+    return statusCache.value
+  }
   const db = admin.firestore()
   const worldSnap = await db.doc('three_forge/world_state').get()
   const world = worldSnap.exists ? worldSnap.data() : null
@@ -30,7 +40,7 @@ export async function fetchLodgeMindStatus() {
   if (!cloudRunConfigured) mode = 'offline'
   else if (sovereignUid) mode = 'connected'
 
-  return {
+  const value = {
     mode,
     provider: 'cloud-run-gemma',
     runtime: {
@@ -55,9 +65,14 @@ export async function fetchLodgeMindStatus() {
     },
     note: 'Readiness snapshot - inference remains unavailable on the public route until a server-side Lodge Mind service URL is configured.',
   }
+  statusCache = { loadedAt: Date.now(), value }
+  return value
 }
 
 export async function fetchLodgeMindContextPreview() {
+  if (contextCache && Date.now() - contextCache.loadedAt < CONTEXT_CACHE_MS) {
+    return contextCache.value
+  }
   const db = admin.firestore()
   const [members, quests, artifacts, embodiment, worldSnap, ledgerSnap] = await Promise.all([
     countCollection('agent_profiles'),
@@ -73,7 +88,7 @@ export async function fetchLodgeMindContextPreview() {
   const questSnap = await db.collection('lodge_quests').limit(5).get()
   const activeQuests = questSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
 
-  return {
+  const value = {
     generated_at: new Date().toISOString(),
     summary: {
       members,
@@ -91,6 +106,8 @@ export async function fetchLodgeMindContextPreview() {
     ],
     policy: 'Context preview only - no LLM inference on this endpoint.',
   }
+  contextCache = { loadedAt: Date.now(), value }
+  return value
 }
 
 type LodgeMindAskRequest = {
@@ -158,6 +175,7 @@ export const lodgeMindStatus = functions.https.onRequest(async (req, res) => {
     res.status(405).json({ error: 'GET only' })
     return
   }
+  if (!applyRateLimit(req, res, { bucket: 'lodge-mind-status', windowMs: 60_000, max: 30 })) return
   try {
     res.set('Cache-Control', 'public, max-age=30')
     res.status(200).json(await fetchLodgeMindStatus())
@@ -177,8 +195,9 @@ export const lodgeMindContextPreview = functions.https.onRequest(async (req, res
     res.status(405).json({ error: 'GET only' })
     return
   }
+  if (!applyRateLimit(req, res, { bucket: 'lodge-mind-context-preview', windowMs: 60_000, max: 12 })) return
   try {
-    res.set('Cache-Control', 'no-store')
+    res.set('Cache-Control', 'public, max-age=15')
     res.status(200).json(await fetchLodgeMindContextPreview())
   } catch (err) {
     console.error('[lodgeMindContextPreview]', err)
@@ -196,6 +215,8 @@ export const lodgeMindAsk = functions.https.onRequest(async (req, res) => {
     res.status(405).json({ error: 'POST only' })
     return
   }
+  if (!applyRateLimit(req, res, { bucket: 'lodge-mind-ask', windowMs: 60_000, max: 6 })) return
+  if (!applyBodyLimit(req, res, 24 * 1024)) return
 
   const serviceUrl = getServiceUrl()
   if (!serviceUrl) {

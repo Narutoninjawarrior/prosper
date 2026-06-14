@@ -14,9 +14,12 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import * as crypto from 'crypto';
+import { applyRateLimit } from './lib/edgeGuard';
 
 const HOSTING_BASE = process.env.AGENT_API_SEED_BASE || 'https://fellowship-of-the-hearth.web.app';
 const SEED_CACHE_MS = 5 * 60 * 1000;
+const WORLD_SUMMARY_CACHE_MS = 15 * 1000;
+const COUNCIL_CACHE_MS = 30 * 1000;
 
 export type RegistryKind = 'artifact' | 'tool' | 'interface_module' | 'lodge_app' | 'machine' | 'apparatus';
 
@@ -154,6 +157,8 @@ export type SeedLoad = {
 };
 
 let seedCache: { loadedAt: number; seeds: SeedLoad[] } | null = null;
+let worldSummaryCache: { loadedAt: number; summary: Record<string, unknown> } | null = null;
+let councilCache: { loadedAt: number; summary: Record<string, unknown> } | null = null;
 
 export async function loadSeeds(): Promise<SeedLoad[]> {
   if (seedCache && Date.now() - seedCache.loadedAt < SEED_CACHE_MS) {
@@ -227,17 +232,22 @@ export function filterItems(
 
 /** Safe public world_state summary — counts only, shared by HTTP and MCP surfaces. */
 export async function computeWorldSummary(): Promise<Record<string, unknown>> {
+  if (worldSummaryCache && Date.now() - worldSummaryCache.loadedAt < WORLD_SUMMARY_CACHE_MS) {
+    return worldSummaryCache.summary;
+  }
   const db = admin.firestore();
   const snap = await db.collection('three_forge').doc('world_state').get();
 
   if (!snap.exists) {
-    return {
+    const summary = {
       data_state: 'live',
       source: 'firestore three_forge/world_state',
       world_state_exists: false,
       note: 'world_state document is empty — no objects placed yet.',
       policy: 'read-only',
     };
+    worldSummaryCache = { loadedAt: Date.now(), summary };
+    return summary;
   }
 
   const data = snap.data() as Record<string, unknown>;
@@ -257,7 +267,7 @@ export async function computeWorldSummary(): Promise<Record<string, unknown>> {
     ? plots.filter((p) => typeof p === 'object' && p !== null && (p as Record<string, unknown>).active === true).length
     : null;
 
-  return {
+  const summary = {
     data_state: 'live',
     source: 'firestore three_forge/world_state',
     world_state_exists: true,
@@ -270,30 +280,39 @@ export async function computeWorldSummary(): Promise<Record<string, unknown>> {
     heat: typeof data.heat === 'number' ? data.heat : undefined,
     policy: 'read-only',
   };
+  worldSummaryCache = { loadedAt: Date.now(), summary };
+  return summary;
 }
 
 /** Latest proposal from the public council seed — shared by HTTP and MCP surfaces. */
 export async function fetchCouncilLatest(): Promise<Record<string, unknown>> {
+  if (councilCache && Date.now() - councilCache.loadedAt < COUNCIL_CACHE_MS) {
+    return councilCache.summary;
+  }
   const response = await fetch(`${HOSTING_BASE}/local_council_proposals.json`, {
     headers: { accept: 'application/json' },
   });
   if (!response.ok) {
-    return {
+    const summary = {
       available: false,
       data_state: 'seeded',
       note: 'Council proposal seed is not currently reachable.',
       policy: 'read-only',
     };
+    councilCache = { loadedAt: Date.now(), summary };
+    return summary;
   }
 
   const proposals = await response.json() as Array<Record<string, unknown>>;
   if (!Array.isArray(proposals) || proposals.length === 0) {
-    return {
+    const summary = {
       available: false,
       data_state: 'seeded',
       note: 'No council proposals in the public seed.',
       policy: 'read-only',
     };
+    councilCache = { loadedAt: Date.now(), summary };
+    return summary;
   }
 
   const sorted = [...proposals].sort((a, b) =>
@@ -301,7 +320,7 @@ export async function fetchCouncilLatest(): Promise<Record<string, unknown>> {
   );
   const latest = sorted[0];
 
-  return {
+  const summary = {
     available: true,
     data_state: 'seeded',
     source: '/local_council_proposals.json (public seed; not a live governance feed)',
@@ -317,11 +336,14 @@ export async function fetchCouncilLatest(): Promise<Record<string, unknown>> {
     total_proposals_in_seed: proposals.length,
     policy: 'read-only',
   };
+  councilCache = { loadedAt: Date.now(), summary };
+  return summary;
 }
 
 /** GET /api/registry/list?kind=&status=&q= */
 export const agentRegistryList = functions.https.onRequest(async (req, res) => {
   if (!guardGet(req, res)) return;
+  if (!applyRateLimit(req, res, { bucket: 'agent-registry-list', windowMs: 60_000, max: 90 })) return;
 
   try {
     const kind = typeof req.query.kind === 'string' ? req.query.kind : '';
@@ -355,6 +377,7 @@ export const agentRegistryList = functions.https.onRequest(async (req, res) => {
 /** GET /api/registry/get?id=&kind= */
 export const agentRegistryGet = functions.https.onRequest(async (req, res) => {
   if (!guardGet(req, res)) return;
+  if (!applyRateLimit(req, res, { bucket: 'agent-registry-get', windowMs: 60_000, max: 90 })) return;
 
   try {
     const id = typeof req.query.id === 'string' ? req.query.id : '';
@@ -387,6 +410,7 @@ export const agentRegistryGet = functions.https.onRequest(async (req, res) => {
 /** GET /api/world/summary — counts only; no node payloads, no mutation. */
 export const agentWorldSummary = functions.https.onRequest(async (req, res) => {
   if (!guardGet(req, res)) return;
+  if (!applyRateLimit(req, res, { bucket: 'agent-world-summary', windowMs: 60_000, max: 45 })) return;
 
   try {
     res.status(200).json(await computeWorldSummary());
@@ -399,6 +423,7 @@ export const agentWorldSummary = functions.https.onRequest(async (req, res) => {
 /** GET /api/council/latest — latest proposal from the public council seed, truthfully labeled. */
 export const agentCouncilLatest = functions.https.onRequest(async (req, res) => {
   if (!guardGet(req, res)) return;
+  if (!applyRateLimit(req, res, { bucket: 'agent-council-latest', windowMs: 60_000, max: 45 })) return;
 
   try {
     res.status(200).json(await fetchCouncilLatest());
