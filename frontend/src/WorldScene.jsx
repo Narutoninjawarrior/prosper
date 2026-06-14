@@ -69,8 +69,14 @@ function ZonePortal({ position, color, label, onEnter }) {
       {/* Portal ring */}
       <mesh
         ref={ringRef}
-        onPointerOver={() => setHovered(true)}
-        onPointerOut={() => setHovered(false)}
+        onPointerOver={() => {
+          setHovered(true)
+          document.body.style.cursor = 'pointer'
+        }}
+        onPointerOut={() => {
+          setHovered(false)
+          document.body.style.cursor = 'auto'
+        }}
         onClick={onEnter}
       >
         <torusGeometry args={[0.8, 0.06, 8, 32]} />
