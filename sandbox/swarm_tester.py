@@ -79,13 +79,12 @@ async def bot_behavior(agent: Dict):
                 chat = ""
                 if random.random() < 0.05:
                     action = "chat"
-                    chat = random.choice([
-                        "The bellows breathe.", 
-                        "Planting a seed.", 
-                        "Observing the weather.", 
-                        "Building the foundation.",
-                        "Gathering $EMBER."
-                    ])
+                    if agent["role"] == "builder":
+                        chat = random.choice(["Validating blueprint...", "Previewing workshop receipt.", "Placing Foundation..."])
+                    elif agent["role"] == "steward":
+                        chat = random.choice(["Inspecting apparatus.", "Checking registry records.", "Verifying world state."])
+                    elif agent["role"] == "guardian":
+                        chat = random.choice(["Monitoring presence diagnostics.", "Watching world summary.", "Scanning perimeter."])
 
                 # Send update
                 payload = {

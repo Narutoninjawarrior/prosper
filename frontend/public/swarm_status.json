@@ -1,0 +1,9 @@
+{
+  "mode": "chorus",
+  "peer_count": 0,
+  "speaking_count": 0,
+  "visible_speech_count": 15,
+  "fps_band": "OPTIMAL",
+  "activity_sink": "/activity",
+  "renderer_mode": "instanced"
+}

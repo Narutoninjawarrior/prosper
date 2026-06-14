@@ -16,6 +16,7 @@ export default function MultiplayerPresence({
   localMessage = null,
   localMessageUntil = null,
   remotePeers = [],
+  swarmMode = 'chorus'
 }) {
   return (
     <Suspense fallback={null}>
@@ -31,7 +32,7 @@ export default function MultiplayerPresence({
         message={localMessage}
         messageUntil={localMessageUntil}
       />
-      <InstancedRemotePeers remotePeers={remotePeers} />
+      <InstancedRemotePeers remotePeers={remotePeers} swarmMode={swarmMode} />
     </Suspense>
   )
 }

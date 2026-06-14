@@ -218,6 +218,7 @@ export default function BiosphereScene({
   const [builderOpen, setBuilder]   = useState(false)
   const [resonance,   setResonance] = useState(null)
   const [stewardSignal, setStewardSignal] = useState(0)
+  const [swarmMode, setSwarmMode]   = useState('chorus')
   const activePlots = biospherePlots.filter((plot) => plot.active).length
   const params = new URLSearchParams(window.location.search)
   const isWelcome = params.get('welcome') === '1'
@@ -350,6 +351,7 @@ export default function BiosphereScene({
             localMessage={localMessage}
             localMessageUntil={localMessageUntil}
             remotePeers={remotePeers}
+            swarmMode={swarmMode}
           />
 
           <GemmaPresence
@@ -392,7 +394,7 @@ export default function BiosphereScene({
         />
       </Canvas>
 
-      <SwarmDiagnostics />
+      <SwarmDiagnostics remotePeers={remotePeers} swarmMode={swarmMode} onModeChange={setSwarmMode} />
 
       {/* Builder panel */}
       <BuilderPanel
