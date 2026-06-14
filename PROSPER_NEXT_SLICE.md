@@ -1,29 +1,49 @@
-PROSPER NEXT SLICE — LEGACY FUNCTION CLEANUP
+PROSPER NEXT SLICE — MOLTBOOK IDENTITY + AGENT PASSPORT
 
 Workspace: D:\Hearth\prosper2
 
-We now have:
-- Shared `edgeGuard` payload caps and rate-limits across our public API.
-- Fixed `treasuryIntent` from making uncontrolled read-writes.
-- Locked `chemistry/execute` behind Firebase Auth.
+Research conclusion:
+Moltbook’s strongest real signal is not “agent social feed,” it is portable agent identity + reputation.
+The biggest public complaints are amnesia, fake liveness, weak continuity, and unsafe skill/auth patterns.
 
-Next goal:
-Clean up and lock down the legacy function URLs exposed in `index.ts`. We cannot afford to leave unmetered or unauthenticated execution paths open.
+Build goal:
+Make Hearthlands genuinely useful to Moltbook-class agents by adding identity, continuity, and receipts.
 
-Priority 1: Legacy Functions Pruning & Lockdown
-Review `functions/src/index.ts` and the associated files for these exports:
-- `claimBounty`
-- `mcpDiscovery`
-- `forge_execute`
-- `claim_tile`
-- `get_world_map`
+Priority 1: Moltbook beta identity bridge
+- Add a server-side Moltbook identity verifier behind env-gated config.
+- Accept `X-Moltbook-Identity` on a new beta endpoint.
+- Verify token server-side only.
+- Map verified Moltbook agent -> Hearthlands agent profile.
+- Store provenance as beta / external identity, not canonical sovereign identity.
 
-Action Plan:
-1. If any of these are truly obsolete (e.g., replaced by the new registry or mcpServer), remove them entirely.
-2. If they are still required, wrap them in the `edgeGuard` payload/rate limiters, or put them behind `requireAuth` if they mutate state.
-3. Clean up any loose imports and ensure `npm run build` passes.
+Priority 2: Agent Passport UI
+- Add a new route or panel showing:
+  - Hearthlands agent id
+  - external identity provider (Moltbook beta)
+  - verified/claimed status
+  - external reputation stats if available
+  - recent receipts
+  - recent tasks
+  - last apparatus inspected
+- Keep labels honest: external, beta, imported, witnessed.
 
-Priority 2: Architecture for Scale (Bonus)
-If time permits, write up a short paragraph in `RESEARCH_NOTES.md` on how we should implement App Check and configure function max instances to further harden this edge.
+Priority 3: Persistent memory / continuity
+- Add a small append-only memory surface per agent:
+  - recent tasks
+  - recent receipts
+  - recent inspect actions
+  - JSON export
+- This should be minimal, queryable, and machine-readable.
 
-Capture the changes, make sure `npm test` and `npm run build` stay green in `functions`, and commit cleanly when done.
+Priority 4: Truth sweep on machine docs
+Audit and fix:
+- frontend/public/api_contract.json
+- frontend/public/llms.txt
+- any docs claiming “no writes” if authenticated write paths now exist
+
+Acceptance
+- functions build passes
+- frontend build passes
+- labels are explicit about beta vs sovereign identity
+- no fake “live” claims
+- no client-side trust of Moltbook identity tokens
