@@ -460,6 +460,7 @@ export * from './inspectApi';
 export * from './lodgeMindApi';
 export * from './workshopApi';
 export * from './chemistryApi';
+export * from './agentPassportApi';
 export * from './fulfillmentApi';
 
 const WELCOME_EMBER = 100;

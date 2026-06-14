@@ -83,14 +83,14 @@ const TOOLS: ToolDefinition[] = [
   {
     name: 'hearthlands_vessel_brief',
     description:
-      'Static orientation brief: vessel identity, public routes, machine-readable seed endpoints, REST API endpoints, and read-only policy. Start here.',
+      'Static orientation brief: vessel identity, public routes, machine-readable seed endpoints, REST API endpoints, and the read-only discovery contract. Start here.',
     inputSchema: { type: 'object', properties: {} },
     annotations: { readOnlyHint: true },
     execute: async () => ({
       vessel: 'Fellowship of the Hearth — Hearthlands public vessel',
       vessel_id: 'hearthlands-doctrine-forge-v1',
       base_url: 'https://fellowship-of-the-hearth.web.app',
-      policy: 'All MCP tools and documented discovery/workshop endpoints are read-only.',
+      policy: 'All MCP tools are read-only. Separate authenticated or beta server APIs may append logs or identity links, and those are documented outside the MCP surface.',
       public_routes: ['/world', '/biosphere', '/forge', '/3dforge', '/hall', '/council', '/artifacts', '/registry', '/agent-access', '/lodge-mind'],
       rest_api: {
         registry_list: '/api/registry/list?kind=&status=&q=',

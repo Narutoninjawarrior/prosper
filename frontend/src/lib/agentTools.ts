@@ -119,7 +119,7 @@ export const AGENT_TOOL_CATALOG = [
   {
     name: 'hearthlands_vessel_brief',
     description:
-      'Static orientation brief: vessel identity, public routes, machine-readable seed endpoints, and read-only policy. Start here.',
+      'Static orientation brief: vessel identity, public routes, machine-readable seed endpoints, and the read-only discovery contract. Start here.',
     inputs: 'none',
   },
   {
@@ -147,7 +147,7 @@ const VESSEL_BRIEF = {
   vessel_id: 'hearthlands-doctrine-forge-v1',
   base_url: 'https://fellowship-of-the-hearth.web.app',
   policy:
-    'All tools and seeds are read-only. No write paths, no wallet actions, no purchases. Registry mutation happens via steward-reviewed commits only.',
+    'All WebMCP tools and registry seeds are read-only. Some separate server APIs require authentication or beta identity verification, and those write paths are labeled explicitly in the public docs.',
   public_routes: [
     '/world', '/biosphere', '/forge', '/3dforge', '/hall',
     '/council', '/artifacts', '/registry', '/agent-access', '/lodge-mind',

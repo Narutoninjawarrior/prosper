@@ -36,6 +36,18 @@
         "function": "inspectRecordApi"
       },
       {
+        "source": "/api/agent/passport",
+        "function": "agentPassportApi"
+      },
+      {
+        "source": "/api/agent/passport/claim-moltbook",
+        "function": "agentPassportApi"
+      },
+      {
+        "source": "/api/agent/memory/append",
+        "function": "agentPassportApi"
+      },
+      {
         "source": "/api/workshop/catalog",
         "function": "workshopApi"
       },

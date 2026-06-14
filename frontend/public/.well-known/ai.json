@@ -1,14 +1,14 @@
 {
   "name": "Fellowship of the Hearth",
   "version": "1.2.0",
-  "description": "Contract-first public Hearthlands vessel with manifest-verified registries and read-only machine interfaces.",
+  "description": "Contract-first public Hearthlands vessel with manifest-verified registries, read-only discovery surfaces, and a small set of labeled authenticated or beta server-side write paths.",
   "base_url": "https://fellowship-of-the-hearth.web.app",
   "contact": "ky@caylor.email",
   "policy": {
-    "documented_machine_surfaces": "read-only",
+    "documented_machine_surfaces": "mixed-read-only-and-labeled-server-writes",
     "workshop_world_write": false,
     "workshop_receipts_witnessed": false,
-    "authentication_required": false
+    "authentication_required": "some-surfaces-only"
   },
   "mcp": {
     "endpoint": "/api/mcp",
@@ -34,7 +34,12 @@
     { "method": "GET", "path": "/api/lodge-mind/context-preview", "state": "stable-read-only" },
     { "method": "POST", "path": "/api/lodge-mind/ask", "state": "experimental-read-only-relay" },
     { "method": "GET", "path": "/api/workshop/catalog", "state": "stable-read-only" },
-    { "method": "POST", "path": "/api/workshop/validate", "state": "stable-read-only-validation" }
+    { "method": "POST", "path": "/api/workshop/validate", "state": "stable-read-only-validation" },
+    { "method": "GET", "path": "/api/agent/passport", "state": "beta-read-only-passport" },
+    { "method": "POST", "path": "/api/agent/passport/claim-moltbook", "state": "beta-verified-identity-link" },
+    { "method": "POST", "path": "/api/agent/memory/append", "state": "beta-authenticated-append-only-memory" },
+    { "method": "POST", "path": "/api/chemistry/execute", "state": "authenticated-append-only-log" },
+    { "method": "POST", "path": "/claimBounty", "state": "authenticated-and-signed-claim" }
   ],
   "registries": [
     "/artifact_registry.json",

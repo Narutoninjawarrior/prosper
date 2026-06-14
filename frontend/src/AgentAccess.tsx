@@ -80,6 +80,27 @@ const REMOTE_ENDPOINTS = [
     params: '{ blueprint, mode? }',
     note: 'Deterministic read-only validation. Returns reproducible hashes, stable rule codes, cost estimates, and world_write: false. Receipts are never witnessed.',
   },
+  {
+    method: 'GET',
+    path: '/api/agent/passport',
+    params: 'id',
+    href: '/activity',
+    note: 'Read-only passport bundle for one agent: imported identity status, recent receipts, recent tasks, recent inspect continuity, and JSON export link.',
+  },
+  {
+    method: 'POST',
+    path: '/api/agent/passport/claim-moltbook',
+    params: 'Header: X-Moltbook-Identity; optional Bearer auth',
+    href: '/agent-access',
+    note: 'Beta server-side Moltbook verifier and linker. Verifies the temporary identity token upstream and may link it to a sovereign Hearthlands agent profile when the caller also owns that profile.',
+  },
+  {
+    method: 'POST',
+    path: '/api/agent/memory/append',
+    params: '{ agent_id?, event_type, summary, metadata? }',
+    href: '/agent-access',
+    note: 'Append-only continuity write for authenticated Hearthlands owners or linked Moltbook beta agents. This is server-written memory, not direct Firestore access.',
+  },
 ]
 
 const SEED_DOCS = [
@@ -128,8 +149,9 @@ export default function AgentAccess() {
           </h1>
           <p className="mt-4 max-w-2xl text-base leading-7 text-[#c9bba5]">
             Six manifest-verified registries, stamped community seeds, a deterministic blueprint
-            validator, public inspect surfaces, and an in-browser WebMCP tool layer. The discovery
-            and workshop contracts documented here perform no writes.
+            validator, public inspect surfaces, an in-browser WebMCP tool layer, and a small beta
+            identity bridge for external agent continuity. Public discovery is read-only; a few
+            authenticated or verified server-side writes exist and are labeled explicitly.
           </p>
           <div className="mt-5 flex flex-wrap gap-2">
             <Pill color="#34D399">Seeds · live</Pill>
@@ -214,14 +236,15 @@ export default function AgentAccess() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.32em] text-[#34D399]">
               <TerminalSquare size={14} />
-              Remote read-only API - no browser required
+              Remote API - no browser required
             </div>
             <Pill color="#34D399">GET + scoped POST · CORS open</Pill>
           </div>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-[#c9bba5]">
             Plain HTTPS endpoints any bot can call from any runtime. Registry loads re-verify
             manifest hashes, while the workshop POST performs deterministic validation without
-            persistence or world mutation. The Lodge Mind ask relay is public but conditional: it
+            persistence or world mutation. Beta identity and continuity writes are server-mediated,
+            never direct Firestore access. The Lodge Mind ask relay is public but conditional: it
             returns a truthful 503 until the server-side Cloud Run URL is configured.
           </p>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -233,7 +256,9 @@ export default function AgentAccess() {
                   </span>
                   <a
                     href={
-                      endpoint.method === 'GET'
+                      endpoint.href
+                        ? endpoint.href
+                        : endpoint.method === 'GET'
                         ? endpoint.path
                         : endpoint.path === '/api/lodge-mind/ask'
                           ? '/lodge-mind'
