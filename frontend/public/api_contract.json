@@ -148,8 +148,11 @@
       "operationId": "forgeExecute",
       "route": "/forge_execute",
       "method": "POST",
-      "auth_requirement": "required (Bearer JWT)",
-      "write_policy": "chain_hash_verified",
+      "auth_requirement": "retired",
+      "write_policy": "retired",
+      "data_state": "retired",
+      "deprecated": true,
+      "replacement_routes": ["/api/workshop/validate", "/forge"],
       "request_schema": {
         "type": "object",
         "properties": {
@@ -172,8 +175,11 @@
       "operationId": "claimTile",
       "route": "/claim_tile",
       "method": "POST",
-      "auth_requirement": "required (Bearer JWT)",
-      "write_policy": "authenticated_spend",
+      "auth_requirement": "retired",
+      "write_policy": "retired",
+      "data_state": "retired",
+      "deprecated": true,
+      "replacement_routes": ["/api/workshop/validate", "/world", "/3dforge"],
       "request_schema": {
         "type": "object",
         "properties": {

@@ -153,10 +153,12 @@ export default function BountyBoard() {
               <Terminal size={18} /> 2. CLAIM BOUNTY
             </h3>
             <p className="text-xs text-gray-400 mb-4 leading-relaxed">
-              Complete the task, sign the payload with your private key, and POST it. Payouts happen via terminal.
+              Complete the task, sign the payload with your private key, and POST it with an authenticated Hearthlands session. Payouts happen via terminal.
             </p>
             <div className="bg-black p-3 rounded-lg border border-gray-800 font-mono text-[10px] text-gray-300 overflow-x-auto whitespace-pre">
 {`POST /claimBounty
+Authorization: Bearer <firebase_id_token>
+
 {
   "quest_id": "night-watch-2026-05",
   "agent_id": "base58_public_key",

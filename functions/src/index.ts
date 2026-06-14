@@ -19,15 +19,50 @@ interface BountyClaimPayload {
   signature: string;
 }
 
+function retiredLegacy(
+  res: functions.Response,
+  endpoint: string,
+  replacements: string[],
+  detail: string,
+) {
+  res.status(410).json({
+    error: 'endpoint_retired',
+    endpoint,
+    replacements,
+    detail,
+    note: 'Legacy direct Cloud Function route retired to reduce public write surface and billing risk.',
+  });
+}
+
+async function resolveAgentProfileForAuth(uid: string, agentId?: string) {
+  if (agentId) {
+    const direct = await db.collection('agent_profiles').doc(agentId).get();
+    if (direct.exists && direct.data()?.firebase_uid === uid) {
+      return { id: direct.id, data: direct.data() as Record<string, unknown> };
+    }
+  }
+
+  const byUid = await db.collection('agent_profiles')
+    .where('firebase_uid', '==', uid)
+    .limit(1)
+    .get();
+  if (byUid.empty) return null;
+  return { id: byUid.docs[0].id, data: byUid.docs[0].data() as Record<string, unknown> };
+}
+
 export const claimBounty = functions.https.onRequest(async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
   res.set('Access-Control-Allow-Methods', 'POST');
-  res.set('Access-Control-Allow-Headers', 'Content-Type');
+  res.set('Access-Control-Allow-Headers', 'Content-Type,Authorization');
 
   if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
+  if (!applyRateLimit(req, res, { bucket: 'claim-bounty', windowMs: 60 * 60 * 1000, max: 6 })) return;
+  if (!applyBodyLimit(req, res, 16 * 1024)) return;
 
   try {
+    const auth = await requireAuth(req, res);
+    if (!auth) return;
     const payload: BountyClaimPayload = req.body;
     if (!payload.quest_id || !payload.agent_id || !payload.signature || !payload.public_key) {
       res.status(400).json({ error: 'Missing required fields' }); return;
@@ -46,6 +81,20 @@ export const claimBounty = functions.https.onRequest(async (req, res) => {
 
     const isValid = nacl.sign.detached.verify(new Uint8Array(message), new Uint8Array(signature), new Uint8Array(publicKey));
     if (!isValid) { res.status(401).json({ error: 'Invalid signature' }); return; }
+
+    const boundAgent = await resolveAgentProfileForAuth(auth.uid, payload.agent_id);
+    if (!boundAgent) {
+      res.status(403).json({ error: 'No agent profile is bound to this authenticated user.' });
+      return;
+    }
+    if (boundAgent.id !== payload.agent_id) {
+      res.status(403).json({ error: 'Authenticated user does not control the supplied agent_id.' });
+      return;
+    }
+    if (boundAgent.data.public_key !== payload.public_key) {
+      res.status(403).json({ error: 'Authenticated agent profile does not match the supplied public_key.' });
+      return;
+    }
 
     const questRef = db.collection('lodge_quests').doc(payload.quest_id);
     const questSnap = await questRef.get();
@@ -96,69 +145,12 @@ export const claimBounty = functions.https.onRequest(async (req, res) => {
 export const mcpDiscovery = functions.https.onRequest(async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
   if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
-
-  const mcpManifest = {
-    mcp_version: "1.0",
-    server_name: "hearthlands_sovereign_node",
-    capabilities: {
-      resources: {
-        "skrying_mirror": {
-          uri: "mcp://hearth/mempalace_stream",
-          description: "Vectorized historical events and agent intents.",
-          schema: { intent: "string", tags: "array", timestamp: "number" }
-        },
-        "phoenix_ledger": {
-          uri: "mcp://hearth/forge_log",
-          description: "Tamper-evident witnessed chain of world state changes.",
-          schema: { action: "string", agent_id: "string", chain_hash: "string" }
-        }
-      },
-      tools: {
-        "forge_execute": {
-          description: "Execute a deterministic building proposal in the Wasm sandbox.",
-          endpoint: "/forge_execute",
-          schema: {
-            type: "object",
-            properties: {
-              agent_id: { type: "string" },
-              script_hash: { type: "string", description: "SHA256 hash of the deterministic build script" },
-              action: { type: "string", enum: ["claim_tile"] },
-              params: {
-                type: "object",
-                properties: {
-                  tile_id: { type: "string", description: "e.g., '1_2'" },
-                  building_type: { type: "string", enum: ["library", "waterwheel", "farm", "lodge", "hearth", "water", "flora", "fire", "stone", "bridge", "ruins", "lightning_rod", "crystal"] }
-                },
-                required: ["tile_id", "building_type"]
-              }
-            },
-            required: ["agent_id", "script_hash", "action", "params"]
-          }
-        },
-        "reagent_execute": {
-          description: "Interact with the Hearthlands Reagent Registry chemistry engine.",
-          endpoint: "/reagent_execute",
-          schema: {
-            type: "object",
-            properties: {
-              agent_id: { type: "string" },
-              action: { type: "string", enum: ["dissolve_ember_dust", "query_reagent_state", "harvest_yield"] },
-              params: {
-                type: "object",
-                properties: {
-                  tile_id: { type: "string" },
-                  amount: { type: "number" }
-                }
-              }
-            },
-            required: ["agent_id", "action"]
-          }
-        }
-      }
-    }
-  };
-
-  res.status(200).json(mcpManifest);
+  retiredLegacy(
+    res,
+    'mcpDiscovery',
+    ['/api/mcp', '/.well-known/ai.json', '/llms.txt'],
+    'Legacy discovery manifest replaced by the stateless read-only MCP server and hosted AI discovery docs.',
+  );
 });
 
 export const reagentExecute = functions.https.onRequest(async (req, res) => {
@@ -413,96 +405,22 @@ export const grant_forge_credential = functions.https.onRequest(async (req, res)
 
 export const forge_execute = functions.https.onRequest(async (req, res) => {
   if (handleCorsForge(req, res)) return;
-  if (req.method !== 'POST') { res.status(405).end(); return; }
-
-  const auth = await requireAuth(req, res);
-  if (!auth) return;
-  const agent_id = auth.uid;
-  const { script_hash, action, params } = req.body;
-  if (!script_hash || !action || !params) { res.status(400).json({ error: 'Missing required Forge parameters' }); return; }
-
-  const profileSnap = await db.collection('agent_profiles').doc(agent_id).get();
-  if (!profileSnap.exists || profileSnap.data()?.forge_credential !== true) { res.status(403).json({ error: 'Agent lacks forge_credential' }); return; }
-
-  let result: any = {};
-  if (action === 'claim_tile') {
-    const COST = 5;
-    const { tile_id, building_type } = params;
-    const profileRef = db.collection('agent_profiles').doc(agent_id);
-    const tileRef = db.collection('world_map').doc(tile_id);
-    const [x_str, y_str] = tile_id.split('_');
-    const x = Number(x_str);
-    const y = Number(y_str);
-
-    try {
-      await db.runTransaction(async tx => {
-        const [pSnap, tSnap] = await Promise.all([tx.get(profileRef), tx.get(tileRef)]);
-        const ember = pSnap.data()?.ember_balance || 0;
-        if (ember < COST && agent_id !== 'malaky') throw new Error('insufficient_ember');
-        if (tSnap.exists && tSnap.data()?.status !== 'empty') throw new Error('tile_already_claimed');
-
-        if (agent_id !== 'malaky') { tx.update(profileRef, { ember_balance: admin.firestore.FieldValue.increment(-COST) }); }
-        tx.set(tileRef, { tile_id, x, y, claimed_by: agent_id, building_type, claimed_at: admin.firestore.FieldValue.serverTimestamp(), ember_spent: COST, status: 'claimed' });
-      });
-      result = { status: 'success', tile_id, claimed_by: agent_id };
-    } catch (err: any) {
-      res.status(400).json({ error: err.message }); return;
-    }
-  } else { res.status(400).json({ error: 'Unknown action' }); return; }
-
-  const lastLogSnap = await db.collection('forge_log').orderBy('timestamp', 'desc').limit(1).get();
-  const prev_hash = lastLogSnap.empty ? 'genesis' : (lastLogSnap.docs[0].data().chain_hash || 'genesis');
-  const entry_id = db.collection('forge_log').doc().id;
-  const raw_chain = prev_hash + script_hash + action + JSON.stringify(params);
-  const chain_hash = crypto.createHash('sha256').update(raw_chain).digest('hex');
-
-  const logRef = db.collection('forge_log').doc(entry_id);
-  await logRef.set({ entry_id, prev_hash, script_hash, chain_hash, agent_id, action, params, result, timestamp: admin.firestore.FieldValue.serverTimestamp() });
-
-  // Stream this event directly into the Skrying Mirror so the Sovereign Oracle can read it
-  await db.collection('mempalace_stream').add({
-    agent_id,
-    intent: `Agent ${agent_id} executed ${action} on the Forge. Result: ${JSON.stringify(result)}`,
-    tags: ['forge', action, agent_id],
-    result_code: result.status,
-    timestamp: admin.firestore.FieldValue.serverTimestamp()
-  });
-
-  res.status(200).json({ status: 'executed', chain_hash, result });
+  retiredLegacy(
+    res,
+    'forge_execute',
+    ['/api/workshop/validate', '/forge'],
+    'Legacy direct world-write execution is retired on the public edge. Use deterministic blueprint validation only.',
+  );
 });
 
 export const claim_tile = functions.https.onRequest(async (req, res) => {
   if (handleCorsForge(req, res)) return;
-  if (req.method !== 'POST') { res.status(405).end(); return; }
-
-  const auth = await requireAuth(req, res);
-  if (!auth) return;
-  const agent_id = auth.uid;
-  const { x, y, building_type } = req.body;
-  if (x === undefined || y === undefined || !building_type) { res.status(400).json({ error: 'Missing x, y, or building_type' }); return; }
-
-  const COST = 5;
-  const tile_id = `${x}_${y}`;
-  const profileRef = db.collection('agent_profiles').doc(agent_id);
-  const tileRef = db.collection('world_map').doc(tile_id);
-
-  try {
-    await db.runTransaction(async tx => {
-      const [pSnap, tSnap] = await Promise.all([tx.get(profileRef), tx.get(tileRef)]);
-      if (!pSnap.exists) throw new Error('agent_not_registered');
-      const ember = pSnap.data()?.ember_balance || 0;
-      if (ember < COST && agent_id !== 'malaky') throw new Error('insufficient_ember');
-      if (tSnap.exists && tSnap.data()?.status !== 'empty') throw new Error('tile_already_claimed');
-
-      if (agent_id !== 'malaky') { tx.update(profileRef, { ember_balance: admin.firestore.FieldValue.increment(-COST) }); }
-      tx.set(tileRef, { tile_id, x, y, claimed_by: agent_id, building_type, claimed_at: admin.firestore.FieldValue.serverTimestamp(), ember_spent: COST, status: 'claimed' });
-    });
-    res.status(200).json({ status: 'success', tile_id, claimed_by: agent_id });
-  } catch (err: any) {
-    if (err.message === 'insufficient_ember') res.status(402).json({ error: 'Insufficient EMBER' });
-    else if (err.message === 'tile_already_claimed') res.status(409).json({ error: 'Tile already claimed' });
-    else res.status(500).json({ error: 'Internal error' });
-  }
+  retiredLegacy(
+    res,
+    'claim_tile',
+    ['/api/workshop/validate', '/world', '/3dforge'],
+    'Legacy direct tile claims are retired. Public world interaction is currently read-only and preview-first.',
+  );
 });
 
 export const admin_sync_balance = functions.https.onRequest(async (req, res) => {
@@ -527,12 +445,12 @@ export const admin_sync_balance = functions.https.onRequest(async (req, res) => 
 
 export const get_world_map = functions.https.onRequest(async (req, res) => {
   if (handleCorsForge(req, res)) return;
-  if (req.method !== 'GET') { res.status(405).end(); return; }
-
-  const snap = await db.collection('world_map').get();
-  const tiles: any[] = [];
-  snap.forEach(doc => tiles.push(doc.data()));
-  res.status(200).json({ tiles });
+  retiredLegacy(
+    res,
+    'get_world_map',
+    ['/api/world/summary'],
+    'Legacy full world map export retired. Only the safe summarized public world contract remains exposed.',
+  );
 });
 
 export * from './embodiment';
