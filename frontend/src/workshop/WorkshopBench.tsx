@@ -81,6 +81,11 @@ export default function WorkshopBench() {
   const [requestError, setRequestError] = useState<string | null>(null);
   const [validating, setValidating] = useState(false);
   const [copied, setCopied] = useState(false);
+  const receiptQuery = useMemo(() => {
+    if (typeof window === 'undefined') return null;
+    const value = new URLSearchParams(window.location.search).get('receipt_hash');
+    return value?.trim() || null;
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -204,6 +209,13 @@ export default function WorkshopBench() {
         <ShieldCheck size={16} className="mt-0.5 shrink-0" />
         <strong>No world write performed. Receipts are never witnessed.</strong>
       </div>
+
+      {receiptQuery && (
+        <div className="mt-4 rounded-xl border border-[#D4A853]/20 bg-[#D4A853]/10 px-4 py-3 text-xs leading-5 text-[#f0e1b8]">
+          <strong>Memory witness only.</strong> This surface can reproduce and validate new blueprints, but it does not store prior validation bundles as public immutable documents. Referenced receipt hash:{' '}
+          <code className="break-all">{receiptQuery}</code>
+        </div>
+      )}
 
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
         <div className="flex flex-col gap-3 rounded-2xl border border-[#e1eee3] bg-[#fbfefa] p-4">

@@ -67,6 +67,7 @@ type PassportTaskRow = {
   source: string;
   task_id?: string;
   receipt_hash?: string;
+  ref?: string;
 };
 
 function applyCors(res: functions.Response, methods = 'GET, POST, OPTIONS'): void {
@@ -437,6 +438,7 @@ async function buildAgentPassport(agentId: string) {
         source: event.source,
         task_id: typeof event.metadata?.task_id === 'string' ? event.metadata.task_id : undefined,
         receipt_hash: typeof event.metadata?.receipt_hash === 'string' ? event.metadata.receipt_hash : undefined,
+        ref: typeof event.metadata?.ref === 'string' ? event.metadata.ref : undefined,
       })),
   ]
     .sort((a, b) => Date.parse(b.timestamp || '') - Date.parse(a.timestamp || ''))
@@ -485,7 +487,7 @@ async function buildAgentPassport(agentId: string) {
       source: task.source,
       timestamp: task.timestamp,
       status: task.status,
-      ref: typeof task.task_id === 'string' ? task.task_id : undefined,
+      ref: typeof task.ref === 'string' ? task.ref : typeof task.task_id === 'string' ? task.task_id : undefined,
       receipt_hash: typeof task.receipt_hash === 'string' ? task.receipt_hash : undefined,
     })),
     ...recentReceipts.map((row, index) => ({

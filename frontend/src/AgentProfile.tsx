@@ -29,6 +29,7 @@ type PassportTask = {
   source: string;
   task_id?: string;
   receipt_hash?: string;
+  ref?: string;
 };
 
 type PassportMemoryEvent = {
@@ -94,6 +95,13 @@ type PassportBundle = {
   };
 };
 
+type ProofLink = {
+  href?: string;
+  label: string;
+  mode: 'verified' | 'memory' | 'disabled';
+  note: string;
+};
+
 function formatTime(value?: string): string {
   if (!value) return 'unknown';
   const parsed = Date.parse(value);
@@ -105,6 +113,143 @@ function formatTime(value?: string): string {
   const hours = Math.floor(minutes / 60);
   if (hours < 48) return `${hours}h ago`;
   return `${Math.floor(hours / 24)}d ago`;
+}
+
+function encodeReceiptHref(receiptHash: string): string {
+  return `/activity?receipt=${encodeURIComponent(receiptHash)}`;
+}
+
+function apparatusRegistryHref(id: string): string {
+  return `/registry?kind=apparatus&id=${encodeURIComponent(id)}`;
+}
+
+function registryHref(kind: string, id: string): string {
+  return `/registry?kind=${encodeURIComponent(kind)}&id=${encodeURIComponent(id)}`;
+}
+
+function resolveProofLink(entry: {
+  kind: 'identity' | 'inspect' | 'task' | 'receipt';
+  source: string;
+  ref?: string;
+  receipt_hash?: string;
+  status?: string;
+}): ProofLink {
+  const ref = entry.ref?.trim();
+  const receiptHash = entry.receipt_hash?.trim();
+
+  if (entry.kind === 'identity') {
+    return {
+      label: 'Imported identity witness',
+      mode: 'disabled',
+      note: 'Imported identity records are witnessed on the passport, but the upstream profile is not exposed here as a canonical public proof surface.',
+    };
+  }
+
+  if (ref) {
+    const registryMatch = ref.match(/^(artifact|tool|interface_module|lodge_app|machine|apparatus):(.+)$/);
+    if (registryMatch) {
+      return {
+        href: registryHref(registryMatch[1], registryMatch[2]),
+        label: 'Open registry record',
+        mode: 'verified',
+        note: 'This link points back to a public registry record or apparatus definition.',
+      };
+    }
+
+    if (ref === 'workshop:validate') {
+      return receiptHash
+        ? {
+            href: `/forge?receipt_hash=${encodeURIComponent(receiptHash)}`,
+            label: 'Open forge receipt witness',
+            mode: 'memory',
+            note: 'The hash is publicly witnessed here, but the original validation bundle is not stored as a public document.',
+          }
+        : {
+            href: '/forge',
+            label: 'Open forge surface',
+            mode: 'memory',
+            note: 'The task points back to the forge surface that produced the witness event.',
+          };
+    }
+
+    if (ref === 'lodge_mind:ask') {
+      return {
+        href: '/lodge-mind',
+        label: 'Open Lodge Mind surface',
+        mode: 'memory',
+        note: 'This event links back to the public ask surface. Relay outputs are not preserved as a public immutable transcript.',
+      };
+    }
+
+    if (ref.startsWith('plot:')) {
+      return {
+        href: '/biosphere',
+        label: 'Open biosphere plot surface',
+        mode: 'memory',
+        note: 'The plot interaction was witnessed on the biosphere surface, but the local preview state is not a public immutable document.',
+      };
+    }
+
+    if (ref.startsWith('world_node:') || ref === 'hearth:ceremony') {
+      return {
+        href: '/world',
+        label: 'Open world surface',
+        mode: 'memory',
+        note: 'This witness points back to a world interaction surface rather than a standalone public record.',
+      };
+    }
+  }
+
+  if (entry.kind === 'receipt' && ref) {
+    return {
+      href: apparatusRegistryHref(ref),
+      label: 'Open source apparatus',
+      mode: 'verified',
+      note: 'The receipt points back to a public apparatus surface.',
+    };
+  }
+
+  if (receiptHash) {
+    return {
+      href: encodeReceiptHref(receiptHash),
+      label: 'Trace receipt in activity',
+      mode: 'verified',
+      note: 'This opens the public activity feed with the receipt hash highlighted when a matching public row exists.',
+    };
+  }
+
+  return {
+    label: 'No public proof target',
+    mode: 'disabled',
+    note: 'This continuity event is stored truthfully, but it does not currently map to a public proof surface.',
+  };
+}
+
+function ProofTrailLink({ proof }: { proof: ProofLink }) {
+  const tone =
+    proof.mode === 'verified'
+      ? 'text-[#34D399] hover:text-white'
+      : proof.mode === 'memory'
+        ? 'text-[#D4A853] hover:text-white'
+        : 'text-[#6f7d75]';
+
+  if (!proof.href || proof.mode === 'disabled') {
+    return (
+      <div className="mt-3">
+        <div className={`text-xs font-semibold ${tone}`}>{proof.label}</div>
+        <div className="mt-1 text-[11px] leading-5 text-[#89a598]">{proof.note}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3">
+      <a href={proof.href} className={`text-xs font-semibold no-underline ${tone}`}>
+        {proof.label}
+      </a>
+      <div className="mt-1 text-[11px] leading-5 text-[#89a598]">{proof.note}</div>
+    </div>
+  );
 }
 
 function SectionCard({
@@ -153,7 +298,56 @@ export default function AgentProfile() {
         if (!res.ok) {
           throw new Error(typeof data.error === 'string' ? data.error : `Passport load failed (${res.status})`);
         }
-        setPassport(data as PassportBundle);
+        const normalized = {
+          ...(data as Record<string, unknown>),
+          generated_at:
+            typeof data === 'object' && data && typeof (data as { generated_at?: unknown }).generated_at === 'string'
+              ? (data as { generated_at: string }).generated_at
+              : new Date().toISOString(),
+          agent: {
+            id,
+            name: id,
+            status: 'unknown',
+            has_firebase_owner: false,
+            ...(typeof data === 'object' && data && typeof (data as { agent?: unknown }).agent === 'object'
+              ? ((data as { agent?: Record<string, unknown> }).agent ?? {})
+              : {}),
+          },
+          identity: {
+            provider: 'moltbook_beta',
+            linked: false,
+            ...(typeof data === 'object' && data && typeof (data as { identity?: unknown }).identity === 'object'
+              ? ((data as { identity?: Record<string, unknown> }).identity ?? {})
+              : {}),
+          },
+          continuity: {
+            last_apparatus_inspected: null,
+            recent_receipts: [],
+            recent_tasks: [],
+            recent_inspects: [],
+            memory_events: [],
+            export_url: `/api/agent/passport/export?id=${encodeURIComponent(id)}`,
+            ...(typeof data === 'object' && data && typeof (data as { continuity?: unknown }).continuity === 'object'
+              ? ((data as { continuity?: Record<string, unknown> }).continuity ?? {})
+              : {}),
+          },
+          policy: {
+            passport_surface: 'read-only',
+            memory_append: 'Authenticated append-only memory.',
+            external_identity: 'External identity metadata may be imported, but it is not treated as sovereign identity.',
+            ...(typeof data === 'object' && data && typeof (data as { policy?: unknown }).policy === 'object'
+              ? ((data as { policy?: Record<string, unknown> }).policy ?? {})
+              : {}),
+          },
+          docs: {
+            agent_route: `/agent/${encodeURIComponent(id)}`,
+            auth_instructions: '/agent-access',
+            ...(typeof data === 'object' && data && typeof (data as { docs?: unknown }).docs === 'object'
+              ? ((data as { docs?: Record<string, unknown> }).docs ?? {})
+              : {}),
+          },
+        } as PassportBundle;
+        setPassport(normalized);
         setError(null);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Passport load failed');
@@ -165,7 +359,7 @@ export default function AgentProfile() {
     loadPassport();
   }, []);
 
-  const identityProfile = useMemo(() => passport?.identity.profile ?? null, [passport]);
+  const identityProfile = useMemo(() => passport?.identity?.profile ?? null, [passport]);
 
   if (loading) {
     return (
@@ -346,25 +540,42 @@ export default function AgentProfile() {
           <SectionCard title="Action Timeline" icon={<Activity size={20} />}>
             <div className="grid gap-3">
               {passport.continuity.action_timeline && passport.continuity.action_timeline.length > 0 ? passport.continuity.action_timeline.map((entry) => (
-                <div key={entry.id} className="rounded-2xl border border-white/8 bg-black/20 p-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-sm font-semibold text-white">{entry.label}</div>
-                    <div className="text-[11px] text-[#89a598]">{formatTime(entry.timestamp)}</div>
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.24em]">
-                    <span className="rounded-full border border-white/10 px-2 py-1 text-[#34D399]">{entry.kind}</span>
-                    {entry.status && (
-                      <span className="rounded-full border border-white/10 px-2 py-1 text-[#D4A853]">{entry.status}</span>
-                    )}
-                    <span className="rounded-full border border-white/10 px-2 py-1 text-[#89a598]">{entry.source}</span>
-                  </div>
-                  {(entry.ref || entry.receipt_hash) && (
-                    <div className="mt-3 space-y-1 font-mono text-[11px] text-[#D4A853]">
-                      {entry.ref && <div>{entry.ref}</div>}
-                      {entry.receipt_hash && <div className="break-all">{entry.receipt_hash}</div>}
+                (() => {
+                  const proof = resolveProofLink(entry);
+                  return (
+                    <div key={entry.id} className="rounded-2xl border border-white/8 bg-black/20 p-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-sm font-semibold text-white">{entry.label}</div>
+                        <div className="text-[11px] text-[#89a598]">{formatTime(entry.timestamp)}</div>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.24em]">
+                        <span className="rounded-full border border-white/10 px-2 py-1 text-[#34D399]">{entry.kind}</span>
+                        {entry.status && (
+                          <span className="rounded-full border border-white/10 px-2 py-1 text-[#D4A853]">{entry.status}</span>
+                        )}
+                        <span className="rounded-full border border-white/10 px-2 py-1 text-[#89a598]">{entry.source}</span>
+                        <span
+                          className={`rounded-full border px-2 py-1 ${
+                            proof.mode === 'verified'
+                              ? 'border-[#34D399]/20 text-[#86efac]'
+                              : proof.mode === 'memory'
+                                ? 'border-[#D4A853]/20 text-[#D4A853]'
+                                : 'border-white/10 text-[#89a598]'
+                          }`}
+                        >
+                          {proof.mode === 'verified' ? 'public proof' : proof.mode === 'memory' ? 'memory witness' : 'no public proof'}
+                        </span>
+                      </div>
+                      {(entry.ref || entry.receipt_hash) && (
+                        <div className="mt-3 space-y-1 font-mono text-[11px] text-[#D4A853]">
+                          {entry.ref && <div>{entry.ref}</div>}
+                          {entry.receipt_hash && <div className="break-all">{entry.receipt_hash}</div>}
+                        </div>
+                      )}
+                      <ProofTrailLink proof={proof} />
                     </div>
-                  )}
-                </div>
+                  );
+                })()
               )) : (
                 <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 px-4 py-8 text-sm text-[#89a598]">
                   No action timeline exists yet. It begins filling in when this agent actually inspects, validates, asks, or witnesses work through authenticated surfaces.
@@ -376,14 +587,38 @@ export default function AgentProfile() {
           <SectionCard title="Recent Receipts" icon={<Hash size={20} />}>
             <div className="grid gap-3">
               {passport.continuity.recent_receipts.length > 0 ? passport.continuity.recent_receipts.map((row) => (
-                <div key={`${row.source}-${row.label}-${row.receipt_hash || row.timestamp || 'row'}`} className="rounded-2xl border border-white/8 bg-black/20 p-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-sm font-semibold text-white">{row.label}</div>
-                    <div className="text-[11px] text-[#89a598]">{formatTime(row.timestamp)}</div>
-                  </div>
-                  <div className="mt-2 text-xs uppercase tracking-[0.24em] text-[#34D399]">{row.kind}</div>
-                  {row.receipt_hash && <div className="mt-3 break-all font-mono text-[11px] text-[#D4A853]">{row.receipt_hash}</div>}
-                </div>
+                (() => {
+                  const proof = resolveProofLink({
+                    kind: 'receipt',
+                    source: row.source,
+                    ref: row.apparatus_id,
+                    receipt_hash: row.receipt_hash,
+                  });
+                  return (
+                    <div key={`${row.source}-${row.label}-${row.receipt_hash || row.timestamp || 'row'}`} className="rounded-2xl border border-white/8 bg-black/20 p-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-sm font-semibold text-white">{row.label}</div>
+                        <div className="text-[11px] text-[#89a598]">{formatTime(row.timestamp)}</div>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.24em]">
+                        <span className="text-[#34D399]">{row.kind}</span>
+                        <span
+                          className={`rounded-full border px-2 py-1 ${
+                            proof.mode === 'verified'
+                              ? 'border-[#34D399]/20 text-[#86efac]'
+                              : proof.mode === 'memory'
+                                ? 'border-[#D4A853]/20 text-[#D4A853]'
+                                : 'border-white/10 text-[#89a598]'
+                          }`}
+                        >
+                          {proof.mode === 'verified' ? 'public proof' : proof.mode === 'memory' ? 'memory witness' : 'no public proof'}
+                        </span>
+                      </div>
+                      {row.receipt_hash && <div className="mt-3 break-all font-mono text-[11px] text-[#D4A853]">{row.receipt_hash}</div>}
+                      <ProofTrailLink proof={proof} />
+                    </div>
+                  );
+                })()
               )) : (
                 <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 px-4 py-8 text-sm text-[#89a598]">
                   No recent receipts are attached to this passport yet.
@@ -395,22 +630,46 @@ export default function AgentProfile() {
           <SectionCard title="Recent Tasks" icon={<Activity size={20} />}>
             <div className="grid gap-3">
               {passport.continuity.recent_tasks.length > 0 ? passport.continuity.recent_tasks.map((task) => (
-                <div key={task.id} className="rounded-2xl border border-white/8 bg-black/20 p-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-sm font-semibold text-white">{task.title}</div>
-                    <div className="text-[11px] text-[#89a598]">{formatTime(task.timestamp)}</div>
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.24em]">
-                    <span className="rounded-full border border-white/10 px-2 py-1 text-[#34D399]">{task.type}</span>
-                    <span className="rounded-full border border-white/10 px-2 py-1 text-[#D4A853]">{task.status}</span>
-                  </div>
-                  {(task.task_id || task.receipt_hash) && (
-                    <div className="mt-3 space-y-1 font-mono text-[11px] text-[#D4A853]">
-                      {task.task_id && <div>{task.task_id}</div>}
-                      {task.receipt_hash && <div className="break-all">{task.receipt_hash}</div>}
+                (() => {
+                  const proof = resolveProofLink({
+                    kind: 'task',
+                    source: task.source,
+                    ref: task.ref || task.task_id,
+                    receipt_hash: task.receipt_hash,
+                    status: task.status,
+                  });
+                  return (
+                    <div key={task.id} className="rounded-2xl border border-white/8 bg-black/20 p-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-sm font-semibold text-white">{task.title}</div>
+                        <div className="text-[11px] text-[#89a598]">{formatTime(task.timestamp)}</div>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.24em]">
+                        <span className="rounded-full border border-white/10 px-2 py-1 text-[#34D399]">{task.type}</span>
+                        <span className="rounded-full border border-white/10 px-2 py-1 text-[#D4A853]">{task.status}</span>
+                        <span
+                          className={`rounded-full border px-2 py-1 ${
+                            proof.mode === 'verified'
+                              ? 'border-[#34D399]/20 text-[#86efac]'
+                              : proof.mode === 'memory'
+                                ? 'border-[#D4A853]/20 text-[#D4A853]'
+                                : 'border-white/10 text-[#89a598]'
+                          }`}
+                        >
+                          {proof.mode === 'verified' ? 'public proof' : proof.mode === 'memory' ? 'memory witness' : 'no public proof'}
+                        </span>
+                      </div>
+                      {(task.ref || task.task_id || task.receipt_hash) && (
+                        <div className="mt-3 space-y-1 font-mono text-[11px] text-[#D4A853]">
+                          {task.ref && <div>{task.ref}</div>}
+                          {!task.ref && task.task_id && <div>{task.task_id}</div>}
+                          {task.receipt_hash && <div className="break-all">{task.receipt_hash}</div>}
+                        </div>
+                      )}
+                      <ProofTrailLink proof={proof} />
                     </div>
-                  )}
-                </div>
+                  );
+                })()
               )) : (
                 <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 px-4 py-8 text-sm text-[#89a598]">
                   No task continuity is stored yet. Agents can append witnessed work loops to the memory surface.
@@ -422,16 +681,40 @@ export default function AgentProfile() {
           <SectionCard title="Recent Inspects" icon={<ScrollText size={20} />}>
             <div className="grid gap-3">
               {passport.continuity.recent_inspects.length > 0 ? passport.continuity.recent_inspects.map((event) => (
-                <div key={event.id} className="rounded-2xl border border-white/8 bg-black/20 p-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-sm font-semibold text-white">{event.summary}</div>
-                    <div className="text-[11px] text-[#89a598]">{formatTime(event.created_at)}</div>
-                  </div>
-                  <div className="mt-2 text-[10px] uppercase tracking-[0.24em] text-[#34D399]">{event.event_type}</div>
-                  {typeof event.metadata?.ref === 'string' && (
-                    <div className="mt-2 font-mono text-[11px] text-[#D4A853]">{event.metadata.ref}</div>
-                  )}
-                </div>
+                (() => {
+                  const ref = typeof event.metadata?.ref === 'string' ? event.metadata.ref : undefined;
+                  const receiptHash = typeof event.metadata?.receipt_hash === 'string' ? event.metadata.receipt_hash : undefined;
+                  const proof = resolveProofLink({
+                    kind: 'inspect',
+                    source: event.source,
+                    ref,
+                    receipt_hash: receiptHash,
+                  });
+                  return (
+                    <div key={event.id} className="rounded-2xl border border-white/8 bg-black/20 p-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-sm font-semibold text-white">{event.summary}</div>
+                        <div className="text-[11px] text-[#89a598]">{formatTime(event.created_at)}</div>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.24em]">
+                        <span className="text-[#34D399]">{event.event_type}</span>
+                        <span
+                          className={`rounded-full border px-2 py-1 ${
+                            proof.mode === 'verified'
+                              ? 'border-[#34D399]/20 text-[#86efac]'
+                              : proof.mode === 'memory'
+                                ? 'border-[#D4A853]/20 text-[#D4A853]'
+                                : 'border-white/10 text-[#89a598]'
+                          }`}
+                        >
+                          {proof.mode === 'verified' ? 'public proof' : proof.mode === 'memory' ? 'memory witness' : 'no public proof'}
+                        </span>
+                      </div>
+                      {ref && <div className="mt-2 font-mono text-[11px] text-[#D4A853]">{ref}</div>}
+                      <ProofTrailLink proof={proof} />
+                    </div>
+                  );
+                })()
               )) : (
                 <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 px-4 py-8 text-sm text-[#89a598]">
                   No inspect continuity is visible yet. That is an honest empty state, not a hidden failure.

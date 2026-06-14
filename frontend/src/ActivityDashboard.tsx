@@ -1,7 +1,7 @@
 /**
  * /activity - Bot activity mission control (read-only).
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Activity, Bot, Radio, Terminal } from 'lucide-react';
 import { fetchActivityBundle, type ActivityRow } from './lib/activityFeed';
 // @ts-ignore
@@ -113,6 +113,11 @@ export default function ActivityDashboard() {
     agentKey: 'dashboard-observer',
     getPose: () => ({ x: 0, y: 0, z: 0, anim: 'idle' })
   });
+  const receiptQuery = useMemo(() => {
+    if (typeof window === 'undefined') return null;
+    const value = new URLSearchParams(window.location.search).get('receipt');
+    return value?.trim() || null;
+  }, []);
 
   const live = bundle?.data_state === 'live' || receipts.length > 0;
   
@@ -145,6 +150,9 @@ export default function ActivityDashboard() {
   const filteredRows = sourceFilter === 'all'
     ? combinedRows
     : combinedRows.filter(r => r.source === sourceFilter);
+  const matchingReceiptRow = receiptQuery
+    ? combinedRows.find((row) => row.receipt_hash === receiptQuery)
+    : null;
 
   return (
     <div className="min-h-full bg-[radial-gradient(circle_at_top,rgba(232,132,42,0.12),transparent_40%),#050806] px-6 py-10 text-[#eadfcd]">
@@ -238,6 +246,20 @@ export default function ActivityDashboard() {
             </div>
           </div>
 
+          {receiptQuery && (
+            <div
+              className={`mb-4 rounded-xl border px-4 py-3 text-sm ${
+                matchingReceiptRow
+                  ? 'border-[#34D399]/20 bg-[#34D399]/10 text-[#d7f6e4]'
+                  : 'border-[#D4A853]/20 bg-[#D4A853]/10 text-[#f0e1b8]'
+              }`}
+            >
+              {matchingReceiptRow
+                ? `Tracing receipt ${receiptQuery.slice(0, 16)}... in the public activity stream.`
+                : `Receipt ${receiptQuery.slice(0, 16)}... is referenced by memory, but no matching public activity row is currently visible here.`}
+            </div>
+          )}
+
           {loading && <p className="font-mono text-sm text-[#8E7E6B]">Polling public surfaces...</p>}
 
           {!loading && bundle && filteredRows.length === 0 && (
@@ -247,7 +269,18 @@ export default function ActivityDashboard() {
           )}
 
           <div className="grid gap-2">
-            {filteredRows.map((row) => <RowLine key={row.id} row={row} />)}
+            {filteredRows.map((row) => (
+              <div
+                key={row.id}
+                className={
+                  receiptQuery && row.receipt_hash === receiptQuery
+                    ? 'rounded-xl ring-1 ring-[#34D399]/40 ring-offset-0'
+                    : undefined
+                }
+              >
+                <RowLine row={row} />
+              </div>
+            ))}
           </div>
         </section>
 
