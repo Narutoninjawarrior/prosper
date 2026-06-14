@@ -199,6 +199,12 @@ function WorldContent({
   const [builderOpen, setBuilder]   = useState(false)
   const [stewardSignal, setStewardSignal] = useState(0)
   const playerRef = useRef(new THREE.Vector3(0, 0, 2))
+  const movementKeysRef = useRef({
+    ArrowUp: false,
+    ArrowDown: false,
+    ArrowLeft: false,
+    ArrowRight: false,
+  })
 
   const {
     localId,
@@ -225,17 +231,43 @@ function WorldContent({
 
   // Click-to-move
   const handleMove = useCallback((point) => {
-    setTargetPos(point.clone())
+    const destination = point.clone()
+    destination.x = THREE.MathUtils.clamp(destination.x, -28, 28)
+    destination.z = THREE.MathUtils.clamp(destination.z, -28, 28)
+    destination.y = 0
+    setTargetPos(destination)
     setMoving(true)
   }, [])
 
   // Player movement toward target
   useFrame((_, delta) => {
-    if (!targetPos || !moving) return
     const current = playerRef.current
-    const dir     = targetPos.clone().sub(current)
+    const keyDirection = new THREE.Vector3(
+      (movementKeysRef.current.ArrowRight ? 1 : 0) - (movementKeysRef.current.ArrowLeft ? 1 : 0),
+      0,
+      (movementKeysRef.current.ArrowDown ? 1 : 0) - (movementKeysRef.current.ArrowUp ? 1 : 0),
+    )
+
+    if (keyDirection.lengthSq() > 0) {
+      keyDirection.normalize()
+      current.addScaledVector(keyDirection, delta * 5)
+      current.x = THREE.MathUtils.clamp(current.x, -28, 28)
+      current.z = THREE.MathUtils.clamp(current.z, -28, 28)
+      current.y = 0
+      setPlayerPos(current.clone())
+      if (!moving) setMoving(true)
+      return
+    }
+
+    if (moving && !targetPos) {
+      setMoving(false)
+      return
+    }
+
+    if (!targetPos || !moving) return
+    const dir = targetPos.clone().sub(current)
     dir.y = 0
-    const dist    = dir.length()
+    const dist = dir.length()
 
     if (dist < 0.15) {
       setMoving(false)
@@ -246,6 +278,8 @@ function WorldContent({
 
     dir.normalize()
     current.addScaledVector(dir, Math.min(delta * 5, dist))
+    current.x = THREE.MathUtils.clamp(current.x, -28, 28)
+    current.z = THREE.MathUtils.clamp(current.z, -28, 28)
     current.y = 0
     setPlayerPos(current.clone())
   })
@@ -253,12 +287,30 @@ function WorldContent({
   // Keyboard shortcuts
   useEffect(() => {
     const handleKey = (e) => {
+      if (e.key in movementKeysRef.current) {
+        e.preventDefault()
+        movementKeysRef.current[e.key] = true
+        setTargetPos(null)
+        setMoving(true)
+        return
+      }
       if (e.key === 'b' || e.key === 'B') setBuilder(v => !v)
       if (e.key === 't' || e.key === 'T') setActiveZone('tesseract')
       if (e.key === 'Escape') setActiveZone(null)
     }
+
+    const handleKeyUp = (e) => {
+      if (e.key in movementKeysRef.current) {
+        movementKeysRef.current[e.key] = false
+      }
+    }
+
     document.addEventListener('keydown', handleKey)
-    return () => document.removeEventListener('keydown', handleKey)
+    document.addEventListener('keyup', handleKeyUp)
+    return () => {
+      document.removeEventListener('keydown', handleKey)
+      document.removeEventListener('keyup', handleKeyUp)
+    }
   }, [setActiveZone])
 
   return (
