@@ -106,7 +106,8 @@
     ]
   },
   "firestore": {
-    "rules": "frontend/firestore.rules"
+    "rules": "frontend/firestore.rules",
+    "indexes": "firestore.indexes.json"
   },
   "functions": {
     "source": "functions",

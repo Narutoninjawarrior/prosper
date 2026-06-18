@@ -23,6 +23,12 @@ type ContinuityEventResult =
   | { ok: false; skipped: true; reason: 'anonymous' }
   | { ok: false; skipped: false; reason: string }
 
+const TASK_STATUSES = new Set(['open', 'claimed', 'in_progress', 'witnessed', 'archived'])
+
+function trimField(value: string | undefined | null, max: number): string {
+  return typeof value === 'string' ? value.trim().slice(0, max) : ''
+}
+
 function cleanMetadata(
   metadata?: Record<string, string | number | boolean | null | undefined>,
 ): Record<string, string | number | boolean | null> | undefined {
@@ -51,6 +57,12 @@ export async function appendAgentMemoryEvent({
     return { ok: false, skipped: true, reason: 'anonymous' }
   }
 
+  const normalizedType = trimField(eventType, 64)
+  const normalizedSummary = trimField(summary, 240)
+  if (!normalizedType || !normalizedSummary) {
+    return { ok: false, skipped: false, reason: 'event_type and summary are required' }
+  }
+
   try {
     const response = await fetch('/api/agent/memory/append', {
       method: 'POST',
@@ -60,9 +72,9 @@ export async function appendAgentMemoryEvent({
         ...(externalToken ? { 'X-Moltbook-Identity': externalToken } : {}),
       },
       body: JSON.stringify({
-        ...(agentId ? { agent_id: agentId } : {}),
-        event_type: eventType,
-        summary,
+        ...(agentId ? { agent_id: trimField(agentId, 128) } : {}),
+        event_type: normalizedType,
+        summary: normalizedSummary,
         metadata: cleanMetadata(metadata),
       }),
     })
@@ -108,6 +120,17 @@ export async function appendAgentTaskEvent({
     return { ok: false, skipped: true, reason: 'anonymous' }
   }
 
+  const normalizedTaskId = trimField(taskId, 96)
+  if (!normalizedTaskId) {
+    return { ok: false, skipped: false, reason: 'task_id is required' }
+  }
+  if (!TASK_STATUSES.has(status)) {
+    return { ok: false, skipped: false, reason: `Unsupported task status "${status}"` }
+  }
+
+  const normalizedSummary = summary ? trimField(summary, 240) : ''
+  const normalizedReceipt = receiptHash ? trimField(receiptHash, 128) : ''
+
   try {
     const response = await fetch('/api/agent/task/event', {
       method: 'POST',
@@ -117,11 +140,11 @@ export async function appendAgentTaskEvent({
         ...(externalToken ? { 'X-Moltbook-Identity': externalToken } : {}),
       },
       body: JSON.stringify({
-        ...(agentId ? { agent_id: agentId } : {}),
-        task_id: taskId,
+        ...(agentId ? { agent_id: trimField(agentId, 128) } : {}),
+        task_id: normalizedTaskId,
         status,
-        ...(summary ? { summary } : {}),
-        ...(receiptHash ? { receipt_hash: receiptHash } : {}),
+        ...(normalizedSummary ? { summary: normalizedSummary } : {}),
+        ...(normalizedReceipt ? { receipt_hash: normalizedReceipt } : {}),
         metadata: cleanMetadata(metadata),
       }),
     })

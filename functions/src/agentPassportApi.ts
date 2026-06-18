@@ -83,6 +83,16 @@ function readHeader(req: functions.Request, name: string): string {
   return '';
 }
 
+function requestRoutePath(req: functions.Request): string {
+  return [req.path, req.originalUrl, req.url]
+    .filter((value) => typeof value === 'string' && value.trim())
+    .join(' ');
+}
+
+function routeMatches(path: string, route: string): boolean {
+  return path.includes(route);
+}
+
 function readTimestampish(value: unknown): string | undefined {
   if (typeof value === 'string') {
     const parsed = Date.parse(value);
@@ -349,6 +359,30 @@ async function appendMemoryEvent(
   return ref.id;
 }
 
+async function fetchAgentMemoryDocs(agentId: string, limit = 16): Promise<admin.firestore.QueryDocumentSnapshot[]> {
+  try {
+    const ordered = await db.collection('agent_memory')
+      .where('agent_id', '==', agentId)
+      .orderBy('created_at', 'desc')
+      .limit(limit)
+      .get();
+    return ordered.docs;
+  } catch (err) {
+    console.error('[agentPassport] ordered agent_memory query failed; falling back to client sort', err);
+    const fallback = await db.collection('agent_memory')
+      .where('agent_id', '==', agentId)
+      .limit(limit * 2)
+      .get();
+    return fallback.docs
+      .sort((a, b) => {
+        const aTs = Date.parse(readTimestampish(a.data().created_at) || '') || 0;
+        const bTs = Date.parse(readTimestampish(b.data().created_at) || '') || 0;
+        return bTs - aTs;
+      })
+      .slice(0, limit);
+  }
+}
+
 async function fetchSwarmTaskSeed(): Promise<Array<Record<string, unknown>>> {
   try {
     const response = await fetch(`${HOSTING_BASE}/swarm_tasks.json`, { headers: { accept: 'application/json' } });
@@ -366,8 +400,8 @@ async function buildAgentPassport(agentId: string) {
   if (!profileSnap.exists) return null;
 
   const profile = profileSnap.data() as Record<string, unknown>;
-  const [memorySnap, experimentSnap, embodimentSnap, claimSnap, externalSnap, swarmTasks] = await Promise.all([
-    db.collection('agent_memory').where('agent_id', '==', agentId).orderBy('created_at', 'desc').limit(16).get().catch(() => null),
+  const [memoryDocs, experimentSnap, embodimentSnap, claimSnap, externalSnap, swarmTasks] = await Promise.all([
+    fetchAgentMemoryDocs(agentId, 16),
     db.collection('experiment_log').where('agent_id', '==', agentId).orderBy('logged_at', 'desc').limit(8).get().catch(() => null),
     db.collection('embodiment_ledger').where('agent_id', '==', agentId).orderBy('timestamp', 'desc').limit(8).get().catch(() => null),
     db.collection('bounty_claims').where('agent_id', '==', agentId).orderBy('timestamp', 'desc').limit(6).get().catch(() => null),
@@ -375,19 +409,17 @@ async function buildAgentPassport(agentId: string) {
     fetchSwarmTaskSeed(),
   ]);
 
-  const memoryEvents: PassportMemoryEvent[] = memorySnap
-    ? memorySnap.docs.map((doc) => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          event_type: typeof data.event_type === 'string' ? data.event_type : 'memory_event',
-          summary: typeof data.summary === 'string' ? data.summary : 'Memory event',
-          source: typeof data.source === 'string' ? data.source : 'hearthlands',
-          created_at: readTimestampish(data.created_at),
-          metadata: cleanMetadata(data.metadata),
-        };
-      })
-    : [];
+  const memoryEvents: PassportMemoryEvent[] = memoryDocs.map((doc) => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      event_type: typeof data.event_type === 'string' ? data.event_type : 'memory_event',
+      summary: typeof data.summary === 'string' ? data.summary : 'Memory event',
+      source: typeof data.source === 'string' ? data.source : 'hearthlands',
+      created_at: readTimestampish(data.created_at),
+      metadata: cleanMetadata(data.metadata),
+    };
+  });
 
   const recentReceipts: PassportReceiptRow[] = [
     ...(experimentSnap ? experimentSnap.docs.map((doc) => {
@@ -571,9 +603,9 @@ export const agentPassportApi = functions.https.onRequest(async (req, res) => {
     return;
   }
 
-  const path = `${req.path || ''} ${req.originalUrl || ''}`;
+  const path = requestRoutePath(req);
 
-  if (path.includes('/api/agent/passport/claim-moltbook')) {
+  if (routeMatches(path, '/api/agent/passport/claim-moltbook')) {
     if (req.method !== 'POST') {
       res.status(405).json({ error: 'POST only' });
       return;
@@ -678,7 +710,7 @@ export const agentPassportApi = functions.https.onRequest(async (req, res) => {
     return;
   }
 
-  if (path.includes('/api/agent/memory/append')) {
+  if (routeMatches(path, '/api/agent/memory/append')) {
     if (req.method !== 'POST') {
       res.status(405).json({ error: 'POST only' });
       return;
@@ -714,7 +746,7 @@ export const agentPassportApi = functions.https.onRequest(async (req, res) => {
     return;
   }
 
-  if (path.includes('/api/agent/task/event')) {
+  if (routeMatches(path, '/api/agent/task/event')) {
     if (req.method !== 'POST') {
       res.status(405).json({ error: 'POST only' });
       return;
@@ -769,7 +801,7 @@ export const agentPassportApi = functions.https.onRequest(async (req, res) => {
     return;
   }
 
-  if (!path.includes('/api/agent/passport')) {
+  if (!routeMatches(path, '/api/agent/passport')) {
     res.status(404).json({ error: 'Unknown agent passport route.' });
     return;
   }

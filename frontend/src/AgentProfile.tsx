@@ -539,21 +539,29 @@ export default function AgentProfile() {
         <div className="grid gap-6 lg:grid-cols-3">
           <SectionCard title="Action Timeline" icon={<Activity size={20} />}>
             <div className="grid gap-3">
-              {passport.continuity.action_timeline && passport.continuity.action_timeline.length > 0 ? passport.continuity.action_timeline.map((entry) => (
+              {Array.isArray(passport.continuity.action_timeline) && passport.continuity.action_timeline.length > 0 ? passport.continuity.action_timeline.map((entry, index) => (
                 (() => {
-                  const proof = resolveProofLink(entry);
+                  const proof = resolveProofLink({
+                    kind: entry.kind ?? 'inspect',
+                    source: typeof entry.source === 'string' ? entry.source : 'unknown',
+                    ref: typeof entry.ref === 'string' ? entry.ref : undefined,
+                    receipt_hash: typeof entry.receipt_hash === 'string' ? entry.receipt_hash : undefined,
+                    status: typeof entry.status === 'string' ? entry.status : undefined,
+                  });
+                  const entryId = typeof entry.id === 'string' && entry.id ? entry.id : `timeline-${index}`;
+                  const entryLabel = typeof entry.label === 'string' && entry.label.trim() ? entry.label : 'Continuity event';
                   return (
-                    <div key={entry.id} className="rounded-2xl border border-white/8 bg-black/20 p-4">
+                    <div key={entryId} className="rounded-2xl border border-white/8 bg-black/20 p-4">
                       <div className="flex items-center justify-between gap-2">
-                        <div className="text-sm font-semibold text-white">{entry.label}</div>
+                        <div className="text-sm font-semibold text-white">{entryLabel}</div>
                         <div className="text-[11px] text-[#89a598]">{formatTime(entry.timestamp)}</div>
                       </div>
                       <div className="mt-2 flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.24em]">
-                        <span className="rounded-full border border-white/10 px-2 py-1 text-[#34D399]">{entry.kind}</span>
-                        {entry.status && (
+                        <span className="rounded-full border border-white/10 px-2 py-1 text-[#34D399]">{entry.kind ?? 'event'}</span>
+                        {typeof entry.status === 'string' && entry.status && (
                           <span className="rounded-full border border-white/10 px-2 py-1 text-[#D4A853]">{entry.status}</span>
                         )}
-                        <span className="rounded-full border border-white/10 px-2 py-1 text-[#89a598]">{entry.source}</span>
+                        <span className="rounded-full border border-white/10 px-2 py-1 text-[#89a598]">{typeof entry.source === 'string' ? entry.source : 'unknown'}</span>
                         <span
                           className={`rounded-full border px-2 py-1 ${
                             proof.mode === 'verified'

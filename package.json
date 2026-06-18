@@ -16,7 +16,9 @@
     "reality-lock:dist": "node scripts/reality-lock.mjs --dist",
     "sync:firestore": "node scripts/sync-firestore-from-seed.mjs",
     "sync:firestore:dry-run": "node scripts/sync-firestore-from-seed.mjs --dry-run",
-    "steward:claim": "node scripts/steward-claim.mjs"
+    "steward:claim": "node scripts/steward-claim.mjs",
+    "test:passport-continuity": "node scripts/test_passport_continuity.js",
+    "test:passport-continuity:sweep": "node scripts/test_passport_continuity.js --sweep-only"
   },
   "dependencies": {
     "eventsource": "^4.1.0",
