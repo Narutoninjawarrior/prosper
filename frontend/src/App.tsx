@@ -22,6 +22,7 @@ const GenerativeWorkbench = lazy(() => import('./GenerativeWorkbench'));
 const ThreeForge = lazy(() => import('./ThreeForge'));
 const ForgePage = lazy(() => import('./ForgePage'));
 const CouncilBoard = lazy(() => import('./CouncilBoard'));
+const ObservatoryRoute = lazy(() => import('./ObservatoryRoute'));
 
 const HiveTester = lazy(() => import('./HiveTester'));
 
@@ -96,6 +97,14 @@ function App() {
     return (
       <SuspendedPublicShell className="h-screen w-screen bg-[#020804] text-gray-200" label="Loading world...">
         <WorldRoute />
+      </SuspendedPublicShell>
+    );
+  }
+
+  if (pathname === '/observatory') {
+    return (
+      <SuspendedPublicShell className="h-screen w-screen bg-[#020804] text-gray-200" label="Loading observatory...">
+        <ObservatoryRoute />
       </SuspendedPublicShell>
     );
   }

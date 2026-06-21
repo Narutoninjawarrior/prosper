@@ -5,6 +5,7 @@ const LINKS = [
   { href: '/activity', label: 'Activity' },
   { href: '/workbench', label: 'Workbench' },
   { href: '/world', label: 'World' },
+  { href: '/observatory', label: 'Observatory' },
   { href: '/biosphere', label: 'Biosphere' },
   { href: '/registry', label: 'Registry' },
   { href: '/forge', label: 'Forge' },
