@@ -50,6 +50,10 @@ type PassportBundle = {
     public_key?: string;
     moltbook_handle?: string;
     ember_balance?: number;
+    trust_score?: number;
+    trust_tier?: string;
+    last_action_at?: string;
+    days_since_last_action?: number;
     created_at?: string;
     last_active?: string;
     has_firebase_owner: boolean;
@@ -408,6 +412,23 @@ export default function AgentProfile() {
                   {passport.agent.has_firebase_owner && (
                     <span className="rounded-full border border-[#34D399]/20 bg-[#34D399]/8 px-3 py-1 text-[#86efac]">
                       sovereign owner linked
+                    </span>
+                  )}
+                  {passport.agent.ember_balance !== undefined && (
+                    <span className="rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-blue-300">
+                      balance: {passport.agent.ember_balance.toFixed(2)} EMBER
+                    </span>
+                  )}
+                  {passport.agent.trust_tier && (
+                    <span className="rounded-full border border-white/10 bg-black/30 px-3 py-1 flex items-center gap-2">
+                      <span className="text-[#89a598]">Trust: {passport.agent.trust_tier}</span>
+                      <span className={`h-2 w-2 rounded-full ${
+                        passport.agent.trust_tier === 'active' ? 'bg-[#34D399] shadow-[0_0_8px_#34D399]' :
+                        passport.agent.trust_tier === 'trusted' ? 'bg-[#3b82f6]' :
+                        passport.agent.trust_tier === 'fading' ? 'bg-[#eab308]' :
+                        passport.agent.trust_tier === 'dormant' ? 'bg-[#f97316]' :
+                        'bg-[#9ca3af]'
+                      }`} />
                     </span>
                   )}
                 </div>

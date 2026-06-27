@@ -11,6 +11,7 @@ import { fetchActionContracts, type ActionContractRecord } from './lib/actionCon
 import { REGISTRY_SOURCES } from './lib/registryAdapter'
 // @ts-ignore
 import { useMultiplayerPresence } from './multiplayer/useMultiplayerPresence'
+import { ApprovalLog } from './ApprovalLog'
 import {
   Bot,
   Cable,
@@ -528,6 +529,8 @@ export default function AgentAccess() {
             ))}
           </div>
         </section>
+
+        <ApprovalLog />
       </div>
     </div>
   )

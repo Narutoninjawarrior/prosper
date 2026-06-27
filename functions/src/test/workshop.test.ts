@@ -132,7 +132,7 @@ test('MCP transport uses the same validator and declares structured output', asy
   const throughMcp = await executeMcpTool('hearthlands_validate_blueprint', {
     blueprint: input,
     mode: 'validation',
-  }) as ReturnType<typeof validateBlueprint>;
+  }, {} as any) as ReturnType<typeof validateBlueprint>;
   const properties = WORKSHOP_OUTPUT_SCHEMA.properties as Record<string, { const?: unknown }>;
   assert.equal(throughMcp.receipt_hash, direct.receipt_hash);
   assert.equal(properties.world_write.const, false);

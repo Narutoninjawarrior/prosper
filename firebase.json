@@ -6,6 +6,12 @@
       "**/.*",
       "**/node_modules/**"
     ],
+    "headers": [
+      {
+        "source": "/.well-known/ai-catalog.json",
+        "headers": [{ "key": "Content-Type", "value": "application/json" }]
+      }
+    ],
     "rewrites": [
       {
         "source": "/mission-control",
@@ -34,6 +40,22 @@
       {
         "source": "/api/inspect/record",
         "function": "inspectRecordApi"
+      },
+      {
+        "source": "/api/witness/generate-key",
+        "function": "witnessGenerateKey"
+      },
+      {
+        "source": "/api/witness/record",
+        "function": "witnessRecord"
+      },
+      {
+        "source": "/api/witness/verify/**",
+        "function": "witnessVerify"
+      },
+      {
+        "source": "/api/checkout",
+        "function": "createCheckoutSession"
       },
       {
         "source": "/api/agent/passport",
@@ -98,6 +120,34 @@
       {
         "source": "/api/chemistry/execute",
         "function": "chemistryApi"
+      },
+      {
+        "source": "/api/world/**",
+        "function": "worldObject"
+      },
+      {
+        "source": "/api/admin/approval-log",
+        "function": "adminApprovalLog"
+      },
+      {
+        "source": "/api/receipts",
+        "function": "receiptsQuery"
+      },
+      {
+        "source": "/api/seeds",
+        "function": "seedVaultApi"
+      },
+      {
+        "source": "/api/seeds/**",
+        "function": "seedVaultApi"
+      },
+      {
+        "source": "/api/budget/**",
+        "function": "budgetApi"
+      },
+      {
+        "source": "/api/agent/health",
+        "function": "agentHealthApi"
       },
       {
         "source": "**",

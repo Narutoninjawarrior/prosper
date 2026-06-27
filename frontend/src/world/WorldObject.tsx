@@ -83,7 +83,7 @@ interface SundialData {
   ember_generation_modifier: number;
 }
 
-type WorldObjectData = RainBarrelData | TidePoolData | CompostHeapData | SeismographData | StarLanternData | SundialData;
+type WorldObjectData = RainBarrelData | TidePoolData | CompostHeapData | SeismographData | StarLanternData | SundialData | any;
 
 
 // ── SUB-MESH: Rain Barrel ──────────────────────────────────────────
@@ -312,9 +312,49 @@ function SolarSundialMesh({ estimate = 'moderate' }: { estimate?: string }) {
 }
 
 
+// ── SUB-MESH: Inspiration Forge ──────────────────────────────────────────
+function InspirationForgeMesh({ state = 'waiting' }: { state?: 'waiting' | 'resonating' }) {
+  const fireRef = useRef<THREE.Group>(null);
+  
+  useFrame(({ clock }) => {
+    if (fireRef.current) {
+      const t = clock.elapsedTime;
+      fireRef.current.position.y = Math.sin(t * 2) * 0.05 + 0.1;
+      const scale = state === 'resonating' ? 1.2 + Math.sin(t * 8) * 0.1 : 1.0;
+      fireRef.current.scale.set(scale, scale, scale);
+    }
+  });
+
+  return (
+    <group>
+      <mesh position={[0, 0.05, 0]} receiveShadow castShadow>
+        <cylinderGeometry args={[0.8, 0.9, 0.2, 16]} />
+        <meshStandardMaterial color="#302b28" roughness={0.9} />
+      </mesh>
+      
+      <group ref={fireRef}>
+        <mesh position={[0, 0.3, 0]} castShadow>
+          <sphereGeometry args={[0.3, 16, 16]} />
+          <meshStandardMaterial 
+            color="#FF9B30" 
+            emissive="#FF9B30" 
+            emissiveIntensity={state === 'resonating' ? 2.5 : 1.2} 
+            transparent opacity={0.9} 
+          />
+        </mesh>
+        
+        {state === 'resonating' && (
+          <pointLight position={[0, 0.5, 0]} distance={4} intensity={2} color="#FFAA44" castShadow />
+        )}
+      </group>
+    </group>
+  );
+}
+
+
 // ── MAIN EXPORT COMPONENT ──────────────────────────────────────────
 interface WorldObjectProps {
-  objectId: 'rain-barrel' | 'tide-pool' | 'compost-heap' | 'seismograph' | 'star-lantern' | 'sundial';
+  objectId: 'rain-barrel' | 'tide-pool' | 'compost-heap' | 'seismograph' | 'star-lantern' | 'sundial' | 'seed-vault' | 'steward-log' | 'inspiration-forge';
   position: [number, number, number];
   autoOpen?: boolean;
   onClose?: () => void;
@@ -382,6 +422,7 @@ export default function WorldObject({ objectId, position, autoOpen = false, onCl
     if (objectId === 'compost-heap') return '#86EFAC';
     if (objectId === 'seismograph') return '#EF4444';
     if (objectId === 'star-lantern') return '#FBBF24';
+    if (objectId === 'inspiration-forge') return '#FF9B30';
     return '#F59E0B'; // sundial
   };
 
@@ -394,10 +435,64 @@ export default function WorldObject({ objectId, position, autoOpen = false, onCl
   const lanternData = data as StarLanternData;
   const sundialData = data as SundialData;
 
+  if (objectId === 'steward-log') {
+    return (
+      <group position={position} onClick={handleInteract}>
+        <mesh position={[0, 0.5, 0]}>
+          <octahedronGeometry args={[0.6]} />
+          <meshStandardMaterial color={isOpen ? "#b1b1b1" : "#5b6558"} wireframe />
+        </mesh>
+        {isOpen && (
+          <Html position={[0, 1.5, 0]} center className="pointer-events-none">
+            <div className="bg-hearth-paper/90 backdrop-blur-md px-4 py-2 rounded border border-hearth-clay/20 text-hearth-stone text-xs whitespace-nowrap drop-shadow-md">
+              <span className="opacity-70 uppercase tracking-wider block mb-1">Steward Log</span>
+              <span className="font-mono">{data ? ((data as any)?.last_run ? `Last run: ${(data as any).last_run.substring(0, 10)}` : 'Running...') : 'Connecting...'}</span>
+            </div>
+          </Html>
+        )}
+      </group>
+    );
+  }
+
+  if (objectId === 'inspiration-forge') {
+    const forgeData = data as any;
+    return (
+      <group position={position} onClick={handleInteract}>
+        <InspirationForgeMesh state={forgeData?.forge_state || 'waiting'} />
+        {isOpen && (
+          <Html position={[0, 2.0, 0]} center className="pointer-events-none z-50">
+            <div className="bg-black/90 backdrop-blur-md px-6 py-4 rounded-xl border border-[#FF9B30]/30 text-[#FAF6EF] w-80 drop-shadow-2xl shadow-[0_0_25px_rgba(255,155,48,0.2)]">
+              <div className="flex items-center gap-2 mb-2">
+                <div className={`h-2 w-2 rounded-full ${forgeData?.forge_state === 'resonating' ? 'bg-[#FF9B30] animate-pulse shadow-[0_0_8px_#FF9B30]' : 'bg-[#D4A853]'}`} />
+                <span className="text-[#FF9B30] uppercase tracking-widest text-[10px] font-bold">The Forge</span>
+              </div>
+              <div className="font-mono text-sm mb-3 text-white/90">
+                {forgeData ? (forgeData.forge_state === 'resonating' ? 'Resonating: Multi-Agent Session Active' : 'Waiting for Spark') : 'Igniting...'}
+              </div>
+              {forgeData && (
+                <div className="grid grid-cols-2 gap-4 mt-4 pt-3 border-t border-white/10 text-xs">
+                  <div>
+                    <div className="text-white/50 mb-1">Active Sessions</div>
+                    <div className="text-xl font-light text-white">{forgeData.active_sessions}</div>
+                  </div>
+                  <div>
+                    <div className="text-white/50 mb-1">Total Artifacts</div>
+                    <div className="text-xl font-light text-white">{forgeData.total_sessions}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </Html>
+        )}
+      </group>
+    );
+  }
+
   return (
     <group position={position}>
       {/* Interactable mesh mapping */}
       <group
+        name={objectId}
         onPointerOver={() => {
           setHovered(true);
           document.body.style.cursor = 'pointer';
@@ -805,6 +900,7 @@ export default function WorldObject({ objectId, position, autoOpen = false, onCl
                     </div>
                   </>
                 )}
+
 
               </div>
             )}

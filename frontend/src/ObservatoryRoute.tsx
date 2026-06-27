@@ -6,7 +6,7 @@ import HearthRenderer from './HearthRenderer';
 import WorldObject from './world/WorldObject';
 
 const ORACLES: Array<{
-  id: 'rain-barrel' | 'tide-pool' | 'compost-heap' | 'seismograph' | 'star-lantern' | 'sundial';
+  id: 'rain-barrel' | 'tide-pool' | 'compost-heap' | 'seismograph' | 'star-lantern' | 'sundial' | 'seed-vault' | 'steward-log' | 'inspiration-forge';
   label: string;
   subtitle: string;
   position: [number, number, number];
@@ -54,6 +54,27 @@ const ORACLES: Array<{
     position: [0, 2.8, -7.4],
     labelOffset: [0, 1.4, 0],
   },
+  {
+    id: 'seed-vault',
+    label: 'Seed Vault',
+    subtitle: 'Living skills registry',
+    position: [4.5, 0, -5.8],
+    labelOffset: [0, 1.8, 0],
+  },
+  {
+    id: 'steward-log',
+    label: 'Steward Log',
+    subtitle: 'Nightly automation pulse',
+    position: [0, 1.2, -3.5],
+    labelOffset: [0, 1.6, 0],
+  },
+  {
+    id: 'inspiration-forge',
+    label: 'The Forge',
+    subtitle: 'Inspiration context packet',
+    position: [0, 0, 0],
+    labelOffset: [0, 1.6, 0],
+  }
 ];
 
 function ObservatoryLabels() {
@@ -120,7 +141,7 @@ export default function ObservatoryRoute() {
               <div className="text-[10px] font-semibold uppercase tracking-[0.28em] text-[#D4A853]">
                 Hearth Observatory
               </div>
-              <h1 className="mt-2 text-2xl font-semibold text-white">The six data oracles, without the portal traffic</h1>
+              <h1 className="mt-2 text-2xl font-semibold text-white">The nine data oracles, without the portal traffic</h1>
               <p className="mt-2 text-sm leading-6 text-[#C9BBA5]">
                 This is the calmer instrument deck for live world telemetry. Click an oracle in the scene, or use the direct inspect list to open its panel without hunting.
               </p>

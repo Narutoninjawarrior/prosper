@@ -25,7 +25,8 @@ const CouncilBoard = lazy(() => import('./CouncilBoard'));
 const ObservatoryRoute = lazy(() => import('./ObservatoryRoute'));
 
 const HiveTester = lazy(() => import('./HiveTester'));
-
+const WitnessPage = lazy(() => import('./WitnessPage').then(m => ({ default: m.WitnessPage })));
+const PricingPage = lazy(() => import('./PricingPage').then(m => ({ default: m.PricingPage })));
 function LoadingSurface({ label = 'Loading vessel surface...' }: { label?: string }) {
   return (
     <div className="flex h-full min-h-[240px] items-center justify-center bg-[#020804] px-6 text-center text-sm uppercase tracking-[0.28em] text-[#8a7a64]">
@@ -225,6 +226,22 @@ function App() {
     return (
       <Suspense fallback={<LoadingSurface label="Loading Hive Tester..." />}>
         <HiveTester />
+      </Suspense>
+    );
+  }
+
+  if (pathname === '/witness') {
+    return (
+      <Suspense fallback={<LoadingSurface label="Loading Witness..." />}>
+        <WitnessPage />
+      </Suspense>
+    );
+  }
+
+  if (pathname === '/pricing') {
+    return (
+      <Suspense fallback={<LoadingSurface label="Loading Pricing..." />}>
+        <PricingPage />
       </Suspense>
     );
   }

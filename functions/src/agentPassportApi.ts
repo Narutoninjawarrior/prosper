@@ -395,18 +395,54 @@ async function fetchSwarmTaskSeed(): Promise<Array<Record<string, unknown>>> {
   }
 }
 
+
+// ponytail: compute at read time — no new writes
+async function computeTrustScore(agentId: string) {
+  const snap = await db.collection('forge_log')
+    .where('agent_id', '==', agentId)
+    .orderBy('timestamp', 'desc')
+    .limit(1)
+    .get();
+
+  if (snap.empty) {
+    return { trust_score: 0.1, trust_tier: 'probationary', last_action_at: null, days_since_last_action: null };
+  }
+
+  const lastAction = snap.docs[0].data();
+  const lastTimestamp = lastAction.timestamp?.toDate() ?? new Date(0);
+  const daysSinceLastAction = (Date.now() - lastTimestamp.getTime()) / (1000 * 60 * 60 * 24);
+
+  const lambda = 0.005; // half-life ~139 days — matches SkillFortify research
+  const rawScore = Math.exp(-lambda * daysSinceLastAction);
+  const trust_score = Math.max(0.1, Math.min(1.0, rawScore));
+
+  let trust_tier = 'probationary';
+  if (trust_score >= 0.85) trust_tier = 'active';
+  else if (trust_score >= 0.65) trust_tier = 'trusted';
+  else if (trust_score >= 0.40) trust_tier = 'fading';
+  else if (trust_score >= 0.15) trust_tier = 'dormant';
+
+  return { 
+    trust_score: Number(trust_score.toFixed(4)), 
+    trust_tier, 
+    last_action_at: lastTimestamp.toISOString(), 
+    days_since_last_action: Number(daysSinceLastAction.toFixed(2)) 
+  };
+}
+
 async function buildAgentPassport(agentId: string) {
   const profileSnap = await db.collection('agent_profiles').doc(agentId).get();
   if (!profileSnap.exists) return null;
 
   const profile = profileSnap.data() as Record<string, unknown>;
-  const [memoryDocs, experimentSnap, embodimentSnap, claimSnap, externalSnap, swarmTasks] = await Promise.all([
+  const [memoryDocs, experimentSnap, embodimentSnap, claimSnap, externalSnap, swarmTasks, trustInfo] = await Promise.all([
     fetchAgentMemoryDocs(agentId, 16),
     db.collection('experiment_log').where('agent_id', '==', agentId).orderBy('logged_at', 'desc').limit(8).get().catch(() => null),
     db.collection('embodiment_ledger').where('agent_id', '==', agentId).orderBy('timestamp', 'desc').limit(8).get().catch(() => null),
     db.collection('bounty_claims').where('agent_id', '==', agentId).orderBy('timestamp', 'desc').limit(6).get().catch(() => null),
     db.collection('agent_external_identities').where('linked_agent_id', '==', agentId).limit(4).get().catch(() => null),
     fetchSwarmTaskSeed(),
+    computeTrustScore(agentId),
   ]);
 
   const memoryEvents: PassportMemoryEvent[] = memoryDocs.map((doc) => {
@@ -569,6 +605,10 @@ async function buildAgentPassport(agentId: string) {
       created_at: readTimestampish(profile.created_at),
       last_active: readTimestampish(profile.last_active),
       has_firebase_owner: typeof profile.firebase_uid === 'string' && profile.firebase_uid.length > 0,
+      trust_score: (trustInfo as any).trust_score,
+      trust_tier: (trustInfo as any).trust_tier,
+      last_action_at: (trustInfo as any).last_action_at,
+      days_since_last_action: (trustInfo as any).days_since_last_action,
     },
     identity: externalIdentity,
     continuity: {

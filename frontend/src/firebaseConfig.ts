@@ -95,7 +95,12 @@ export function getFirebaseApp(): FirebaseApp | null {
   if (!config) return null;
 
   try {
-    return getApps().length === 0 ? initializeApp(config) : getApp();
+    if (getApps().length === 0) {
+      const app = initializeApp(config);
+      import('./lib/appCheck').then(({ initAppCheck }) => initAppCheck(app));
+      return app;
+    }
+    return getApp();
   } catch (error) {
     console.error('Firebase App initialization failed:', error);
     return null;

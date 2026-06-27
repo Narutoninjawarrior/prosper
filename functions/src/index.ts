@@ -4,6 +4,7 @@ import * as nacl from 'tweetnacl';
 import * as bs58 from 'bs58';
 import { requireAuth, requireAdmin } from './lib/auth';
 import { applyBodyLimit, applyRateLimit } from './lib/edgeGuard';
+import { verifyMoltbookToken } from './lib/moltbookVerify';
 const crypto = require('crypto');
 
 admin.initializeApp();
@@ -213,7 +214,7 @@ export const registerAgent = functions.https.onRequest(async (req, res) => {
   if (!auth) return;
 
   try {
-    const { public_key, agent_name, initial_metadata } = req.body;
+    const { public_key, agent_name, initial_metadata, moltbook_token } = req.body;
     if (!public_key) { res.status(400).json({ error: 'public_key is required' }); return; }
     
     try { bs58.decode(public_key); } catch { res.status(400).json({ error: 'Invalid Ed25519 public key format' }); return; }
@@ -224,10 +225,19 @@ export const registerAgent = functions.https.onRequest(async (req, res) => {
 
     if (existing.exists) { res.status(409).json({ error: 'Agent already registered', agent_id: agentId }); return; }
 
+    let moltbookId = null;
+    if (moltbook_token) {
+      const mbProfile = await verifyMoltbookToken(moltbook_token);
+      if (mbProfile?.verified) {
+        moltbookId = mbProfile.moltbook_id;
+      }
+    }
+
     await agentRef.set({
       public_key,
       firebase_uid: auth.uid,
       agent_name: agent_name || `Agent-${public_key.slice(0, 8)}`,
+      moltbook_id: moltbookId,
       reputation: 50,
       total_claims: 0,
       total_earned: 0,
@@ -249,6 +259,7 @@ export const skryingOracle = functions.https.onRequest(async (req, res) => {
 
   if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
+  if (!applyRateLimit(req, res, { bucket: 'skrying-oracle', windowMs: 60 * 60 * 1000, max: 20 })) return;
 
   try {
     const auth = await requireAuth(req, res);
@@ -288,6 +299,7 @@ export const createCheckoutSession = functions.https.onRequest(async (req, res) 
     return;
   }
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
+  if (!applyRateLimit(req, res, { bucket: 'checkout-session', windowMs: 60 * 60 * 1000, max: 5 })) return;
 
   const auth = await requireAuth(req, res);
   if (!auth) return;
@@ -339,19 +351,37 @@ export const stripeWebhook = functions.https.onRequest(async (req, res) => {
 
     if (!firebaseUid || referenceUid !== firebaseUid) {
       console.error('checkout.session.completed missing or mismatched firebase_uid metadata', session.id);
-    } else if (token && amount > 0) {
+    } else if (token && (token.startsWith('witness_') || amount > 0)) {
       try {
-        const orderRef = db.collection('orders').doc(session.id);
-        await orderRef.set({
-          firebase_uid: firebaseUid,
-          agent_id: firebaseUid,
-          token,
-          amount,
-          status: 'paid',
-          fulfillment_status: 'not_started',
-          stripe_session_id: session.id,
-          created_at: admin.firestore.FieldValue.serverTimestamp(),
-        });
+        if (token.startsWith('witness_')) {
+          const crypto = require('crypto');
+          const rawKey = 'hth_wit_' + crypto.randomBytes(24).toString('hex');
+          const keyHash = crypto.createHash('sha256').update(rawKey).digest('hex');
+          const tierName = token === 'witness_professional' ? 'professional' : 'standard';
+          const monthlyLimit = tierName === 'professional' ? 100000 : 10000;
+          await db.collection('witness_api_keys').add({
+            key: keyHash,
+            org_name: session.customer_details?.name || 'Witness Customer',
+            email: session.customer_details?.email || '',
+            tier: tierName,
+            monthly_limit: monthlyLimit,
+            current_month_count: 0,
+            stripe_subscription_id: session.id,
+            created_at: admin.firestore.FieldValue.serverTimestamp()
+          });
+        } else {
+          const orderRef = db.collection('orders').doc(session.id);
+          await orderRef.set({
+            firebase_uid: firebaseUid,
+            agent_id: firebaseUid,
+            token,
+            amount,
+            status: 'paid',
+            fulfillment_status: 'not_started',
+            stripe_session_id: session.id,
+            created_at: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        }
       } catch (e) {
         console.error(e);
       }
@@ -381,6 +411,15 @@ export const grant_forge_credential = functions.https.onRequest(async (req, res)
     return;
   }
 
+  await db.collection('admin_approval_log').add({
+    action: 'grant_forge_credential',
+    requested_by: target_agent_id,
+    requested_at: admin.firestore.FieldValue.serverTimestamp(),
+    approved_by: auth.uid,
+    parameters: { target_agent_id },
+    status: 'approved'
+  });
+
   const profileRef = db.collection('agent_profiles').doc(target_agent_id);
   await profileRef.set({ forge_credential: true }, { merge: true });
 
@@ -403,14 +442,34 @@ export const grant_forge_credential = functions.https.onRequest(async (req, res)
   res.status(200).json({ status: 'granted', target_agent_id });
 });
 
-export const forge_execute = functions.https.onRequest(async (req, res) => {
-  if (handleCorsForge(req, res)) return;
-  retiredLegacy(
-    res,
-    'forge_execute',
-    ['/api/workshop/validate', '/forge'],
-    'Legacy direct world-write execution is retired on the public edge. Use deterministic blueprint validation only.',
-  );
+export const adminApprovalLog = functions.https.onRequest(async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'GET');
+  res.set('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+
+  if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
+  if (req.method !== 'GET') { res.status(405).json({ error: 'Method not allowed' }); return; }
+
+  // Rate limit: 10/hr on the API endpoint
+  if (!applyRateLimit(req, res, { bucket: 'admin-approval-log', windowMs: 60 * 60 * 1000, max: 10 })) return;
+
+  const auth = await requireAdmin(req, res);
+  if (!auth) return;
+
+  try {
+    const snap = await db.collection('admin_approval_log')
+      .orderBy('requested_at', 'desc')
+      .limit(20)
+      .get();
+    
+    const entries = snap.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    res.status(200).json(entries);
+  } catch (error: any) {
+    res.status(500).json({ error: 'Internal server error', details: error.message });
+  }
 });
 
 export const claim_tile = functions.https.onRequest(async (req, res) => {
@@ -561,3 +620,79 @@ export const welcomeHearthlandsAgent = functions.https.onRequest(async (req, res
         res.status(500).json({ error: 'Internal server error', details: error.message });
     }
 });
+
+export { worldObject } from './worldApi';
+export { receiptsQuery } from './receiptsApi';
+
+export { seedVaultApi } from './seedVaultApi';
+export { budgetApi } from './budgetApi';
+export { agentHealthApi } from './agentHealthApi';
+export { lodgeSteward } from './lodgeSteward';
+export { inspireAgent } from './inspirationApi';
+export { resonanceApi } from './resonanceApi';
+
+export const forge_execute = functions.https.onRequest(async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
+  if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
+  if (!applyBodyLimit(req, res, 16 * 1024)) return;
+
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      res.status(401).json({ error: 'unauthorized', message: 'Missing token' });
+      return;
+    }
+    const token = authHeader.split('Bearer ')[1];
+    const decoded = await admin.auth().verifyIdToken(token);
+    const callerId = decoded.uid;
+    
+    const { proposal_id } = req.body;
+    if (!proposal_id) {
+      res.status(400).json({ error: 'invalid_request', message: 'proposal_id is required' });
+      return;
+    }
+    
+    const resData = await db.runTransaction(async (t) => {
+      const propRef = db.collection('proposals').doc(proposal_id);
+      const propSnap = await t.get(propRef);
+      if (!propSnap.exists) throw new Error('Proposal not found');
+      
+      const p = propSnap.data()!;
+      if (p.status !== 'passed') throw new Error('Proposal has not passed conviction voting');
+      if (p.executed_at) throw new Error('Proposal already executed');
+      if (p.proposer_agent_id !== callerId) throw new Error('Only the proposer can execute this passed action');
+      
+      const action = p.action;
+      const logRef = db.collection('forge_log').doc();
+      const receipt_id = logRef.id;
+      
+      t.set(logRef, {
+        agent_id: callerId,
+        action_type: action.type,
+        action_params: action.parameters || {},
+        amount: action.ember_cost || 0,
+        proposal_id,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      
+      t.update(propRef, {
+        executed_at: admin.firestore.FieldValue.serverTimestamp(),
+        passage_receipt_id: receipt_id
+      });
+      
+      return { success: true, receipt_id, action: action.type };
+    });
+    
+    res.status(200).json(resData);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+export { policyEngineApi } from './policyEngine';
+export { witnessRecord, witnessVerify, witnessGenerateKey } from './witnessApi';
+export { marketplaceWebhook, marketplaceComplete } from './marketplaceApi';
