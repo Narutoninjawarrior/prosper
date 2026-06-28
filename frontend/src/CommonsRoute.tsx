@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Sparkles, Activity, Shield, Network, ChevronRight, Eye, Edit3, Lock, Beaker, Database } from 'lucide-react';
+import { Sparkles, Activity, Shield, Network, ChevronRight, Eye, Edit3, Lock, Beaker, Database, Filter, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export type Visibility = 'public_witnessed' | 'local_draft' | 'authenticated_shared' | 'experimental' | 'seed_demo';
+export type AudienceScope = 'commons_public' | 'builders_room' | 'world_room' | 'forge_room' | 'lodge_mind_room' | 'local_draft';
 
 export type CommonsPrompt = {
   id: string
@@ -14,6 +15,7 @@ export type CommonsPrompt = {
   status: 'draft' | 'proposed' | 'claimed' | 'in_progress' | 'receipted' | 'closed'
   boundary: 'public' | 'authenticated' | 'local_only' | 'experimental'
   visibility: Visibility
+  scope: AudienceScope
   cost_label?: string
   source_route?: string
   receipt_hash?: string
@@ -22,6 +24,7 @@ export type CommonsPrompt = {
   created_at: string
   updated_at: string
   is_local_session?: boolean
+  is_watched?: boolean
   object_ref?: {
     id: string
     title: string
@@ -47,18 +50,43 @@ const VISIBILITY_LABELS: Record<Visibility, string> = {
   seed_demo: 'Seed Demo'
 };
 
+const SCOPE_LABELS: Record<AudienceScope, string> = {
+  commons_public: 'Commons',
+  builders_room: 'Builders Room',
+  world_room: 'World Room',
+  forge_room: 'Forge Room',
+  lodge_mind_room: 'Lodge Mind',
+  local_draft: 'Local Draft'
+};
+
 export default function CommonsRoute() {
   const [prompts, setPrompts] = useState<CommonsPrompt[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPrompt, setSelectedPrompt] = useState<CommonsPrompt | null>(null);
+  
+  // Filters
+  const [activeFilter, setActiveFilter] = useState<string>('all');
 
   const loadPrompts = () => {
     fetch('/commons_board.json')
       .then(res => res.json())
       .then(data => {
-        const seeded = (data.prompts || []).map((p: any) => ({ ...p, visibility: p.visibility || 'seed_demo' }));
+        const seeded = (data.prompts || []).map((p: any) => ({ 
+          ...p, 
+          visibility: p.visibility || 'seed_demo',
+          scope: p.scope || 'commons_public'
+        }));
         const session = JSON.parse(sessionStorage.getItem('hearth_commons_session_prompts') || '[]');
-        setPrompts([...session, ...seeded]);
+        
+        // Merge watch state from separate local store to keep seeds immutable but watchable locally
+        const watched = JSON.parse(sessionStorage.getItem('hearth_watched_prompts') || '{}');
+        
+        const merged = [...session, ...seeded].map(p => ({
+          ...p,
+          is_watched: !!watched[p.id]
+        }));
+        
+        setPrompts(merged);
         setLoading(false);
       })
       .catch(err => {
@@ -71,14 +99,15 @@ export default function CommonsRoute() {
     loadPrompts();
   }, []);
 
-  const handleUpdateStatus = (id: string, newStatus: string, newVisibility?: Visibility) => {
+  const handleUpdateStatus = (id: string, newStatus: string, newVisibility?: Visibility, newScope?: AudienceScope) => {
     const session = JSON.parse(sessionStorage.getItem('hearth_commons_session_prompts') || '[]');
     const updated = session.map((p: CommonsPrompt) => {
       if (p.id === id) {
         return { 
           ...p, 
           status: newStatus as any, 
-          ...(newVisibility ? { visibility: newVisibility } : {}) 
+          ...(newVisibility ? { visibility: newVisibility } : {}),
+          ...(newScope ? { scope: newScope } : {})
         };
       }
       return p;
@@ -89,7 +118,26 @@ export default function CommonsRoute() {
       setSelectedPrompt({ 
         ...selectedPrompt, 
         status: newStatus as any,
-        ...(newVisibility ? { visibility: newVisibility } : {}) 
+        ...(newVisibility ? { visibility: newVisibility } : {}),
+        ...(newScope ? { scope: newScope } : {})
+      });
+    }
+  };
+
+  const handleToggleWatch = (id: string) => {
+    const watched = JSON.parse(sessionStorage.getItem('hearth_watched_prompts') || '{}');
+    if (watched[id]) {
+      delete watched[id];
+    } else {
+      watched[id] = true;
+    }
+    sessionStorage.setItem('hearth_watched_prompts', JSON.stringify(watched));
+    loadPrompts();
+    
+    if (selectedPrompt && selectedPrompt.id === id) {
+      setSelectedPrompt({
+        ...selectedPrompt,
+        is_watched: !!watched[id]
       });
     }
   };
@@ -106,6 +154,7 @@ export default function CommonsRoute() {
       status: 'draft',
       boundary: 'local_only',
       visibility: 'local_draft',
+      scope: 'local_draft',
       source_route: '/commons',
       parent_id: parent.id,
       created_at: new Date().toISOString(),
@@ -116,9 +165,24 @@ export default function CommonsRoute() {
     loadPrompts();
   };
 
-  const publicWitnessed = prompts.filter(p => p.visibility === 'public_witnessed');
-  const localDrafts = prompts.filter(p => p.visibility === 'local_draft');
-  const seedDemos = prompts.filter(p => p.visibility === 'seed_demo');
+  // Filter Logic
+  const filteredPrompts = prompts.filter(p => {
+    if (activeFilter === 'all') return true;
+    if (activeFilter === 'public_witness') return p.visibility === 'public_witnessed';
+    if (activeFilter === 'builders') return p.scope === 'builders_room';
+    if (activeFilter === 'world') return p.scope === 'world_room';
+    if (activeFilter === 'forge') return p.scope === 'forge_room';
+    if (activeFilter === 'lodge_mind') return p.scope === 'lodge_mind_room';
+    if (activeFilter === 'human_agent') return p.author_type === 'human' && p.target_type === 'agent';
+    if (activeFilter === 'agent_tool') return p.author_type === 'agent' && p.target_type === 'tool';
+    if (activeFilter === 'agent_agent') return p.author_type === 'agent' && p.target_type === 'agent';
+    if (activeFilter === 'watched') return p.is_watched;
+    return true;
+  });
+
+  const publicWitnessed = filteredPrompts.filter(p => p.visibility === 'public_witnessed');
+  const localDrafts = filteredPrompts.filter(p => p.visibility === 'local_draft');
+  const seedDemos = filteredPrompts.filter(p => p.visibility === 'seed_demo');
 
   if (loading) {
     return (
@@ -143,9 +207,28 @@ export default function CommonsRoute() {
               Human & Agent Coordination Chamber
             </p>
           </div>
-          <div className="text-xs bg-[#1A1410] text-[#D4A853] px-3 py-1 rounded border border-[#3D2C1E]">
-            V3: Public Witness
+          <div className="text-xs bg-[#1A1410] text-[#D4A853] px-3 py-1 rounded border border-[#3D2C1E] flex flex-col items-end">
+            <span>V4: Audience Scope</span>
           </div>
+        </div>
+      </div>
+
+      {/* Filter Rail */}
+      <div className="flex-none border-b border-[#1A1410] bg-[#0A0604]/80 overflow-x-auto">
+        <div className="max-w-7xl mx-auto px-4 py-2 flex items-center gap-2 text-[10px] uppercase font-bold tracking-widest">
+          <Filter className="w-3 h-3 text-gray-500 mr-2" />
+          <FilterButton active={activeFilter === 'all'} onClick={() => setActiveFilter('all')}>All</FilterButton>
+          <div className="w-px h-4 bg-[#2A1F16] mx-1" />
+          <FilterButton active={activeFilter === 'watched'} onClick={() => setActiveFilter('watched')}><Eye className="w-3 h-3 inline mr-1"/> Watched</FilterButton>
+          <div className="w-px h-4 bg-[#2A1F16] mx-1" />
+          <FilterButton active={activeFilter === 'builders'} onClick={() => setActiveFilter('builders')}>Builders</FilterButton>
+          <FilterButton active={activeFilter === 'world'} onClick={() => setActiveFilter('world')}>World</FilterButton>
+          <FilterButton active={activeFilter === 'forge'} onClick={() => setActiveFilter('forge')}>Forge</FilterButton>
+          <FilterButton active={activeFilter === 'lodge_mind'} onClick={() => setActiveFilter('lodge_mind')}>Lodge Mind</FilterButton>
+          <div className="w-px h-4 bg-[#2A1F16] mx-1" />
+          <FilterButton active={activeFilter === 'human_agent'} onClick={() => setActiveFilter('human_agent')}>H→A</FilterButton>
+          <FilterButton active={activeFilter === 'agent_tool'} onClick={() => setActiveFilter('agent_tool')}>A→T</FilterButton>
+          <FilterButton active={activeFilter === 'agent_agent'} onClick={() => setActiveFilter('agent_agent')}>A→A</FilterButton>
         </div>
       </div>
 
@@ -188,10 +271,22 @@ export default function CommonsRoute() {
             allPrompts={prompts} 
             onUpdateStatus={handleUpdateStatus}
             onSpawnFollowup={handleSpawnFollowup}
+            onToggleWatch={handleToggleWatch}
           />
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+function FilterButton({ active, onClick, children }: { active: boolean, onClick: () => void, children: React.ReactNode }) {
+  return (
+    <button 
+      onClick={onClick}
+      className={`px-3 py-1.5 rounded transition-colors ${active ? 'bg-[#2A1F16] text-[#E8842A] border border-[#3D2C1E]' : 'text-gray-500 hover:text-gray-300 hover:bg-[#1A1410] border border-transparent'}`}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -238,7 +333,7 @@ function PromptCard({ prompt, onClick }: { prompt: CommonsPrompt, onClick: () =>
   return (
     <div 
       onClick={onClick}
-      className="bg-[#0A0604] border border-[#2A1F16] rounded p-3 hover:border-[#D4A853] cursor-pointer transition-colors group relative overflow-hidden"
+      className={`bg-[#0A0604] border ${prompt.is_watched ? 'border-[#4A90D9]' : 'border-[#2A1F16]'} rounded p-3 hover:border-[#D4A853] cursor-pointer transition-colors group relative overflow-hidden`}
     >
       <div className="flex justify-between items-start mb-2">
         <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider font-bold">
@@ -250,6 +345,8 @@ function PromptCard({ prompt, onClick }: { prompt: CommonsPrompt, onClick: () =>
           <span className={isAgent ? "text-[#D4A853]" : "text-gray-400"}>
             {prompt.author_id}
           </span>
+          <span className="text-gray-600 mx-0.5">→</span>
+          <span className="text-gray-400">{prompt.target_id || 'OPEN'}</span>
         </div>
         <div className="flex flex-col items-end gap-1">
           <div className="text-[9px] uppercase bg-[#1A1410] text-gray-400 px-1.5 py-0.5 rounded flex items-center gap-1">
@@ -264,13 +361,16 @@ function PromptCard({ prompt, onClick }: { prompt: CommonsPrompt, onClick: () =>
       </p>
 
       <div className="flex items-center justify-between text-[9px] text-gray-500 uppercase tracking-widest font-bold">
-        {prompt.parent_id ? (
-          <div className="flex items-center gap-1 text-[#4A90D9]">
-            <ChevronRight className="w-3 h-3" /> Thread
-          </div>
-        ) : (
-          <div>{prompt.source_route || 'System'}</div>
-        )}
+        <div className="flex items-center gap-2">
+          {prompt.parent_id && (
+            <div className="flex items-center gap-1 text-[#4A90D9]">
+              <ChevronRight className="w-3 h-3" /> Thread
+            </div>
+          )}
+          <span className="px-1.5 py-0.5 bg-[#1A1410] rounded text-[#8A7A64] border border-[#2A1F16]">
+            {SCOPE_LABELS[prompt.scope] || 'Commons'}
+          </span>
+        </div>
         
         {prompt.receipt_hash && (
           <div className="flex items-center gap-1 text-[#E8842A]">
@@ -282,7 +382,7 @@ function PromptCard({ prompt, onClick }: { prompt: CommonsPrompt, onClick: () =>
   );
 }
 
-function Sidecar({ prompt, onClose, allPrompts, onUpdateStatus, onSpawnFollowup }: { prompt: CommonsPrompt, onClose: () => void, allPrompts: CommonsPrompt[], onUpdateStatus: (id: string, st: string, vis?: Visibility) => void, onSpawnFollowup: (p: CommonsPrompt, t: string, tType: string, tId: string) => void }) {
+function Sidecar({ prompt, onClose, allPrompts, onUpdateStatus, onSpawnFollowup, onToggleWatch }: { prompt: CommonsPrompt, onClose: () => void, allPrompts: CommonsPrompt[], onUpdateStatus: (id: string, st: string, vis?: Visibility, scope?: AudienceScope) => void, onSpawnFollowup: (p: CommonsPrompt, t: string, tType: string, tId: string) => void, onToggleWatch: (id: string) => void }) {
   const children = allPrompts.filter(p => p.parent_id === prompt.id);
   const parent = prompt.parent_id ? allPrompts.find(p => p.id === prompt.parent_id) : null;
   const [followupText, setFollowupText] = useState("");
@@ -295,6 +395,7 @@ function Sidecar({ prompt, onClose, allPrompts, onUpdateStatus, onSpawnFollowup 
   };
 
   const VisIcon = VISIBILITY_ICONS[prompt.visibility] || Eye;
+  const WatchIcon = prompt.is_watched ? EyeOff : Eye;
 
   return (
     <motion.div
@@ -309,7 +410,17 @@ function Sidecar({ prompt, onClose, allPrompts, onUpdateStatus, onSpawnFollowup 
           <VisIcon className="w-4 h-4 text-gray-400" />
           {VISIBILITY_LABELS[prompt.visibility]}
         </h2>
-        <button onClick={onClose} className="text-gray-500 hover:text-white">✕</button>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => onToggleWatch(prompt.id)}
+            className={`flex items-center gap-1 text-[10px] uppercase font-bold tracking-widest px-2 py-1 rounded transition-colors ${prompt.is_watched ? 'bg-[#4A90D9]/20 text-[#4A90D9] border border-[#4A90D9]/50' : 'text-gray-500 hover:text-white border border-transparent hover:bg-[#1A1410]'}`}
+            title="Local Watch State"
+          >
+            <WatchIcon className="w-3 h-3" />
+            {prompt.is_watched ? 'Unwatch' : 'Watch'}
+          </button>
+          <button onClick={onClose} className="text-gray-500 hover:text-white">✕</button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
@@ -328,7 +439,12 @@ function Sidecar({ prompt, onClose, allPrompts, onUpdateStatus, onSpawnFollowup 
 
         {/* Text */}
         <div>
-          <div className="text-[10px] text-gray-500 uppercase font-bold tracking-widest mb-2">Prompt Intent</div>
+          <div className="text-[10px] text-gray-500 uppercase font-bold tracking-widest mb-2 flex justify-between">
+            <span>Prompt Intent</span>
+            <span className="text-[#8A7A64] bg-[#1A1410] px-2 py-0.5 rounded border border-[#2A1F16]">
+              {SCOPE_LABELS[prompt.scope] || 'Commons'}
+            </span>
+          </div>
           <div className="text-sm text-gray-200 leading-relaxed bg-[#1A1410] p-4 rounded border border-[#2A1F16]">
             {prompt.prompt_text}
           </div>
@@ -400,6 +516,25 @@ function Sidecar({ prompt, onClose, allPrompts, onUpdateStatus, onSpawnFollowup 
           <div className="bg-[#1A1410] border border-[#4A90D9]/30 rounded p-4 text-center">
             <div className="text-[10px] text-[#4A90D9] uppercase font-bold tracking-widest mb-2">Publish to Commons</div>
             <div className="text-[10px] text-gray-400 mb-4 px-2">Move this draft to the Public Witness board. (Public Preview - This Session Only)</div>
+            
+            <div className="mb-3">
+              <label className="text-[9px] text-gray-500 uppercase tracking-widest block mb-1">Select Audience Scope</label>
+              <select 
+                className="w-full bg-[#0A0604] border border-[#2A1F16] text-gray-300 text-xs p-1.5 rounded"
+                onChange={(e) => {
+                  const scope = e.target.value as AudienceScope;
+                  onUpdateStatus(prompt.id, prompt.status, prompt.visibility, scope);
+                }}
+                value={prompt.scope}
+              >
+                <option value="commons_public">Commons Public</option>
+                <option value="builders_room">Builders Room</option>
+                <option value="world_room">World Room</option>
+                <option value="forge_room">Forge Room</option>
+                <option value="lodge_mind_room">Lodge Mind Room</option>
+              </select>
+            </div>
+
             <button 
               onClick={() => onUpdateStatus(prompt.id, 'proposed', 'public_witnessed')}
               className="w-full bg-[#4A90D9] text-[#0A0604] text-[11px] py-2 rounded transition-colors font-bold tracking-wider uppercase hover:bg-white"

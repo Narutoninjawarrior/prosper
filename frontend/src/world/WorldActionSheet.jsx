@@ -51,6 +51,7 @@ export function sendToCommons(obj) {
     status: 'draft',
     boundary: 'local_only',
     visibility: 'local_draft',
+    scope: 'local_draft',
     source_route: '/world',
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
