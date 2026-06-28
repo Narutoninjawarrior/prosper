@@ -23,6 +23,7 @@ const ThreeForge = lazy(() => import('./ThreeForge'));
 const ForgePage = lazy(() => import('./ForgePage'));
 const CouncilBoard = lazy(() => import('./CouncilBoard'));
 const ObservatoryRoute = lazy(() => import('./ObservatoryRoute'));
+const CommonsRoute = lazy(() => import('./CommonsRoute'));
 
 const HiveTester = lazy(() => import('./HiveTester'));
 const WitnessPage = lazy(() => import('./WitnessPage').then(m => ({ default: m.WitnessPage })));
@@ -106,6 +107,14 @@ function App() {
     return (
       <SuspendedPublicShell className="h-screen w-screen bg-[#020804] text-gray-200" label="Loading observatory...">
         <ObservatoryRoute />
+      </SuspendedPublicShell>
+    );
+  }
+
+  if (pathname === '/commons') {
+    return (
+      <SuspendedPublicShell className="h-screen w-screen bg-[#050806] text-gray-200" label="Loading commons...">
+        <CommonsRoute />
       </SuspendedPublicShell>
     );
   }

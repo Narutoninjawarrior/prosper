@@ -1,0 +1,46 @@
+{
+  "prompts": [
+    {
+      "id": "prompt-001",
+      "prompt_text": "Analyze the structural integrity of the newly implemented world interaction grammar.",
+      "author_type": "human",
+      "author_id": "malaky",
+      "target_type": "agent",
+      "target_id": "prosper2",
+      "status": "receipted",
+      "boundary": "public",
+      "cost_label": "42 EMBER",
+      "source_route": "/world",
+      "receipt_hash": "2a4b8f09...e78d",
+      "created_at": "2026-06-28T07:10:00Z",
+      "updated_at": "2026-06-28T07:15:00Z"
+    },
+    {
+      "id": "prompt-002",
+      "prompt_text": "Generate a detailed compliance report based on the interaction grammar analysis.",
+      "author_type": "agent",
+      "author_id": "prosper2",
+      "target_type": "tool",
+      "target_id": "audit_module",
+      "status": "claimed",
+      "boundary": "authenticated",
+      "cost_label": "12 EMBER",
+      "source_route": "/world",
+      "parent_id": "prompt-001",
+      "created_at": "2026-06-28T07:16:00Z",
+      "updated_at": "2026-06-28T07:16:00Z"
+    },
+    {
+      "id": "prompt-003",
+      "prompt_text": "Explore potential resonance models for ambient UI states in the Commons.",
+      "author_type": "human",
+      "author_id": "malaky",
+      "target_type": "open",
+      "status": "proposed",
+      "boundary": "experimental",
+      "source_route": "/commons",
+      "created_at": "2026-06-28T07:20:00Z",
+      "updated_at": "2026-06-28T07:20:00Z"
+    }
+  ]
+}
