@@ -3,7 +3,7 @@ import { Sparkles, Activity, Shield, Network, ChevronRight, Eye, Edit3, Lock, Be
 import { motion, AnimatePresence } from 'framer-motion';
 
 export type Visibility = 'public_witnessed' | 'local_draft' | 'authenticated_shared' | 'experimental' | 'seed_demo' | 'local_artifact';
-export type AudienceScope = 'commons_public' | 'builders_room' | 'world_room' | 'forge_room' | 'lodge_mind_room' | 'local_draft' | 'local_artifact';
+export type AudienceScope = 'commons_public' | 'builders_room' | 'world_room' | 'forge_room' | 'lodge_mind_room' | 'local_draft';
 
 export type CommonsPrompt = {
   id: string
@@ -58,8 +58,7 @@ const SCOPE_LABELS: Record<AudienceScope, string> = {
   world_room: 'World Room',
   forge_room: 'Forge Room',
   lodge_mind_room: 'Lodge Mind',
-  local_draft: 'Local Draft',
-  local_artifact: 'Local Artifact'
+  local_draft: 'Local Draft'
 };
 
 export default function CommonsRoute() {

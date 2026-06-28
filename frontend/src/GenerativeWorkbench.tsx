@@ -122,7 +122,7 @@ export default function GenerativeWorkbench() {
       status: 'draft',
       boundary: 'local_only',
       visibility: 'local_artifact',
-      scope: 'local_artifact',
+      scope: 'local_draft',
       cost_label: 'EXPORT ONLY',
       source_route: '/workbench',
       created_at: new Date().toISOString(),
