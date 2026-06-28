@@ -42,6 +42,7 @@ import GemmaPresence  from './community/GemmaPresence'
 import { useMultiplayerPresence } from './multiplayer/useMultiplayerPresence'
 import MultiplayerPresence from './multiplayer/MultiplayerPresence'
 import PresenceHud from './multiplayer/PresenceHud'
+import WorldActionSheet, { useWorldActionSheet, openWorldActionSheet } from './world/WorldActionSheet'
 
 // ── Zone definitions ──────────────────────────────────────────────
 const ZONES = {
@@ -78,7 +79,20 @@ function ZonePortal({ position, color, label, onEnter }) {
           setHovered(false)
           document.body.style.cursor = 'auto'
         }}
-        onClick={onEnter}
+        onPointerUp={(e) => {
+          e.stopPropagation()
+          openWorldActionSheet({
+            id: `portal-${label}`,
+            title: `${label} Portal`,
+            purpose: 'Zone transition matrix',
+            source: 'WorldScene',
+            freshness: 'Live',
+            actions: [
+              { label: 'Enter route', onClick: onEnter, tone: 'primary' },
+              { label: 'Preview destination', onClick: () => console.log('Preview', label), tone: 'warm' }
+            ]
+          })
+        }}
       >
         <torusGeometry args={[0.8, 0.06, 8, 32]} />
         <meshStandardMaterial
@@ -203,6 +217,7 @@ function WorldContent({
   const [playerPos, setPlayerPos]   = useState(new THREE.Vector3(0, 0, 2))
   const [targetPos, setTargetPos]   = useState(null)
   const [moving, setMoving]         = useState(false)
+  const { inspectedObject, recentObjects, setInspectedObject } = useWorldActionSheet()
   const [builderOpen, setBuilder]   = useState(false)
   const [stewardSignal, setStewardSignal] = useState(0)
   const [compactUi, setCompactUi] = useState(false)
@@ -583,6 +598,7 @@ function WorldContent({
           document.body
         )}
       </Html>
+      <WorldActionSheet inspectedObject={inspectedObject} recentObjects={recentObjects} onClose={() => setInspectedObject(null)} />
     </>
   )
 }

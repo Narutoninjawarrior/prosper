@@ -8,6 +8,7 @@ import { Html } from '@react-three/drei'
 import CottageCommons from './CottageCommons'
 import InspectRail from '../inspect/InspectRail'
 import { appendAgentMemoryEvent } from '../lib/agentMemory'
+import { openWorldActionSheet } from './WorldActionSheet'
 
 export default function CeremonyHearthZone({
   position = [-4, 0, -2],
@@ -46,17 +47,25 @@ export default function CeremonyHearthZone({
     <>
       <group
         position={position}
-        onClick={(e) => {
+        onPointerUp={(e) => {
           e.stopPropagation()
-          void appendAgentMemoryEvent({
-            eventType: 'inspect_hearth_ceremony',
-            summary: 'Opened the ceremony hearth',
-            metadata: {
-              ref: 'hearth:ceremony',
-              heat,
-            },
+          openWorldActionSheet({
+            id: 'hearth',
+            title: 'Ceremony Hearth',
+            purpose: 'State meal synthesis',
+            source: 'GET /api/hearth/ceremony',
+            freshness: 'Live',
+            actions: [
+              { label: 'Open ceremony / witness surface', tone: 'warm', onClick: () => {
+                void appendAgentMemoryEvent({
+                  eventType: 'inspect_hearth_ceremony',
+                  summary: 'Opened the ceremony hearth',
+                  metadata: { ref: 'hearth:ceremony', heat }
+                })
+                setOpen(true)
+              }}
+            ]
           })
-          setOpen(true)
         }}
         onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = 'pointer' }}
         onPointerOut={() => { document.body.style.cursor = 'default' }}

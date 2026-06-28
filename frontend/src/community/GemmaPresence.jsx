@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Float, Sparkles, Text, MeshTransmissionMaterial } from '@react-three/drei'
 import * as THREE from 'three'
+import { openWorldActionSheet } from '../world/WorldActionSheet'
 
 export default function GemmaPresence({
   position = [0, 1.8, 0],
@@ -46,12 +47,28 @@ export default function GemmaPresence({
           <mesh
             ref={shellRef}
             castShadow
-            onClick={(e) => {
+            onPointerUp={(e) => {
               e.stopPropagation()
-              onInvoke?.()
+              openWorldActionSheet({
+                id: 'gemma',
+                title: 'Gemma',
+                purpose: 'Local steward intelligence',
+                source: 'Gemma 2 9B IT',
+                freshness: 'Live / Ready',
+                actions: [
+                  { label: 'Invoke steward', onClick: () => onInvoke?.(), tone: 'primary' },
+                  { label: 'Open Lodge Mind', onClick: () => console.log('Open lodge mind'), tone: 'warm' }
+                ]
+              })
             }}
-            onPointerOver={() => setHovered(true)}
-            onPointerOut={() => setHovered(false)}
+            onPointerOver={() => {
+              setHovered(true)
+              document.body.style.cursor = 'pointer'
+            }}
+            onPointerOut={() => {
+              setHovered(false)
+              document.body.style.cursor = 'auto'
+            }}
           >
             <icosahedronGeometry args={[0.35, 1]} />
             <MeshTransmissionMaterial

@@ -18,6 +18,7 @@ import { useFrame } from '@react-three/fiber'
 import { Html, Text } from '@react-three/drei'
 import * as THREE from 'three'
 import { getReagentById, getWaterColor, getIceColor } from './lib/reagentRegistry'
+import { openWorldActionSheet } from './world/WorldActionSheet'
 
 // Grid constants — must match WASM
 const GRID_W    = 32
@@ -362,7 +363,34 @@ export default function WaterSim({
   const isFrozen = iceCount > waterCount
 
   return (
-    <group ref={groupRef} position={position} rotation={[-Math.PI / 2, 0, 0]}>
+    <group ref={groupRef} position={position} rotation={[-Math.PI / 2, 0, 0]}
+      onPointerUp={(e) => {
+        e.stopPropagation()
+        openWorldActionSheet({
+          id: `waterwheel-${chainHash}`,
+          title: title || 'Water Pool',
+          purpose: 'Cellular automata reagent pool',
+          source: placedBy || 'Local',
+          freshness: 'Live simulation',
+          details: [
+            { label: 'Water', value: `${waterCount}` },
+            { label: 'Ice', value: `${iceCount}` }
+          ],
+          actions: [
+            { label: 'Open Waterwheel Injector', tone: 'warm', onClick: () => console.log('Open Injector') },
+            { label: 'Open Memory Stream', tone: 'primary', onClick: () => console.log('Open Stream') },
+            { label: 'Copy object manifest', tone: 'primary', onClick: () => navigator.clipboard.writeText(chainHash) }
+          ]
+        })
+      }}
+      onPointerOver={(e) => {
+        e.stopPropagation()
+        document.body.style.cursor = 'pointer'
+      }}
+      onPointerOut={() => {
+        document.body.style.cursor = 'auto'
+      }}
+    >
       {/* Container rim */}
       <mesh position={[0, 0, -0.015]} rotation={[0, 0, 0]}>
         <ringGeometry args={[
