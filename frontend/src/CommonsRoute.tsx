@@ -19,6 +19,13 @@ export type CommonsPrompt = {
   created_at: string
   updated_at: string
   is_local_session?: boolean
+  object_ref?: {
+    id: string
+    title: string
+    purpose: string
+    source: string
+    freshness: string
+  }
 }
 
 // Seeded JSON loading
@@ -212,6 +219,13 @@ function Sidecar({ prompt, onClose, allPrompts, onUpdateStatus, onSpawnFollowup 
   const parent = prompt.parent_id ? allPrompts.find(p => p.id === prompt.parent_id) : null;
   const [followupText, setFollowupText] = useState("");
 
+  const handleReturnToWorld = () => {
+    if (prompt.object_ref) {
+      sessionStorage.setItem('world_focus_handoff', JSON.stringify(prompt.object_ref));
+      window.location.href = `/world?focus=${prompt.object_ref.id}`;
+    }
+  };
+
   return (
     <motion.div
       initial={{ x: 400, opacity: 0 }}
@@ -281,6 +295,35 @@ function Sidecar({ prompt, onClose, allPrompts, onUpdateStatus, onSpawnFollowup 
             <div className="bg-[#1A1410] p-3 rounded border border-[#5C3D1E] text-xs font-mono break-all text-gray-400">
               {prompt.receipt_hash}
             </div>
+          </div>
+        )}
+
+        {/* Return to World Object */}
+        {prompt.object_ref && (
+          <div className="mt-4 flex gap-2">
+            <button 
+              onClick={handleReturnToWorld}
+              className="flex-1 bg-[#1A1410] border border-[#4A90D9] text-[#4A90D9] text-xs py-2 rounded hover:bg-[#4A90D9] hover:text-[#0A0604] transition-colors font-bold tracking-wider uppercase"
+            >
+              Return to World Object
+            </button>
+            <button 
+              onClick={() => {
+                const payload = {
+                  source: 'commons',
+                  objectId: prompt.object_ref!.id,
+                  title: prompt.object_ref!.title,
+                  objectType: prompt.object_ref!.purpose,
+                  timestamp: Date.now(),
+                  freshness: prompt.object_ref!.freshness
+                }
+                sessionStorage.setItem('workbench_handoff', JSON.stringify(payload))
+                window.location.href = '/workbench'
+              }}
+              className="flex-1 bg-[#1A1410] border border-[#E8842A] text-[#E8842A] text-xs py-2 rounded hover:bg-[#E8842A] hover:text-[#0A0604] transition-colors font-bold tracking-wider uppercase"
+            >
+              Send to Workbench
+            </button>
           </div>
         )}
 

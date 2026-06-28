@@ -1,7 +1,7 @@
 /**
  * /workbench — Browser-safe creative JSON + SHA-256 receipts (no backend writes).
  */
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import { Box, Copy, Download, Sparkles } from 'lucide-react'
@@ -49,6 +49,16 @@ export default function GenerativeWorkbench() {
   const [digest, setDigest] = useState('')
   const [exportJson, setExportJson] = useState('')
   const [masonBlueprint, setMasonBlueprint] = useState<any>(null)
+  const [handoff, setHandoff] = useState<any>(null)
+
+  useEffect(() => {
+    const raw = sessionStorage.getItem('workbench_handoff')
+    if (raw) {
+      try {
+        setHandoff(JSON.parse(raw))
+      } catch (err) {}
+    }
+  }, [])
 
   const graphicsPayload = useMemo(() => ({
     workbench: 'graphics-seed-v1',
@@ -108,6 +118,17 @@ export default function GenerativeWorkbench() {
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[#b7c9be]">
             Export JSON + SHA-256 digest only. No Firestore writes, no wallet signing. Copy or download for steward review.
           </p>
+
+          {handoff && (
+            <div className="mt-4 inline-flex flex-col gap-1 rounded-lg border border-[#4A90D9]/30 bg-[#4A90D9]/10 px-4 py-3 font-mono text-[11px]">
+              <div className="text-[#4A90D9] font-bold uppercase tracking-widest flex justify-between">
+                <span>INTAKE FROM {handoff.source === 'commons' ? 'COMMONS' : 'WORLD'}</span>
+                <span className="opacity-50 ml-4">LOCAL SESSION</span>
+              </div>
+              <div className="text-gray-300">Target: <span className="text-[#FAF6EF]">{handoff.title}</span> ({handoff.objectId})</div>
+              <div className="text-gray-400">Context: {handoff.objectType || 'Generic Object'}</div>
+            </div>
+          )}
         </header>
 
         <div className="flex flex-wrap gap-2">

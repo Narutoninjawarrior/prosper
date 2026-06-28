@@ -249,6 +249,19 @@ function WorldContent({
     right: false,
   })
 
+  useEffect(() => {
+    const handoff = sessionStorage.getItem('world_focus_handoff')
+    if (handoff) {
+      sessionStorage.removeItem('world_focus_handoff')
+      try {
+        const obj = JSON.parse(handoff)
+        setTimeout(() => setInspectedObject(obj), 500) // slight delay to allow scene to mount
+      } catch (err) {
+        console.error('Failed to parse world focus handoff', err)
+      }
+    }
+  }, [setInspectedObject])
+
   const getMovementKey = useCallback((key) => {
     switch (key) {
       case 'ArrowUp':
