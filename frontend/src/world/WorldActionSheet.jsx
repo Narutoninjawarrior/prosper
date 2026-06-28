@@ -27,6 +27,19 @@ export function useWorldActionSheet() {
   return { inspectedObject, recentObjects, setInspectedObject }
 }
 
+export function sendToWorkbench(obj) {
+  const payload = {
+    source: 'world',
+    objectId: obj.id,
+    title: obj.title,
+    objectType: obj.purpose,
+    timestamp: Date.now(),
+    freshness: obj.freshness
+  }
+  sessionStorage.setItem('workbench_handoff', JSON.stringify(payload))
+  window.location.href = '/workbench'
+}
+
 export function openWorldActionSheet(obj) {
   if (setInspectedObjectGlobal) {
     setInspectedObjectGlobal(obj)
@@ -96,6 +109,11 @@ export default function WorldActionSheet({ inspectedObject, recentObjects, onClo
                 <span>·</span>
                 <span>{obj.freshness}</span>
               </div>
+              {obj.actions && obj.actions.length > 0 && (
+                <div style={{ marginTop: 6, fontSize: 9, color: '#4A90D9' }}>
+                  {'> '}{obj.actions[0].label.replace(/ \[.*\]/, '')}
+                </div>
+              )}
             </div>
           )
         })}

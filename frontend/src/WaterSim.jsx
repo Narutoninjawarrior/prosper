@@ -18,7 +18,7 @@ import { useFrame } from '@react-three/fiber'
 import { Html, Text } from '@react-three/drei'
 import * as THREE from 'three'
 import { getReagentById, getWaterColor, getIceColor } from './lib/reagentRegistry'
-import { openWorldActionSheet } from './world/WorldActionSheet'
+import { openWorldActionSheet, sendToWorkbench } from './world/WorldActionSheet'
 
 // Grid constants — must match WASM
 const GRID_W    = 32
@@ -378,9 +378,9 @@ export default function WaterSim({
             { label: 'Ice', value: `${iceCount}` }
           ],
           actions: [
-            { label: 'Open Waterwheel Injector', tone: 'warm', onClick: () => window.location.href = '/waterwheel' },
-            { label: 'Send to Workbench', onClick: () => console.log('Handoff to workbench'), tone: 'primary' },
-            { label: 'Copy object manifest', tone: 'primary', onClick: () => navigator.clipboard.writeText(chainHash) }
+            { label: 'Open Waterwheel Injector [Navigate]', tone: 'warm', onClick: () => window.location.href = '/waterwheel' },
+            { label: 'Send to Workbench [Local Session]', onClick: () => sendToWorkbench({ id: `waterwheel-${chainHash}`, title: title || 'Water Pool', purpose: 'Cellular automata reagent pool', source: placedBy || 'Local', freshness: 'Live simulation' }), tone: 'primary' },
+            { label: 'Copy manifest [Local Clipboard]', tone: 'primary', onClick: () => navigator.clipboard.writeText(chainHash) }
           ]
         })
       }}

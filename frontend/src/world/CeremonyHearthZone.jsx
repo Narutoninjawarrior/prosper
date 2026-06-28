@@ -8,7 +8,7 @@ import { Html } from '@react-three/drei'
 import CottageCommons from './CottageCommons'
 import InspectRail from '../inspect/InspectRail'
 import { appendAgentMemoryEvent } from '../lib/agentMemory'
-import { openWorldActionSheet } from './WorldActionSheet'
+import { openWorldActionSheet, sendToWorkbench } from './WorldActionSheet'
 
 export default function CeremonyHearthZone({
   position = [-4, 0, -2],
@@ -57,7 +57,7 @@ export default function CeremonyHearthZone({
             source: 'GET /api/hearth/ceremony',
             freshness: 'Live',
             actions: [
-              { label: 'Open ceremony / witness surface', tone: 'warm', onClick: () => {
+              { label: 'Open ceremony surface [Witness]', tone: 'warm', onClick: () => {
                 void appendAgentMemoryEvent({
                   eventType: 'inspect_hearth_ceremony',
                   summary: 'Opened the ceremony hearth',
@@ -65,7 +65,7 @@ export default function CeremonyHearthZone({
                 })
                 setOpen(true)
               }},
-              { label: 'Send to Workbench', onClick: () => console.log('Handoff to workbench'), tone: 'primary' }
+              { label: 'Send to Workbench [Local Session]', onClick: () => sendToWorkbench({ id: 'hearth', title: 'Ceremony Hearth', purpose: 'State meal synthesis', source: 'GET /api/hearth/ceremony', freshness: 'Live' }), tone: 'primary' }
             ]
           })
         }}
