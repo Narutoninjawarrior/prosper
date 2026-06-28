@@ -1,5 +1,5 @@
 /**
- * PresenceHud — slow MMO chat composer (1 msg / minute).
+ * PresenceHud - slow MMO chat composer (1 msg / minute).
  */
 import { PRESENCE_WS_URL, PRESENCE_IS_LOCAL_DEFAULT } from './multiplayerConfig'
 
@@ -25,7 +25,7 @@ export default function PresenceHud({
   const offlineHint = PRESENCE_IS_LOCAL_DEFAULT
     ? import.meta.env.PROD
       ? 'Multiplayer chat not configured on this deployment (no VITE_PRESENCE_WS_URL at build). Avatars stay local-only.'
-      : `Dev server expected at ${PRESENCE_WS_URL} — run: python presence_server.py`
+      : `Dev server expected at ${PRESENCE_WS_URL} - run: python presence_server.py`
     : `Cannot reach ${PRESENCE_WS_URL}`
 
   return (
@@ -47,9 +47,9 @@ export default function PresenceHud({
       }}
     >
       <div style={{ color: statusColor, marginBottom: 6 }}>
-        Presence · {status}
-        {status === 'connecting' && PRESENCE_IS_LOCAL_DEFAULT && ' · local dev'}
-        {status === 'connected' && !canChat && ` · speak in ${chatCooldownLeft}s`}
+        Presence | {status}
+        {status === 'connecting' && PRESENCE_IS_LOCAL_DEFAULT && ' | local dev'}
+        {status === 'connected' && !canChat && ` | speak in ${chatCooldownLeft}s`}
       </div>
       {(status === 'offline' || status === 'error') && (
         <div style={{ color: '#888', marginBottom: 6, fontSize: 9, lineHeight: 1.4 }}>
@@ -65,13 +65,13 @@ export default function PresenceHud({
         <div style={{ color: '#5a7a62', marginBottom: 6, fontSize: 9 }}>
           In the Lodge: {displayName || 'you'}
           {remotePeers.length > 0
-            ? ` · ${remotePeers.map((p) => p.name || p.id).join(', ')}`
+            ? ` | ${remotePeers.map((p) => p.name || p.id).join(', ')}`
             : PRESENCE_IS_LOCAL_DEFAULT
-              ? ' · alone on local server'
-              : ' · alone'}
+              ? ' | alone on local server'
+              : ' | alone'}
           {PRESENCE_IS_LOCAL_DEFAULT && import.meta.env.PROD && (
             <span style={{ display: 'block', marginTop: 4, color: '#888' }}>
-              Connected to {PRESENCE_WS_URL} on your machine — other visitors cannot see you until VITE_PRESENCE_WS_URL is set at build.
+              Connected to {PRESENCE_WS_URL} on your machine - other visitors cannot see you until VITE_PRESENCE_WS_URL is set at build.
             </span>
           )}
         </div>
@@ -100,11 +100,11 @@ export default function PresenceHud({
           placeholder={
             status !== 'connected'
               ? status === 'connecting'
-                ? `Connecting to ${PRESENCE_WS_URL}…`
+                ? `Connecting to ${PRESENCE_WS_URL}...`
                 : offlineHint
               : canChat
-                ? 'Speak to the garden…'
-                : `Slow speech · ${chatCooldownLeft}s`
+                ? 'Speak to the garden...'
+                : `Slow speech | ${chatCooldownLeft}s`
           }
           style={{
             width: '100%',
@@ -121,7 +121,7 @@ export default function PresenceHud({
         <div style={{ color: '#E8842A', marginTop: 6, fontSize: 9 }}>{lastChatError}</div>
       )}
       <div style={{ color: '#5a7a62', marginTop: 6, fontSize: 9 }}>
-        Solarpunk pace · 1 message per minute
+        Solarpunk pace | 1 message per minute
       </div>
     </div>
   )

@@ -266,7 +266,7 @@ export function SanctuaryProvider({ children }: { children: React.ReactNode }) {
         ...current,
         notes: sanitized.text,
         handoff_note: sanitized.text,
-        owner: 'Malaky',
+        owner: current.owner ?? graceRef.current?.owner ?? grace?.owner ?? 'Pending',
         approval_status: 'Awaiting Sovereign Seal',
         decree_id: (() => {
           const source = current.decree_id ?? FALLBACK_GRACE.decree_id ?? 'DECREE-000';

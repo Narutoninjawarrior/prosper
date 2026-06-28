@@ -1,5 +1,5 @@
 /**
- * Read-only Firestore bridge for /world — same world_state as ThreeForge.
+ * Read-only Firestore bridge for /world - same world_state as ThreeForge.
  */
 import { useEffect, useState } from 'react'
 import { doc, onSnapshot } from 'firebase/firestore'
@@ -31,65 +31,67 @@ export default function WorldRoute() {
   )
 
   useEffect(() => {
-    let unsub: (() => void) | undefined;
+    let unsub: (() => void) | undefined
 
     async function init() {
-      const ready = await ensureFirebaseConfigured();
+      const ready = await ensureFirebaseConfigured()
       if (!ready) {
-        setLiveStatus('unconfigured');
-        return;
+        setLiveStatus('unconfigured')
+        return
       }
 
-      const db = getFirestoreDb();
+      const db = getFirestoreDb()
       if (!db) {
-        setLiveStatus('unconfigured');
-        return;
+        setLiveStatus('unconfigured')
+        return
       }
 
-      setLiveStatus('loading');
-      const stateRef = doc(db, 'three_forge', 'world_state');
+      setLiveStatus('loading')
+      const stateRef = doc(db, 'three_forge', 'world_state')
 
       unsub = onSnapshot(
-      stateRef,
-      (snap) => {
-        if (!snap.exists()) {
-          setForgeNodes([])
-          setLiveStatus('empty')
-          return
+        stateRef,
+        (snap) => {
+          if (!snap.exists()) {
+            setForgeNodes([])
+            setLiveStatus('empty')
+            return
+          }
+
+          const data = snap.data() as { nodes?: ForgeNode[] }
+          const nodes = (data.nodes || []).filter(
+            (n) => n && typeof n.x === 'number'
+          )
+          setForgeNodes(nodes)
+
+          const peakHeat = nodes.reduce(
+            (max, n) => Math.max(max, n.heat_level ?? 0),
+            0
+          )
+          if (peakHeat > 0) setHeat(peakHeat)
+
+          setLiveStatus('ready')
+        },
+        (err) => {
+          console.error('[WorldRoute] Firestore read failed', err)
+          setLiveStatus('error')
         }
-
-        const data = snap.data() as { nodes?: ForgeNode[] }
-        const nodes = (data.nodes || []).filter(
-          (n) => n && typeof n.x === 'number'
-        )
-        setForgeNodes(nodes)
-
-        const peakHeat = nodes.reduce(
-          (max, n) => Math.max(max, n.heat_level ?? 0),
-          0
-        )
-        if (peakHeat > 0) setHeat(peakHeat)
-
-        setLiveStatus('ready')
-      },
-      (err) => {
-        console.error('[WorldRoute] Firestore read failed', err)
-        setLiveStatus('error')
-      }
-    )
-
+      )
     }
-    init();
 
-    return () => { if (unsub) unsub() }
+    init()
+
+    return () => {
+      if (unsub) unsub()
+    }
   }, [])
 
   const statusLabel: Record<LiveStatus, string> = {
-    unconfigured: 'Firebase env missing — explore with defaults',
-    loading: 'Syncing Lodge world_state…',
-    ready: `Live · ${forgeNodes.length} forge object(s) in world`,
-    empty: 'world_state empty — place objects in the Forge tab',
-    error: 'Firestore read error — check console',
+    unconfigured: 'Firebase env missing - explore with defaults',
+    loading: 'Syncing Lodge world_state...',
+    ready: `Live - ${forgeNodes.length} forge object(s) in world`,
+    empty: 'world_state empty - place objects in the Forge tab',
+    error: 'Firestore read error - check console',
   }
 
   return (

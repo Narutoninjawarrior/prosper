@@ -22,6 +22,7 @@
  */
 
 import { useRef, useState, useCallback, Suspense, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import {
   OrbitControls,
@@ -204,13 +205,40 @@ function WorldContent({
   const [moving, setMoving]         = useState(false)
   const [builderOpen, setBuilder]   = useState(false)
   const [stewardSignal, setStewardSignal] = useState(0)
+  const [compactUi, setCompactUi] = useState(false)
+  const [showPulse, setShowPulse] = useState(true)
+  const [showPresence, setShowPresence] = useState(false)
+  const [showFeed, setShowFeed] = useState(false)
   const playerRef = useRef(new THREE.Vector3(0, 0, 2))
   const movementKeysRef = useRef({
-    ArrowUp: false,
-    ArrowDown: false,
-    ArrowLeft: false,
-    ArrowRight: false,
+    up: false,
+    down: false,
+    left: false,
+    right: false,
   })
+
+  const getMovementKey = useCallback((key) => {
+    switch (key) {
+      case 'ArrowUp':
+      case 'w':
+      case 'W':
+        return 'up'
+      case 'ArrowDown':
+      case 's':
+      case 'S':
+        return 'down'
+      case 'ArrowLeft':
+      case 'a':
+      case 'A':
+        return 'left'
+      case 'ArrowRight':
+      case 'd':
+      case 'D':
+        return 'right'
+      default:
+        return null
+    }
+  }, [])
 
   const {
     localId,
@@ -249,9 +277,9 @@ function WorldContent({
   useFrame((_, delta) => {
     const current = playerRef.current
     const keyDirection = new THREE.Vector3(
-      (movementKeysRef.current.ArrowRight ? 1 : 0) - (movementKeysRef.current.ArrowLeft ? 1 : 0),
+      (movementKeysRef.current.right ? 1 : 0) - (movementKeysRef.current.left ? 1 : 0),
       0,
-      (movementKeysRef.current.ArrowDown ? 1 : 0) - (movementKeysRef.current.ArrowUp ? 1 : 0),
+      (movementKeysRef.current.down ? 1 : 0) - (movementKeysRef.current.up ? 1 : 0),
     )
 
     if (keyDirection.lengthSq() > 0) {
@@ -293,9 +321,10 @@ function WorldContent({
   // Keyboard shortcuts
   useEffect(() => {
     const handleKey = (e) => {
-      if (e.key in movementKeysRef.current) {
+      const movementKey = getMovementKey(e.key)
+      if (movementKey) {
         e.preventDefault()
-        movementKeysRef.current[e.key] = true
+        movementKeysRef.current[movementKey] = true
         setTargetPos(null)
         setMoving(true)
         return
@@ -306,8 +335,9 @@ function WorldContent({
     }
 
     const handleKeyUp = (e) => {
-      if (e.key in movementKeysRef.current) {
-        movementKeysRef.current[e.key] = false
+      const movementKey = getMovementKey(e.key)
+      if (movementKey) {
+        movementKeysRef.current[movementKey] = false
       }
     }
 
@@ -317,7 +347,17 @@ function WorldContent({
       document.removeEventListener('keydown', handleKey)
       document.removeEventListener('keyup', handleKeyUp)
     }
-  }, [setActiveZone])
+  }, [getMovementKey, setActiveZone])
+
+  useEffect(() => {
+    const syncLayout = () => {
+      setCompactUi(window.innerWidth < 1100)
+    }
+
+    syncLayout()
+    window.addEventListener('resize', syncLayout)
+    return () => window.removeEventListener('resize', syncLayout)
+  }, [])
 
   return (
     <>
@@ -386,17 +426,21 @@ function WorldContent({
       />
 
       {/* Builder panel overlay */}
-      <Html fullscreen>
-        <PresenceHud
-          status={status}
-          displayName={localName}
-          onNameChange={setDisplayName}
-          onSend={sendChat}
-          lastChatError={lastChatError}
-          chatCooldownLeft={chatCooldownLeft}
-          canChat={canChat}
-          remotePeers={remotePeers}
-        />
+      <Html>
+        {typeof document !== 'undefined' && createPortal(
+          <>
+        {showPresence && (
+          <PresenceHud
+            status={status}
+            displayName={localName}
+            onNameChange={setDisplayName}
+            onSend={sendChat}
+            lastChatError={lastChatError}
+            chatCooldownLeft={chatCooldownLeft}
+            canChat={canChat}
+            remotePeers={remotePeers}
+          />
+        )}
 
         <BuilderPanel
           visible={builderOpen}
@@ -407,21 +451,25 @@ function WorldContent({
           }}
         />
 
-        <CommunityPulse
-          realm="world"
-          heat={heat}
-          emberBalance={emberBalance}
-          nodeCount={forgeNodes.length}
-          onOpenBuilder={() => setBuilder(true)}
-          onOpenSteward={() => setStewardSignal((value) => value + 1)}
-        />
+        {showPulse && (
+          <CommunityPulse
+            realm="world"
+            heat={heat}
+            emberBalance={emberBalance}
+            nodeCount={forgeNodes.length}
+            onOpenBuilder={() => setBuilder(true)}
+            onOpenSteward={() => setStewardSignal((value) => value + 1)}
+          />
+        )}
 
-        <CommunityFeed
-          realm="world"
-          heat={heat}
-          emberBalance={emberBalance}
-          nodeCount={forgeNodes.length}
-        />
+        {showFeed && (
+          <CommunityFeed
+            realm="world"
+            heat={heat}
+            emberBalance={emberBalance}
+            nodeCount={forgeNodes.length}
+          />
+        )}
 
         <StewardMount
           emberBalance={emberBalance}
@@ -430,11 +478,81 @@ function WorldContent({
           openSignal={stewardSignal}
         />
 
+        <div
+          style={{
+            position: 'fixed',
+            top: compactUi ? 64 : 72,
+            right: 16,
+            display: 'flex',
+            gap: 8,
+            zIndex: 26,
+            flexWrap: 'wrap',
+            justifyContent: 'flex-end',
+            maxWidth: compactUi ? 'calc(100vw - 32px)' : 420,
+          }}
+        >
+            <button
+              type="button"
+              onClick={() => setShowPulse((value) => !value)}
+              style={{
+                borderRadius: 999,
+                border: '1px solid rgba(212,168,83,0.32)',
+                background: 'rgba(10,6,4,0.82)',
+                color: '#FAF6EF',
+                padding: '8px 12px',
+                fontFamily: 'monospace',
+                fontSize: 10,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+              }}
+            >
+              {showPulse ? 'Hide pulse' : 'Show pulse'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowPresence((value) => !value)}
+              style={{
+                borderRadius: 999,
+                border: '1px solid rgba(122,158,126,0.32)',
+                background: 'rgba(10,6,4,0.82)',
+                color: '#FAF6EF',
+                padding: '8px 12px',
+                fontFamily: 'monospace',
+                fontSize: 10,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+              }}
+            >
+              {showPresence ? 'Hide presence' : 'Show presence'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowFeed((value) => !value)}
+              style={{
+                borderRadius: 999,
+                border: '1px solid rgba(170,136,255,0.32)',
+                background: 'rgba(10,6,4,0.82)',
+                color: '#FAF6EF',
+                padding: '8px 12px',
+                fontFamily: 'monospace',
+                fontSize: 10,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+              }}
+            >
+              {showFeed ? 'Hide feed' : 'Show feed'}
+            </button>
+        </div>
+
         {/* HUD — bottom left */}
         <div style={{
           position: 'fixed',
           bottom: 16,
           left: 16,
+          maxWidth: compactUi ? 'calc(100vw - 32px)' : 280,
           background: 'rgba(10,6,4,0.85)',
           border: '0.5px solid #5C3D1E',
           borderRadius: 8,
@@ -455,10 +573,15 @@ function WorldContent({
               → {ZONES[activeZone]?.label}
             </div>
           )}
-          <div style={{ color: '#444', fontSize: 9, marginTop: 6 }}>
-            [B] build · [T] tesseract · [Esc] exit
+          <div style={{ color: '#888', fontSize: 9, marginTop: 6, lineHeight: '1.4' }}>
+            [WASD / Arrows] move<br/>
+            [Click] walk<br/>
+            [B] build · [T] tesseract · [Esc] close
           </div>
         </div>
+          </>,
+          document.body
+        )}
       </Html>
     </>
   )
