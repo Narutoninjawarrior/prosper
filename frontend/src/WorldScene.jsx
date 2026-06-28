@@ -42,7 +42,7 @@ import GemmaPresence  from './community/GemmaPresence'
 import { useMultiplayerPresence } from './multiplayer/useMultiplayerPresence'
 import MultiplayerPresence from './multiplayer/MultiplayerPresence'
 import PresenceHud from './multiplayer/PresenceHud'
-import WorldActionSheet, { useWorldActionSheet, openWorldActionSheet, sendToWorkbench } from './world/WorldActionSheet'
+import WorldActionSheet, { useWorldActionSheet, openWorldActionSheet, sendToWorkbench, sendToCommons } from './world/WorldActionSheet'
 
 // ── Zone definitions ──────────────────────────────────────────────
 const ZONES = {
@@ -111,6 +111,7 @@ function ZonePortal({ position, color, label, onEnter, isActive }) {
             actions: [
               { label: 'Enter route [Navigate]', onClick: onEnter, tone: 'primary' },
               { label: 'Preview destination [Inspect]', onClick: () => console.log('Preview', label), tone: 'warm' },
+              { label: 'Send to Commons [Local Session]', onClick: () => sendToCommons({ id: `portal-${label}`, title: `${label} Portal`, purpose: 'Zone transition matrix', source: 'WorldScene', freshness: 'Live' }), tone: 'primary' },
               { label: 'Send to Workbench [Local Session]', onClick: () => sendToWorkbench({ id: `portal-${label}`, title: `${label} Portal`, purpose: 'Zone transition matrix', source: 'WorldScene', freshness: 'Live' }), tone: 'primary' }
             ]
           })

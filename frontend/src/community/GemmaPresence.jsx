@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Float, Sparkles, Text, MeshTransmissionMaterial } from '@react-three/drei'
 import * as THREE from 'three'
-import { openWorldActionSheet, sendToWorkbench } from '../world/WorldActionSheet'
+import { openWorldActionSheet, sendToWorkbench, sendToCommons } from '../world/WorldActionSheet'
 
 export default function GemmaPresence({
   position = [0, 1.8, 0],
@@ -58,6 +58,7 @@ export default function GemmaPresence({
                 actions: [
                   { label: 'Invoke steward [Local Prompt]', onClick: () => onInvoke?.(), tone: 'primary' },
                   { label: 'Open Lodge Mind [Navigate]', onClick: () => window.location.href = '/lodge-mind', tone: 'warm' },
+                  { label: 'Send to Commons [Local Session]', onClick: () => sendToCommons({ id: 'gemma', title: 'Gemma', purpose: 'Local steward intelligence', source: 'Gemma 2 9B IT', freshness: 'Live / Ready' }), tone: 'primary' },
                   { label: 'Send to Workbench [Local Session]', onClick: () => sendToWorkbench({ id: 'gemma', title: 'Gemma', purpose: 'Local steward intelligence', source: 'Gemma 2 9B IT', freshness: 'Live / Ready' }), tone: 'primary' }
                 ]
               })

@@ -18,6 +18,7 @@ export type CommonsPrompt = {
   parent_id?: string
   created_at: string
   updated_at: string
+  is_local_session?: boolean
 }
 
 // Seeded JSON loading
@@ -26,18 +27,55 @@ export default function CommonsRoute() {
   const [loading, setLoading] = useState(true);
   const [selectedPrompt, setSelectedPrompt] = useState<CommonsPrompt | null>(null);
 
-  useEffect(() => {
+  const loadPrompts = () => {
     fetch('/commons_board.json')
       .then(res => res.json())
       .then(data => {
-        setPrompts(data.prompts || []);
+        const seeded = data.prompts || [];
+        const session = JSON.parse(sessionStorage.getItem('hearth_commons_session_prompts') || '[]');
+        setPrompts([...session, ...seeded]);
         setLoading(false);
       })
       .catch(err => {
         console.error(err);
         setLoading(false);
       });
+  };
+
+  useEffect(() => {
+    loadPrompts();
   }, []);
+
+  const handleUpdateStatus = (id: string, newStatus: string) => {
+    const session = JSON.parse(sessionStorage.getItem('hearth_commons_session_prompts') || '[]');
+    const updated = session.map((p: CommonsPrompt) => p.id === id ? { ...p, status: newStatus } : p);
+    sessionStorage.setItem('hearth_commons_session_prompts', JSON.stringify(updated));
+    loadPrompts();
+    if (selectedPrompt && selectedPrompt.id === id) {
+      setSelectedPrompt({ ...selectedPrompt, status: newStatus as any });
+    }
+  };
+
+  const handleSpawnFollowup = (parent: CommonsPrompt, text: string, targetType: any, targetId: string) => {
+    const session = JSON.parse(sessionStorage.getItem('hearth_commons_session_prompts') || '[]');
+    const newPrompt: CommonsPrompt = {
+      id: `local-${Date.now()}`,
+      prompt_text: text,
+      author_type: 'agent',
+      author_id: 'local_agent',
+      target_type: targetType,
+      target_id: targetId,
+      status: 'proposed',
+      boundary: 'local_only',
+      source_route: '/commons',
+      parent_id: parent.id,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      is_local_session: true
+    };
+    sessionStorage.setItem('hearth_commons_session_prompts', JSON.stringify([newPrompt, ...session]));
+    loadPrompts();
+  };
 
   const proposed = prompts.filter(p => p.status === 'proposed');
   const claimed = prompts.filter(p => p.status === 'claimed' || p.status === 'in_progress');
@@ -67,7 +105,7 @@ export default function CommonsRoute() {
             </p>
           </div>
           <div className="text-xs bg-[#1A1410] text-[#D4A853] px-3 py-1 rounded border border-[#3D2C1E]">
-            V0: Seeded / Local-Only
+            V1: Session Bridge
           </div>
         </div>
       </div>
@@ -84,7 +122,13 @@ export default function CommonsRoute() {
       {/* Sidecar Inspect Panel */}
       <AnimatePresence>
         {selectedPrompt && (
-          <Sidecar prompt={selectedPrompt} onClose={() => setSelectedPrompt(null)} allPrompts={prompts} />
+          <Sidecar 
+            prompt={selectedPrompt} 
+            onClose={() => setSelectedPrompt(null)} 
+            allPrompts={prompts} 
+            onUpdateStatus={handleUpdateStatus}
+            onSpawnFollowup={handleSpawnFollowup}
+          />
         )}
       </AnimatePresence>
     </div>
@@ -115,7 +159,7 @@ function PromptCard({ prompt, onClick }: { prompt: CommonsPrompt, onClick: () =>
   return (
     <div 
       onClick={onClick}
-      className="bg-[#0F0A06] border border-[#2A1F16] rounded p-3 hover:border-[#D4A853] cursor-pointer transition-colors group"
+      className="bg-[#0F0A06] border border-[#2A1F16] rounded p-3 hover:border-[#D4A853] cursor-pointer transition-colors group relative overflow-hidden"
     >
       <div className="flex justify-between items-start mb-2">
         <div className="flex items-center gap-1.5 text-xs">
@@ -128,8 +172,15 @@ function PromptCard({ prompt, onClick }: { prompt: CommonsPrompt, onClick: () =>
             {prompt.author_id}
           </span>
         </div>
-        <div className="text-[10px] uppercase bg-[#1A1410] text-gray-500 px-1.5 py-0.5 rounded">
-          {prompt.boundary}
+        <div className="flex flex-col items-end gap-1">
+          <div className="text-[10px] uppercase bg-[#1A1410] text-gray-500 px-1.5 py-0.5 rounded">
+            {prompt.boundary}
+          </div>
+          {prompt.is_local_session && (
+            <div className="text-[8px] uppercase bg-[#2A1F16] text-[#E8842A] px-1.5 py-0.5 rounded font-bold">
+              Local Session
+            </div>
+          )}
         </div>
       </div>
       
@@ -156,9 +207,10 @@ function PromptCard({ prompt, onClick }: { prompt: CommonsPrompt, onClick: () =>
   );
 }
 
-function Sidecar({ prompt, onClose, allPrompts }: { prompt: CommonsPrompt, onClose: () => void, allPrompts: CommonsPrompt[] }) {
+function Sidecar({ prompt, onClose, allPrompts, onUpdateStatus, onSpawnFollowup }: { prompt: CommonsPrompt, onClose: () => void, allPrompts: CommonsPrompt[], onUpdateStatus: (id: string, st: string) => void, onSpawnFollowup: (p: CommonsPrompt, t: string, tType: string, tId: string) => void }) {
   const children = allPrompts.filter(p => p.parent_id === prompt.id);
   const parent = prompt.parent_id ? allPrompts.find(p => p.id === prompt.parent_id) : null;
+  const [followupText, setFollowupText] = useState("");
 
   return (
     <motion.div
@@ -175,13 +227,18 @@ function Sidecar({ prompt, onClose, allPrompts }: { prompt: CommonsPrompt, onClo
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
         {/* Author / Target */}
-        <div className="flex items-center gap-3 border border-[#1A1410] bg-[#0F0A06] p-3 rounded text-xs">
-          <div className="flex-1">
+        <div className="flex items-center gap-3 border border-[#1A1410] bg-[#0F0A06] p-3 rounded text-xs relative overflow-hidden">
+          {prompt.is_local_session && (
+            <div className="absolute top-0 right-0 bg-[#2A1F16] text-[#E8842A] text-[8px] px-2 py-0.5 font-bold tracking-widest rounded-bl">
+              LOCAL SESSION
+            </div>
+          )}
+          <div className="flex-1 mt-2">
             <div className="text-gray-500 mb-1">AUTHOR</div>
             <div className="text-gray-200 uppercase">{prompt.author_id} ({prompt.author_type})</div>
           </div>
-          <div className="text-gray-600">→</div>
-          <div className="flex-1 text-right">
+          <div className="text-gray-600 mt-2">→</div>
+          <div className="flex-1 text-right mt-2">
             <div className="text-gray-500 mb-1">TARGET</div>
             <div className="text-[#D4A853] uppercase">{prompt.target_id || 'OPEN'} ({prompt.target_type})</div>
           </div>
@@ -227,26 +284,74 @@ function Sidecar({ prompt, onClose, allPrompts }: { prompt: CommonsPrompt, onClo
           </div>
         )}
 
-        {/* Threading */}
-        {(parent || children.length > 0) && (
-          <div className="pt-4 border-t border-[#1A1410]">
-            <div className="text-[10px] text-gray-500 uppercase mb-3">Thread Context</div>
-            
-            {parent && (
-              <div className="border-l-2 border-[#4A90D9] pl-3 mb-3">
-                <div className="text-[10px] text-[#4A90D9] mb-1">REPLYING TO {parent.author_id}</div>
-                <div className="text-xs text-gray-400 line-clamp-2">{parent.prompt_text}</div>
-              </div>
-            )}
-
-            {children.map(c => (
-              <div key={c.id} className="border-l-2 border-[#D4A853] pl-3 mt-3">
-                <div className="text-[10px] text-[#D4A853] mb-1">FOLLOW-UP FROM {c.author_id}</div>
-                <div className="text-xs text-gray-400 line-clamp-2">{c.prompt_text}</div>
-              </div>
-            ))}
+        {/* Local Session Actions */}
+        {prompt.is_local_session && (
+          <div className="bg-[#0F0A06] border border-[#2A1F16] rounded p-3">
+            <div className="text-[10px] text-gray-500 uppercase mb-3">Local Actions</div>
+            <div className="flex gap-2">
+              {prompt.status === 'proposed' && (
+                <button 
+                  onClick={() => onUpdateStatus(prompt.id, 'claimed')}
+                  className="flex-1 bg-[#1A1410] border border-[#3D2C1E] text-gray-300 text-xs py-1.5 rounded hover:bg-[#2A1F16] hover:border-[#D4A853]"
+                >
+                  Claim Task
+                </button>
+              )}
+              {(prompt.status === 'claimed' || prompt.status === 'in_progress') && (
+                <button 
+                  onClick={() => onUpdateStatus(prompt.id, 'receipted')}
+                  className="flex-1 bg-[#1A1410] border border-[#3D2C1E] text-gray-300 text-xs py-1.5 rounded hover:bg-[#2A1F16] hover:text-[#E8842A]"
+                >
+                  Issue Receipt
+                </button>
+              )}
+              {prompt.status !== 'proposed' && prompt.status !== 'claimed' && prompt.status !== 'in_progress' && (
+                <div className="text-xs text-gray-500 italic">No valid transitions from {prompt.status}</div>
+              )}
+            </div>
           </div>
         )}
+
+        {/* Threading */}
+        <div className="pt-4 border-t border-[#1A1410]">
+          <div className="text-[10px] text-gray-500 uppercase mb-3">Thread Context</div>
+          
+          {parent && (
+            <div className="border-l-2 border-[#4A90D9] pl-3 mb-3">
+              <div className="text-[10px] text-[#4A90D9] mb-1">REPLYING TO {parent.author_id}</div>
+              <div className="text-xs text-gray-400 line-clamp-2">{parent.prompt_text}</div>
+            </div>
+          )}
+
+          {children.map(c => (
+            <div key={c.id} className="border-l-2 border-[#D4A853] pl-3 mt-3">
+              <div className="text-[10px] text-[#D4A853] mb-1">FOLLOW-UP FROM {c.author_id}</div>
+              <div className="text-xs text-gray-400 line-clamp-2">{c.prompt_text}</div>
+            </div>
+          ))}
+
+          {prompt.is_local_session && (
+            <div className="mt-4 pt-4 border-t border-[#1A1410]">
+              <div className="text-[10px] text-gray-500 uppercase mb-2">Spawn Follow-up (Agent)</div>
+              <textarea 
+                className="w-full bg-[#1A1410] border border-[#3D2C1E] text-gray-300 text-xs p-2 rounded mb-2 h-16 focus:outline-none focus:border-[#D4A853]"
+                placeholder="Agent response or tool delegation..."
+                value={followupText}
+                onChange={e => setFollowupText(e.target.value)}
+              />
+              <button 
+                disabled={!followupText.trim()}
+                onClick={() => {
+                  onSpawnFollowup(prompt, followupText, 'agent', 'local_agent');
+                  setFollowupText('');
+                }}
+                className="w-full bg-[#2A1F16] text-[#D4A853] text-xs py-1.5 rounded border border-[#3D2C1E] disabled:opacity-50"
+              >
+                Spawn Prompt
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </motion.div>
   );

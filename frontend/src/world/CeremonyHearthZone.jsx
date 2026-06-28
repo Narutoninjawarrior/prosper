@@ -8,7 +8,7 @@ import { Html } from '@react-three/drei'
 import CottageCommons from './CottageCommons'
 import InspectRail from '../inspect/InspectRail'
 import { appendAgentMemoryEvent } from '../lib/agentMemory'
-import { openWorldActionSheet, sendToWorkbench } from './WorldActionSheet'
+import { openWorldActionSheet, sendToWorkbench, sendToCommons } from './WorldActionSheet'
 
 export default function CeremonyHearthZone({
   position = [-4, 0, -2],
@@ -65,6 +65,7 @@ export default function CeremonyHearthZone({
                 })
                 setOpen(true)
               }},
+              { label: 'Send to Commons [Local Session]', onClick: () => sendToCommons({ id: 'hearth', title: 'Ceremony Hearth', purpose: 'State meal synthesis', source: 'GET /api/hearth/ceremony', freshness: 'Live' }), tone: 'primary' },
               { label: 'Send to Workbench [Local Session]', onClick: () => sendToWorkbench({ id: 'hearth', title: 'Ceremony Hearth', purpose: 'State meal synthesis', source: 'GET /api/hearth/ceremony', freshness: 'Live' }), tone: 'primary' }
             ]
           })
