@@ -44,9 +44,8 @@ export default function GemmaPresence({
             color={accent}
           />
 
+          {/* Enlarged invisible hit area */}
           <mesh
-            ref={shellRef}
-            castShadow
             onPointerUp={(e) => {
               e.stopPropagation()
               openWorldActionSheet({
@@ -61,7 +60,8 @@ export default function GemmaPresence({
                 ]
               })
             }}
-            onPointerOver={() => {
+            onPointerOver={(e) => {
+              e.stopPropagation()
               setHovered(true)
               document.body.style.cursor = 'pointer'
             }}
@@ -69,6 +69,14 @@ export default function GemmaPresence({
               setHovered(false)
               document.body.style.cursor = 'auto'
             }}
+          >
+            <sphereGeometry args={[1.2, 16, 16]} />
+            <meshStandardMaterial visible={false} />
+          </mesh>
+
+          <mesh
+            ref={shellRef}
+            castShadow
           >
             <icosahedronGeometry args={[0.35, 1]} />
             <MeshTransmissionMaterial

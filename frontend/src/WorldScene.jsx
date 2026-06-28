@@ -69,9 +69,23 @@ function ZonePortal({ position, color, label, onEnter }) {
   return (
     <group position={position}>
       {/* Portal ring */}
+      {/* Portal ring */}
+      <mesh ref={ringRef}>
+        <torusGeometry args={[0.8, 0.06, 8, 32]} />
+        <meshStandardMaterial
+          color={color}
+          emissive={color}
+          emissiveIntensity={hovered ? 1.2 : 0.4}
+          roughness={0.1}
+          metalness={0.8}
+        />
+      </mesh>
+
+      {/* Enlarged invisible hit area */}
       <mesh
-        ref={ringRef}
-        onPointerOver={() => {
+        position={[0, 0.5, 0]}
+        onPointerOver={(e) => {
+          e.stopPropagation()
           setHovered(true)
           document.body.style.cursor = 'pointer'
         }}
@@ -94,14 +108,8 @@ function ZonePortal({ position, color, label, onEnter }) {
           })
         }}
       >
-        <torusGeometry args={[0.8, 0.06, 8, 32]} />
-        <meshStandardMaterial
-          color={color}
-          emissive={color}
-          emissiveIntensity={hovered ? 1.2 : 0.4}
-          roughness={0.1}
-          metalness={0.8}
-        />
+        <cylinderGeometry args={[1.2, 1.2, 1.5, 16]} />
+        <meshStandardMaterial visible={false} />
       </mesh>
 
       {/* Ground glow */}

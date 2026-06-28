@@ -15,7 +15,7 @@ export function useWorldActionSheet() {
       if (obj) {
         setRecentObjects(prev => {
           const filtered = prev.filter(p => p.id !== obj.id)
-          return [obj, ...filtered].slice(0, 3)
+          return [obj, ...filtered].slice(0, 5)
         })
       }
     }
