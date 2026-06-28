@@ -275,6 +275,7 @@ export default function WaterSim({
   title        = 'Water Pool',
   placedBy     = 'Forge',
   onTick       = null,  // callback(waterCount, iceCount, steamCount)
+  isActive     = false,
 }) {
   const [cells, setCells]       = useState(null)
   const [waterCount, setWC]     = useState(0)
@@ -377,8 +378,8 @@ export default function WaterSim({
             { label: 'Ice', value: `${iceCount}` }
           ],
           actions: [
-            { label: 'Open Waterwheel Injector', tone: 'warm', onClick: () => console.log('Open Injector') },
-            { label: 'Open Memory Stream', tone: 'primary', onClick: () => console.log('Open Stream') },
+            { label: 'Open Waterwheel Injector', tone: 'warm', onClick: () => window.location.href = '/waterwheel' },
+            { label: 'Send to Workbench', onClick: () => console.log('Handoff to workbench'), tone: 'primary' },
             { label: 'Copy object manifest', tone: 'primary', onClick: () => navigator.clipboard.writeText(chainHash) }
           ]
         })
@@ -391,6 +392,17 @@ export default function WaterSim({
         document.body.style.cursor = 'auto'
       }}
     >
+      {isActive && (
+        <mesh position={[0, 0, -0.018]}>
+          <ringGeometry args={[
+            Math.max(GRID_WORLD_W, GRID_WORLD_H) * 0.60,
+            Math.max(GRID_WORLD_W, GRID_WORLD_H) * 0.65,
+            32
+          ]} />
+          <meshBasicMaterial color="#4A90D9" transparent opacity={0.5} />
+        </mesh>
+      )}
+
       {/* Container rim */}
       <mesh position={[0, 0, -0.015]} rotation={[0, 0, 0]}>
         <ringGeometry args={[

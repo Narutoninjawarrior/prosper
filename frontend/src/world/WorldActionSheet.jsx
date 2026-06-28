@@ -67,24 +67,38 @@ export default function WorldActionSheet({ inspectedObject, recentObjects, onClo
         alignItems: 'flex-end',
         pointerEvents: 'none',
       }}>
-        {recentObjects.map((obj, i) => (
-          <div key={`${obj.id}-${i}`} style={{
-            background: 'rgba(10,6,4,0.85)',
-            border: '0.5px solid #5C3D1E',
-            borderRadius: 6,
-            padding: '6px 10px',
-            fontFamily: 'monospace',
-            fontSize: 10,
-            color: '#FAF6EF',
-            pointerEvents: 'auto',
-            cursor: 'pointer',
-            opacity: inspectedObject?.id === obj.id ? 1 : 0.6,
-            transition: 'opacity 0.2s'
-          }} onClick={() => openWorldActionSheet(obj)}>
-            <div style={{ color: '#E8842A', marginBottom: 2 }}>{obj.title}</div>
-            <div style={{ fontSize: 9, color: '#888' }}>{obj.purpose}</div>
-          </div>
-        ))}
+        {recentObjects.map((obj, i) => {
+          const isActive = inspectedObject?.id === obj.id;
+          return (
+            <div key={`${obj.id}-${i}`} style={{
+              background: isActive ? 'rgba(24,18,12,0.95)' : 'rgba(10,6,4,0.85)',
+              border: isActive ? '1px solid #E8842A' : '0.5px solid #5C3D1E',
+              borderRadius: 6,
+              padding: '8px 12px',
+              fontFamily: 'monospace',
+              fontSize: 10,
+              color: '#FAF6EF',
+              pointerEvents: 'auto',
+              cursor: 'pointer',
+              opacity: isActive ? 1 : 0.7,
+              transition: 'all 0.2s',
+              minWidth: 200,
+            }} onClick={() => openWorldActionSheet(obj)}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <div style={{ color: isActive ? '#E8842A' : '#D4A853', fontWeight: isActive ? 'bold' : 'normal' }}>
+                  {isActive && <span style={{ marginRight: 6 }}>●</span>}
+                  {obj.title}
+                </div>
+              </div>
+              <div style={{ fontSize: 9, color: '#888', marginBottom: 2 }}>{obj.purpose}</div>
+              <div style={{ display: 'flex', gap: 6, fontSize: 8, color: '#6B7280', textTransform: 'uppercase' }}>
+                <span>[{obj.source}]</span>
+                <span>·</span>
+                <span>{obj.freshness}</span>
+              </div>
+            </div>
+          )
+        })}
       </div>
     </>,
     document.body

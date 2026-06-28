@@ -14,6 +14,7 @@ export default function CeremonyHearthZone({
   position = [-4, 0, -2],
   heat = 2980,
   scale = 0.85,
+  isActive = false,
 }) {
   const [open, setOpen] = useState(false)
   const [hum, setHum] = useState(0.5)
@@ -63,7 +64,8 @@ export default function CeremonyHearthZone({
                   metadata: { ref: 'hearth:ceremony', heat }
                 })
                 setOpen(true)
-              }}
+              }},
+              { label: 'Send to Workbench', onClick: () => console.log('Handoff to workbench'), tone: 'primary' }
             ]
           })
         }}
@@ -76,6 +78,13 @@ export default function CeremonyHearthZone({
           <boxGeometry args={[2.6 * scale, 2.2 * scale, 2.2 * scale]} />
           <meshStandardMaterial visible={false} />
         </mesh>
+        
+        {isActive && (
+          <mesh position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[2.2, 2.4, 32]} />
+            <meshBasicMaterial color="#E8842A" transparent opacity={0.6} side={THREE.DoubleSide} />
+          </mesh>
+        )}
       </group>
 
       <Html fullscreen style={{ pointerEvents: 'none' }}>

@@ -24,6 +24,8 @@ import BuilderPanel from './BuilderPanel';
 import { startInteractionEngine } from './lib/interactionEngine';
 // @ts-ignore
 import HearthRenderer from './HearthRenderer';
+// @ts-ignore
+import WorldActionSheet, { useWorldActionSheet } from './world/WorldActionSheet';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface ForgeNode {
@@ -217,7 +219,7 @@ function ForgeTile({ tile }: { tile: WorldMapTile }) {
 }
 
 // ─── Scene (inner — has access to R3F context) ────────────────────────────────
-function ForgeScene({ nodes, tiles, onMint }: { nodes: ForgeNode[], tiles: WorldMapTile[], onMint: (id: string) => void }) {
+function ForgeScene({ nodes, tiles, onMint, inspectedObject }: { nodes: ForgeNode[], tiles: WorldMapTile[], onMint: (id: string) => void, inspectedObject?: any }) {
   return (
     <>
       <HearthLights />
@@ -273,6 +275,7 @@ function ForgeScene({ nodes, tiles, onMint }: { nodes: ForgeNode[], tiles: World
             wasmInstance={null} /* TODO: passed via ref if needed, but not strictly required if WaterSim loads it or handles it */
             title={node.title}
             placedBy={node.placed_by}
+            isActive={inspectedObject?.id === `waterwheel-${node.chain_hash ?? '0'.repeat(64)}`}
           />
         ))
       }
@@ -294,6 +297,7 @@ function ForgeScene({ nodes, tiles, onMint }: { nodes: ForgeNode[], tiles: World
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function ThreeForge({ agentId }: { agentId?: string }) {
   void agentId;
+  const { inspectedObject, recentObjects, setInspectedObject } = useWorldActionSheet();
   const [nodes, setNodes]     = useState<ForgeNode[]>([]);
   const [tiles, setTiles]     = useState<WorldMapTile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -416,12 +420,13 @@ export default function ThreeForge({ agentId }: { agentId?: string }) {
         >
           <Suspense fallback={null}>
             <HearthRenderer heat={2980}>
-              <ForgeScene nodes={nodes} tiles={tiles} onMint={handleMint} />
+              <ForgeScene nodes={nodes} tiles={tiles} onMint={handleMint} inspectedObject={inspectedObject} />
             </HearthRenderer>
           </Suspense>
         </Canvas>
       </div>
 
+      <WorldActionSheet inspectedObject={inspectedObject} recentObjects={recentObjects} onClose={() => setInspectedObject(null)} />
       {/* Builder Panel */}
       <BuilderPanel
         emberBalance={playerEmberBalance}

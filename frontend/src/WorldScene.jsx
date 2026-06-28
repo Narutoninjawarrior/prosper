@@ -55,7 +55,7 @@ const ZONES = {
 }
 
 // ── Zone portal marker ────────────────────────────────────────────
-function ZonePortal({ position, color, label, onEnter }) {
+function ZonePortal({ position, color, label, onEnter, isActive }) {
   const ringRef = useRef()
   const [hovered, setHovered] = useState(false)
 
@@ -69,7 +69,6 @@ function ZonePortal({ position, color, label, onEnter }) {
   return (
     <group position={position}>
       {/* Portal ring */}
-      {/* Portal ring */}
       <mesh ref={ringRef}>
         <torusGeometry args={[0.8, 0.06, 8, 32]} />
         <meshStandardMaterial
@@ -80,6 +79,14 @@ function ZonePortal({ position, color, label, onEnter }) {
           metalness={0.8}
         />
       </mesh>
+
+      {/* Active Highlight Ring */}
+      {isActive && (
+        <mesh position={[0, -0.7, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[1.3, 1.4, 32]} />
+          <meshBasicMaterial color={color} transparent opacity={0.6} side={THREE.DoubleSide} />
+        </mesh>
+      )}
 
       {/* Enlarged invisible hit area */}
       <mesh
@@ -103,7 +110,8 @@ function ZonePortal({ position, color, label, onEnter }) {
             freshness: 'Live',
             actions: [
               { label: 'Enter route', onClick: onEnter, tone: 'primary' },
-              { label: 'Preview destination', onClick: () => console.log('Preview', label), tone: 'warm' }
+              { label: 'Preview destination', onClick: () => console.log('Preview', label), tone: 'warm' },
+              { label: 'Send to Workbench', onClick: () => console.log('Handoff to workbench'), tone: 'primary' }
             ]
           })
         }}
@@ -415,6 +423,7 @@ function WorldContent({
             color={zone.color}
             label={zone.label}
             onEnter={() => setActiveZone(key)}
+            isActive={inspectedObject?.id === `portal-${zone.label}`}
           />
         ))}
 
@@ -434,6 +443,7 @@ function WorldContent({
           label="Gemma"
           accent="#D4A853"
           onInvoke={() => setStewardSignal((value) => value + 1)}
+          isActive={inspectedObject?.id === 'gemma'}
         />
       </HearthRenderer>
 

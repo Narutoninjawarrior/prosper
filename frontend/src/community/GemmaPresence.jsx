@@ -9,6 +9,7 @@ export default function GemmaPresence({
   label = 'Gemma',
   accent = '#D4A853',
   onInvoke,
+  isActive = false,
 }) {
   const groupRef = useRef()
   const shellRef = useRef()
@@ -56,7 +57,8 @@ export default function GemmaPresence({
                 freshness: 'Live / Ready',
                 actions: [
                   { label: 'Invoke steward', onClick: () => onInvoke?.(), tone: 'primary' },
-                  { label: 'Open Lodge Mind', onClick: () => console.log('Open lodge mind'), tone: 'warm' }
+                  { label: 'Open Lodge Mind', onClick: () => window.location.href = '/lodge-mind', tone: 'warm' },
+                  { label: 'Send to Workbench', onClick: () => console.log('Handoff to workbench'), tone: 'primary' }
                 ]
               })
             }}
@@ -73,6 +75,13 @@ export default function GemmaPresence({
             <sphereGeometry args={[1.2, 16, 16]} />
             <meshStandardMaterial visible={false} />
           </mesh>
+
+          {isActive && (
+            <mesh position={[0, -1.6, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+              <ringGeometry args={[0.8, 0.9, 32]} />
+              <meshBasicMaterial color={accent} transparent opacity={0.5} side={THREE.DoubleSide} />
+            </mesh>
+          )}
 
           <mesh
             ref={shellRef}
