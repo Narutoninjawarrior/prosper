@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Sparkles, Activity, Shield, Network, ChevronRight, Eye, Edit3, Lock, Beaker, Database, Filter, EyeOff } from 'lucide-react';
+import { Sparkles, Activity, Shield, Network, ChevronRight, Eye, Edit3, Lock, Beaker, Database, Filter, EyeOff, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export type Visibility = 'public_witnessed' | 'local_draft' | 'authenticated_shared' | 'experimental' | 'seed_demo';
@@ -246,7 +246,8 @@ export default function CommonsRoute() {
 
           <Section title="Local Drafts" icon={Edit3} color="#E8842A" description="Visible only to your local session.">
             <div className="flex gap-4 overflow-x-auto pb-4">
-              <Lane title="Drafts" items={localDrafts.filter(p => p.status === 'draft')} onClick={setSelectedPrompt} />
+              <Lane title="Drafts" items={localDrafts.filter(p => p.status === 'draft' && p.source_route !== '/workbench')} onClick={setSelectedPrompt} />
+              <Lane title="Sealed / Exported" items={localDrafts.filter(p => p.status === 'draft' && p.source_route === '/workbench')} onClick={setSelectedPrompt} />
               <Lane title="Proposed (Unpublished)" items={localDrafts.filter(p => p.status === 'proposed')} onClick={setSelectedPrompt} />
             </div>
           </Section>
@@ -470,8 +471,8 @@ function Sidecar({ prompt, onClose, allPrompts, onUpdateStatus, onSpawnFollowup,
           </div>
         </div>
 
-        {/* Receipt */}
-        {prompt.receipt_hash && (
+        {/* Receipt / Local Export Info */}
+        {prompt.receipt_hash ? (
           <div>
             <div className="text-[10px] text-[#E8842A] uppercase font-bold tracking-widest mb-2 flex items-center gap-1">
               <Shield className="w-3 h-3" /> Output Receipt
@@ -480,7 +481,18 @@ function Sidecar({ prompt, onClose, allPrompts, onUpdateStatus, onSpawnFollowup,
               {prompt.receipt_hash}
             </div>
           </div>
-        )}
+        ) : prompt.source_route === '/workbench' ? (
+          <div>
+            <div className="text-[10px] text-[#E8842A] uppercase font-bold tracking-widest mb-2 flex items-center gap-1">
+              <AlertCircle className="w-3.5 h-3.5" /> Local Export State
+            </div>
+            <div className="bg-[#1A1410]/50 p-3 rounded border border-[#3D2C1E] text-[10px] font-mono text-gray-400 leading-normal">
+              • Local export summary<br />
+              • Not publicly recorded<br />
+              • No receipt minted
+            </div>
+          </div>
+        ) : null}
 
         {/* Return to World Object */}
         {prompt.object_ref && (
