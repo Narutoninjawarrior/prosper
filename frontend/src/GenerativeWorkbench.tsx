@@ -121,8 +121,8 @@ export default function GenerativeWorkbench() {
       target_id: 'commons',
       status: 'draft',
       boundary: 'local_only',
-      visibility: 'local_draft',
-      scope: 'local_draft',
+      visibility: 'local_artifact',
+      scope: 'local_artifact',
       cost_label: 'EXPORT ONLY',
       source_route: '/workbench',
       created_at: new Date().toISOString(),
@@ -383,7 +383,7 @@ export default function GenerativeWorkbench() {
                   onClick={returnToCommons}
                   className="bg-[#E8842A] text-[#0A0402] text-[9px] uppercase font-bold tracking-wider px-4 py-2 rounded hover:bg-white transition-colors flex items-center gap-1.5"
                 >
-                  <ArrowLeftRight className="w-3 h-3" /> Export to Commons
+                  <ArrowLeftRight className="w-3 h-3" /> Export Local Artifact
                 </button>
               )}
             </div>

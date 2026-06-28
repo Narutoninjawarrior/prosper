@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Sparkles, Activity, Shield, Network, ChevronRight, Eye, Edit3, Lock, Beaker, Database, Filter, EyeOff, AlertCircle } from 'lucide-react';
+import { Sparkles, Activity, Shield, Network, ChevronRight, Eye, Edit3, Lock, Beaker, Database, Filter, EyeOff, AlertCircle, FileText } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export type Visibility = 'public_witnessed' | 'local_draft' | 'authenticated_shared' | 'experimental' | 'seed_demo';
-export type AudienceScope = 'commons_public' | 'builders_room' | 'world_room' | 'forge_room' | 'lodge_mind_room' | 'local_draft';
+export type Visibility = 'public_witnessed' | 'local_draft' | 'authenticated_shared' | 'experimental' | 'seed_demo' | 'local_artifact';
+export type AudienceScope = 'commons_public' | 'builders_room' | 'world_room' | 'forge_room' | 'lodge_mind_room' | 'local_draft' | 'local_artifact';
 
 export type CommonsPrompt = {
   id: string
@@ -39,7 +39,8 @@ const VISIBILITY_ICONS: Record<Visibility, any> = {
   local_draft: Edit3,
   authenticated_shared: Lock,
   experimental: Beaker,
-  seed_demo: Database
+  seed_demo: Database,
+  local_artifact: FileText
 };
 
 const VISIBILITY_LABELS: Record<Visibility, string> = {
@@ -47,7 +48,8 @@ const VISIBILITY_LABELS: Record<Visibility, string> = {
   local_draft: 'Local Draft',
   authenticated_shared: 'Auth Shared',
   experimental: 'Experimental',
-  seed_demo: 'Seed Demo'
+  seed_demo: 'Seed Demo',
+  local_artifact: 'Local Artifact'
 };
 
 const SCOPE_LABELS: Record<AudienceScope, string> = {
@@ -56,7 +58,8 @@ const SCOPE_LABELS: Record<AudienceScope, string> = {
   world_room: 'World Room',
   forge_room: 'Forge Room',
   lodge_mind_room: 'Lodge Mind',
-  local_draft: 'Local Draft'
+  local_draft: 'Local Draft',
+  local_artifact: 'Local Artifact'
 };
 
 export default function CommonsRoute() {
@@ -181,6 +184,7 @@ export default function CommonsRoute() {
   });
 
   const publicWitnessed = filteredPrompts.filter(p => p.visibility === 'public_witnessed');
+  const localArtifacts = filteredPrompts.filter(p => p.visibility === 'local_artifact');
   const localDrafts = filteredPrompts.filter(p => p.visibility === 'local_draft');
   const seedDemos = filteredPrompts.filter(p => p.visibility === 'seed_demo');
 
@@ -244,10 +248,15 @@ export default function CommonsRoute() {
             </div>
           </Section>
 
+          <Section title="Local Artifacts" icon={FileText} color="#D4A853" description="Returned from your local workbench. Not shared.">
+            <div className="flex gap-4 overflow-x-auto pb-4">
+              <Lane title="Artifacts" items={localArtifacts} onClick={setSelectedPrompt} />
+            </div>
+          </Section>
+
           <Section title="Local Drafts" icon={Edit3} color="#E8842A" description="Visible only to your local session.">
             <div className="flex gap-4 overflow-x-auto pb-4">
-              <Lane title="Drafts" items={localDrafts.filter(p => p.status === 'draft' && p.source_route !== '/workbench')} onClick={setSelectedPrompt} />
-              <Lane title="Sealed / Exported" items={localDrafts.filter(p => p.status === 'draft' && p.source_route === '/workbench')} onClick={setSelectedPrompt} />
+              <Lane title="Drafts" items={localDrafts.filter(p => p.status === 'draft')} onClick={setSelectedPrompt} />
               <Lane title="Proposed (Unpublished)" items={localDrafts.filter(p => p.status === 'proposed')} onClick={setSelectedPrompt} />
             </div>
           </Section>
@@ -481,15 +490,17 @@ function Sidecar({ prompt, onClose, allPrompts, onUpdateStatus, onSpawnFollowup,
               {prompt.receipt_hash}
             </div>
           </div>
-        ) : prompt.source_route === '/workbench' ? (
+        ) : prompt.visibility === 'local_artifact' ? (
           <div>
-            <div className="text-[10px] text-[#E8842A] uppercase font-bold tracking-widest mb-2 flex items-center gap-1">
-              <AlertCircle className="w-3.5 h-3.5" /> Local Export State
+            <div className="text-[10px] text-[#D4A853] uppercase font-bold tracking-widest mb-2 flex items-center gap-1">
+              <AlertCircle className="w-3.5 h-3.5" /> Local Artifact
             </div>
-            <div className="bg-[#1A1410]/50 p-3 rounded border border-[#3D2C1E] text-[10px] font-mono text-gray-400 leading-normal">
-              • Local export summary<br />
-              • Not publicly recorded<br />
-              • No receipt minted
+            <div className="bg-[#1A1410]/50 p-3 rounded border border-[#3D2C1E] text-[10px] font-mono text-gray-400 leading-relaxed space-y-1.5">
+              <div>• Exists only in this session. Not shared.</div>
+              <div>• Not yet promoted to Public Witness.</div>
+              <div>• No ledger entry. No cryptographic proof.</div>
+              <div>• Can be promoted to Public Witness when ready.</div>
+              <div>• Not on any chain. Not receipted.</div>
             </div>
           </div>
         ) : null}
@@ -524,10 +535,10 @@ function Sidecar({ prompt, onClose, allPrompts, onUpdateStatus, onSpawnFollowup,
         )}
 
         {/* Draft -> Publish Actions */}
-        {prompt.is_local_session && prompt.visibility === 'local_draft' && (
+        {prompt.is_local_session && (prompt.visibility === 'local_draft' || prompt.visibility === 'local_artifact') && (
           <div className="bg-[#1A1410] border border-[#4A90D9]/30 rounded p-4 text-center">
             <div className="text-[10px] text-[#4A90D9] uppercase font-bold tracking-widest mb-2">Publish to Commons</div>
-            <div className="text-[10px] text-gray-400 mb-4 px-2">Move this draft to the Public Witness board. (Public Preview - This Session Only)</div>
+            <div className="text-[10px] text-gray-400 mb-4 px-2">Move this local object to the Public Witness board. (Local Preview)</div>
             
             <div className="mb-3">
               <label className="text-[9px] text-gray-500 uppercase tracking-widest block mb-1">Select Audience Scope</label>
