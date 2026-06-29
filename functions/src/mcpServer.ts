@@ -9,7 +9,7 @@
  *   - No Mcp-Session-Id is issued  → every request is independent
  *
  * Methods: initialize, ping, tools/list, tools/call.
- * All tools are READ-ONLY and reuse the exact helpers behind the
+ * Tools are mixed (15 read-only, 7 write-capable) and reuse the exact helpers behind the
  * /api/* REST endpoints — one contract, two transports.
  */
 import * as functions from 'firebase-functions';
@@ -36,7 +36,7 @@ const SERVER_INFO = {
 const INSTRUCTIONS =
   'Read-only MCP server for the Fellowship of the Hearth public vessel. ' +
   'Start with hearthlands_vessel_brief for orientation, then hearthlands_list_registries. ' +
-  'All tools are read-only; there are no write paths, wallets, or purchases. ' +
+  'The server exposes 15 read-only tools and 7 write-capable tools (some require Auth and/or EMBER). ' +
   'Registry data is labeled truthfully: live | seeded | mirrored | prototype.';
 
 type JsonRpcRequest = {
@@ -90,7 +90,7 @@ const TOOLS: ToolDefinition[] = [
       vessel: 'Fellowship of the Hearth — Hearthlands public vessel',
       vessel_id: 'hearthlands-doctrine-forge-v1',
       base_url: 'https://fellowship-of-the-hearth.web.app',
-      policy: 'All MCP tools are read-only. Separate authenticated or beta server APIs may append logs or identity links, and those are documented outside the MCP surface.',
+      policy: 'The MCP server exposes 22 tools: 15 read-only discovery tools and 7 write-capable economic/collaborative tools (which require Auth and/or EMBER). Check readOnlyHint in tools/list.',
       public_routes: ['/world', '/biosphere', '/forge', '/3dforge', '/hall', '/council', '/artifacts', '/registry', '/agent-access', '/lodge-mind'],
       rest_api: {
         registry_list: '/api/registry/list?kind=&status=&q=',
@@ -100,7 +100,7 @@ const TOOLS: ToolDefinition[] = [
         workshop_catalog: '/api/workshop/catalog',
         workshop_validate: '/api/workshop/validate',
       },
-      docs: ['/llms.txt', '/.well-known/ai.json', '/mission.md'],
+      docs: ['/llms.txt', '/.well-known/ai-discovery.json', '/.well-known/ai.json', '/mission.md'],
       integrity: 'Registry seeds carry manifest_hash (SHA-256 of stable-stringified records); hashes are re-verified server-side.',
     }),
   },
@@ -453,12 +453,14 @@ const TOOLS: ToolDefinition[] = [
       }
     },
     annotations: { readOnlyHint: true },
-    execute: async (args, req) => {
-      const qs = new URLSearchParams();
-      if (args.agent_id) qs.set('agent_id', String(args.agent_id));
-      if (args.task_type) qs.set('task_type', String(args.task_type));
-      const res = await fetch(`https://fellowship-of-the-hearth.web.app/api/forge/inspire?${qs}`);
-      return await res.json();
+    execute: async () => {
+      return {
+        available: false,
+        status: "planned",
+        tool: "hearthlands_inspire",
+        message: "Inspiration Forge is not currently available on this deployment.",
+        next_step: "Use hearthlands_vessel_brief, registry tools, and observatory/world oracles instead."
+      };
     }
   },
   {
