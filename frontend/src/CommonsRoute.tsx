@@ -1,6 +1,13 @@
-import { useState, useEffect } from 'react';
-import { Sparkles, Activity, Shield, Network, ChevronRight, Eye, Edit3, Lock, Beaker, Database, Filter, EyeOff, AlertCircle, FileText } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Sparkles, Activity, Shield, Network, ChevronRight, Eye, Edit3, Lock, Beaker, Database, Filter, EyeOff, AlertCircle, FileText, CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useRoomAudio } from './hooks/useRoomAudio';
+import { useSanctuary } from './SanctuaryContext';
+import { useOpenClawSync } from './hooks/useOpenClawSync';
+import { simulateAgentClaim } from './lib/agentSimulation';
+import type { Receipt, AgentClaim } from './lib/agentSimulation';
+import { ReceiptCard } from './components/ReceiptCard';
+import { ApprovalGate } from './components/ApprovalGate';
 
 export type Visibility = 'public_witnessed' | 'local_draft' | 'authenticated_shared' | 'experimental' | 'seed_demo' | 'local_artifact';
 export type AudienceScope = 'commons_public' | 'builders_room' | 'world_room' | 'forge_room' | 'lodge_mind_room' | 'local_draft';
@@ -34,6 +41,18 @@ export type CommonsPrompt = {
   }
 }
 
+type LocalReviewNode = {
+  id: string
+  target_id: string
+  target_kind: 'local_artifact'
+  verdict: 'PASS' | 'WARN' | 'CRITICAL'
+  note: string
+  author_type: 'human' | 'agent'
+  author_id: string
+  created_at: string
+  boundary: 'local_only'
+}
+
 const VISIBILITY_ICONS: Record<Visibility, any> = {
   public_witnessed: Eye,
   local_draft: Edit3,
@@ -60,6 +79,14 @@ const SCOPE_LABELS: Record<AudienceScope, string> = {
   lodge_mind_room: 'Lodge Mind',
   local_draft: 'Local Draft'
 };
+
+function localReviewStorageKey(targetId: string): string {
+  return `hearth_local_reviews_${targetId}`;
+}
+
+function sanitizeReviewNote(value: string): string {
+  return value.replace(/<\/?[^>]+(>|$)/g, '').trim();
+}
 
 export default function CommonsRoute() {
   const [prompts, setPrompts] = useState<CommonsPrompt[]>([]);
@@ -100,6 +127,18 @@ export default function CommonsRoute() {
   useEffect(() => {
     loadPrompts();
   }, []);
+
+  useEffect(() => {
+    if (loading) return;
+    const params = new URLSearchParams(window.location.search);
+    const targetObject = params.get('object');
+    if (targetObject) {
+      const found = prompts.find(p => p.object_ref?.id === targetObject || p.id === targetObject);
+      if (found) {
+        setSelectedPrompt(found);
+      }
+    }
+  }, [loading, prompts]);
 
   const handleUpdateStatus = (id: string, newStatus: string, newVisibility?: Visibility, newScope?: AudienceScope) => {
     const session = JSON.parse(sessionStorage.getItem('hearth_commons_session_prompts') || '[]');
@@ -187,6 +226,185 @@ export default function CommonsRoute() {
   const localDrafts = filteredPrompts.filter(p => p.visibility === 'local_draft');
   const seedDemos = filteredPrompts.filter(p => p.visibility === 'seed_demo');
 
+  const { updateRoom, updateGlobal, playChime, enabled } = useRoomAudio();
+  const { wickState } = useSanctuary();
+  const [theta, setTheta] = useState(0.82);
+
+  useOpenClawSync((syncTheta) => {
+    setTheta(prev => prev < 0 ? prev : syncTheta);
+  });
+
+  const [newPromptText, setNewPromptText] = useState("");
+  const [newPromptScope, setNewPromptScope] = useState<AudienceScope>("commons_public");
+
+  const [pendingReceipts, setPendingReceipts] = useState<Receipt[]>(() => {
+    const stored = sessionStorage.getItem('hearth_pending_receipts');
+    return stored ? JSON.parse(stored) : [];
+  });
+  const [approvedReceipts, setApprovedReceipts] = useState<Receipt[]>(() => {
+    const stored = sessionStorage.getItem('hearth_approved_receipts');
+    return stored ? JSON.parse(stored) : [];
+  });
+
+  const [activeClaims, setActiveClaims] = useState<Record<string, AgentClaim>>({});
+  const simulatedRef = useRef<Record<string, boolean>>({});
+
+  const triggerSimulation = (promptId: string) => {
+    simulateAgentClaim(
+      promptId,
+      (claim) => {
+        setActiveClaims(prev => ({ ...prev, [promptId]: claim }));
+
+        const session = JSON.parse(sessionStorage.getItem('hearth_commons_session_prompts') || '[]');
+        const existing = session.find((p: any) => p.id === promptId);
+        
+        let newStatus: 'claimed' | 'in_progress' = 'claimed';
+        if (claim.status === 'working') {
+          newStatus = 'in_progress';
+        }
+        
+        if (existing) {
+          existing.status = newStatus;
+          sessionStorage.setItem('hearth_commons_session_prompts', JSON.stringify(session));
+        } else {
+          const seed = prompts.find(p => p.id === promptId);
+          if (seed) {
+            const copy = { ...seed, status: newStatus, is_local_session: true };
+            sessionStorage.setItem('hearth_commons_session_prompts', JSON.stringify([copy, ...session]));
+          }
+        }
+        loadPrompts();
+      },
+      (receipt) => {
+        setActiveClaims(prev => {
+          const copy = { ...prev };
+          delete copy[promptId];
+          return copy;
+        });
+
+        const session = JSON.parse(sessionStorage.getItem('hearth_commons_session_prompts') || '[]');
+        const existing = session.find((p: any) => p.id === promptId);
+        if (existing) {
+          existing.status = 'receipted';
+          sessionStorage.setItem('hearth_commons_session_prompts', JSON.stringify(session));
+        }
+        loadPrompts();
+
+        setPendingReceipts(prev => {
+          const next = [...prev.filter(r => r.id !== receipt.id), receipt];
+          sessionStorage.setItem('hearth_pending_receipts', JSON.stringify(next));
+          return next;
+        });
+
+        playChime('completed');
+      }
+    );
+  };
+
+  useEffect(() => {
+    prompts.forEach(p => {
+      if (p.status === 'proposed' && p.author_id === 'human_operator' && !simulatedRef.current[p.id]) {
+        simulatedRef.current[p.id] = true;
+        setTimeout(() => {
+          triggerSimulation(p.id);
+        }, 1000);
+      }
+    });
+  }, [prompts]);
+
+  const handleProposePrompt = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPromptText.trim()) return;
+
+    const newPrompt: CommonsPrompt = {
+      id: `prompt-${Date.now()}`,
+      prompt_text: newPromptText,
+      author_type: 'human',
+      author_id: 'human_operator',
+      target_type: 'agent',
+      target_id: 'open_delegation',
+      status: 'proposed',
+      boundary: 'local_only',
+      visibility: 'public_witnessed',
+      scope: newPromptScope,
+      source_route: '/commons',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      is_local_session: true
+    };
+
+    const session = JSON.parse(sessionStorage.getItem('hearth_commons_session_prompts') || '[]');
+    sessionStorage.setItem('hearth_commons_session_prompts', JSON.stringify([newPrompt, ...session]));
+    
+    setNewPromptText("");
+    loadPrompts();
+
+    playChime('proposed');
+  };
+
+  const prevStatusesRef = useRef<Record<string, string>>({});
+
+  useEffect(() => {
+    const currentStatuses: Record<string, string> = {};
+    prompts.forEach(p => {
+      currentStatuses[p.id] = p.status;
+    });
+
+    if (enabled && Object.keys(prevStatusesRef.current).length > 0) {
+      prompts.forEach(p => {
+        const prevStatus = prevStatusesRef.current[p.id];
+        if (prevStatus && prevStatus !== p.status) {
+          if (p.status === 'proposed') {
+            playChime('proposed');
+          } else if (p.status === 'claimed' || p.status === 'in_progress') {
+            playChime('claimed');
+          } else if (p.status === 'receipted' || p.status === 'closed') {
+            playChime('completed');
+          }
+        }
+      });
+    }
+
+    prevStatusesRef.current = currentStatuses;
+  }, [prompts, enabled, playChime]);
+
+  useEffect(() => {
+    updateGlobal(theta, wickState);
+  }, [theta, wickState, updateGlobal]);
+
+  useEffect(() => {
+    const lanes = [
+      { id: 'public_witness', items: publicWitnessed, baseFreq: 220, pan: 0.1 },
+      { id: 'local_artifacts', items: localArtifacts, baseFreq: 330, pan: 0.4 },
+      { id: 'local_drafts', items: localDrafts, baseFreq: 440, pan: 0.6 },
+      { id: 'seed_demos', items: seedDemos, baseFreq: 550, pan: 0.9 },
+    ];
+
+    lanes.forEach(lane => {
+      const activeCount = lane.items.filter(p => p.status === 'claimed' || p.status === 'in_progress').length;
+      const completedCount = lane.items.filter(p => p.status === 'receipted' || p.status === 'closed').length;
+      const proposedCount = lane.items.filter(p => p.status === 'proposed').length;
+      
+      let taskStatus: 'proposed' | 'claimed' | 'stalled' | 'completed' = 'completed';
+      if (activeCount > 0) {
+        taskStatus = 'claimed';
+      } else if (proposedCount > 0) {
+        taskStatus = 'proposed';
+      }
+      
+      const total = lane.items.length;
+      const consensusLevel = total > 0 ? (completedCount + (total - activeCount - proposedCount) * 0.5) / total : 1.0;
+
+      updateRoom(lane.id, {
+        baseFreq: lane.baseFreq,
+        activeAgents: activeCount + (lane.id === 'public_witness' ? 2 : 1),
+        taskStatus,
+        consensusLevel: Math.max(0.2, Math.min(1.0, consensusLevel)),
+        pan: lane.pan
+      });
+    });
+  }, [publicWitnessed, localArtifacts, localDrafts, seedDemos, updateRoom]);
+
   if (loading) {
     return (
       <div className="h-full w-full flex items-center justify-center text-gray-500 font-mono text-sm">
@@ -210,8 +428,10 @@ export default function CommonsRoute() {
               Human & Agent Coordination Chamber
             </p>
           </div>
-          <div className="text-xs bg-[#1A1410] text-[#D4A853] px-3 py-1 rounded border border-[#3D2C1E] flex flex-col items-end">
-            <span>V4: Audience Scope</span>
+          <div className="flex items-center gap-3">
+            <div className="text-xs bg-[#1A1410] text-[#D4A853] px-3 py-1.5 rounded border border-[#3D2C1E] flex flex-col items-end">
+              <span>V4: Audience Scope</span>
+            </div>
           </div>
         </div>
       </div>
@@ -237,34 +457,182 @@ export default function CommonsRoute() {
 
       {/* Main Board */}
       <div className="flex-1 overflow-y-auto relative p-4 md:p-6 space-y-8">
-        <div className="max-w-7xl mx-auto space-y-12">
+        <div className="max-w-7xl mx-auto space-y-8">
+
+          {/* Truth Legend */}
+          <div className="flex items-center justify-center gap-4 md:gap-8 p-3 bg-[#0A0604] border border-[#1A1410] rounded text-[9px] md:text-[10px] uppercase tracking-widest font-bold text-gray-500 mb-6 shadow-sm">
+            <div className="flex items-center gap-1.5 md:gap-2">
+              <span className="text-[#4A90D9]">Public Witness:</span> Review Surface
+            </div>
+            <div className="w-px h-3 bg-[#2A1F16]" />
+            <div className="flex items-center gap-1.5 md:gap-2">
+              <span className="text-[#E8842A]">Local Draft / Artifact:</span> Browser-Only Session
+            </div>
+            <div className="w-px h-3 bg-[#2A1F16]" />
+            <div className="flex items-center gap-1.5 md:gap-2">
+              <span className="text-[#8A7A64]">Seed Demo:</span> Static Examples
+            </div>
+          </div>
+
           
+          {/* Operator Prompt Composer */}
+          <div className="bg-[#0A0604] border border-[#2A1F16] rounded-lg p-5 max-w-7xl mx-auto space-y-4 shadow-xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-[#E8842A]/5 blur-2xl rounded-full -mr-10 -mt-10 pointer-events-none" />
+            <div className="flex justify-between items-center border-b border-[#1A1410] pb-2">
+              <h2 className="text-xs font-bold uppercase tracking-widest text-[#E8842A] flex items-center gap-2">
+                <Sparkles className="w-4 h-4" /> Propose New Coordination Task
+              </h2>
+              <span className="text-[10px] text-gray-500 uppercase tracking-wider">Lodge Operator Console</span>
+            </div>
+
+            <form onSubmit={handleProposePrompt} className="flex gap-4 items-end">
+              <div className="flex-1 space-y-1.5">
+                <label htmlFor="prompt-text-composer" className="text-[10px] text-gray-500 uppercase tracking-widest block font-bold">Intent Details</label>
+                <input 
+                  id="prompt-text-composer"
+                  type="text"
+                  placeholder="Ask Kael, Mira, or Ordo to coordinate on a task..."
+                  value={newPromptText}
+                  onChange={(e) => setNewPromptText(e.target.value)}
+                  className="w-full bg-[#1A1410] border border-[#2A1F16] hover:border-[#3D2C1E] focus:border-[#D4A853] text-gray-200 text-xs p-2.5 rounded focus:outline-none transition-colors"
+                />
+              </div>
+
+              <div className="w-48 space-y-1.5">
+                <label htmlFor="prompt-scope-composer" className="text-[10px] text-gray-500 uppercase tracking-widest block font-bold">Scope</label>
+                <select
+                  id="prompt-scope-composer"
+                  value={newPromptScope}
+                  onChange={(e) => setNewPromptScope(e.target.value as AudienceScope)}
+                  className="w-full bg-[#1A1410] border border-[#2A1F16] hover:border-[#3D2C1E] focus:border-[#D4A853] text-gray-200 text-xs p-2.5 rounded focus:outline-none transition-colors"
+                >
+                  <option value="commons_public">Commons Public</option>
+                  <option value="builders_room">Builders Room</option>
+                  <option value="world_room">World Room</option>
+                  <option value="forge_room">Forge Room</option>
+                  <option value="lodge_mind_room">Lodge Mind Room</option>
+                </select>
+              </div>
+
+              <button 
+                type="submit"
+                disabled={!newPromptText.trim()}
+                className="bg-[#D4A853] text-[#0A0604] hover:bg-white transition-colors text-[10px] uppercase font-bold tracking-widest py-2.5 px-6 rounded disabled:opacity-50 h-[38px] flex items-center gap-1.5 cursor-pointer"
+              >
+                Propose Task
+              </button>
+            </form>
+          </div>
+
           <Section title="Public Witness" icon={Eye} color="#4A90D9" description="Prompts visible to the collective.">
             <div className="flex gap-4 overflow-x-auto pb-4">
               <Lane title="Proposed" items={publicWitnessed.filter(p => p.status === 'proposed')} onClick={setSelectedPrompt} />
-              <Lane title="Claimed / Active" items={publicWitnessed.filter(p => p.status === 'claimed' || p.status === 'in_progress')} onClick={setSelectedPrompt} />
-              <Lane title="Receipted" items={publicWitnessed.filter(p => p.status === 'receipted' || p.status === 'closed')} onClick={setSelectedPrompt} />
+              
+              <div className="w-[340px] flex-none flex flex-col h-[500px] bg-[#0F0A06] border border-[#1A1410] rounded">
+                <div className="p-3 border-b border-[#1A1410] text-[10px] font-bold text-gray-500 uppercase flex justify-between items-center bg-black/40">
+                  <span>Claimed / Active</span>
+                  <span className="bg-[#1A1410] px-2 py-0.5 rounded text-gray-400">
+                    {publicWitnessed.filter(p => p.status === 'claimed' || p.status === 'in_progress').length}
+                  </span>
+                </div>
+                <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                  {publicWitnessed.filter(p => p.status === 'claimed' || p.status === 'in_progress').map(p => (
+                    <div key={p.id} className="space-y-2">
+                      <PromptCard prompt={p} onClick={() => setSelectedPrompt(p)} />
+                      {activeClaims[p.id] && (
+                        <div className="bg-[#1C1510] border border-[#5C3D1E]/40 p-3 rounded text-[10px] font-mono space-y-1.5">
+                          <div className="text-[#D4A853] font-bold uppercase flex items-center gap-1.5">
+                            <Activity className="w-3.5 h-3.5 animate-pulse text-[#E8842A]" /> Agent Claim Active
+                          </div>
+                          <div className="text-gray-400">Agent: <span className="text-gray-200 font-bold">{activeClaims[p.id].agentName}</span></div>
+                          <div className="text-gray-400">Status: <span className="text-[#E8842A] uppercase font-bold">{activeClaims[p.id].status === 'working' ? '🛠 Working' : '⏳ Handshaking'}</span></div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {publicWitnessed.filter(p => p.status === 'claimed' || p.status === 'in_progress').length === 0 && (
+                    <div className="text-center p-8 text-xs text-gray-600 border border-dashed border-[#1A1410] rounded m-2">Empty</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Pending Operator Audit Lane */}
+              <div className="w-[340px] flex-none flex flex-col h-[500px] bg-[#140F0A] border border-[#2A1D13] rounded">
+                <div className="p-3 border-b border-[#2A1D13] text-[10px] font-bold text-[#E8842A] uppercase flex justify-between items-center bg-black/40">
+                  <span>Pending Operator Audit</span>
+                  <span className="bg-[#2A1D13] px-2 py-0.5 rounded text-[#E8842A]">{pendingReceipts.length}</span>
+                </div>
+                <div className="flex-1 overflow-y-auto p-2 space-y-2.5">
+                  {pendingReceipts.map(r => (
+                    <ApprovalGate 
+                      key={r.id} 
+                      receipt={r} 
+                      onApprove={(receipt) => {
+                        setApprovedReceipts(prev => {
+                          const next = [...prev.filter(x => x.id !== receipt.id), receipt];
+                          sessionStorage.setItem('hearth_approved_receipts', JSON.stringify(next));
+                          return next;
+                        });
+                        setPendingReceipts(prev => {
+                          const next = prev.filter(x => x.id !== receipt.id);
+                          sessionStorage.setItem('hearth_pending_receipts', JSON.stringify(next));
+                          return next;
+                        });
+                        handleUpdateStatus(receipt.promptId, 'receipted');
+                      }}
+                      onReject={(receipt) => {
+                        setPendingReceipts(prev => {
+                          const next = prev.filter(x => x.id !== receipt.id);
+                          sessionStorage.setItem('hearth_pending_receipts', JSON.stringify(next));
+                          return next;
+                        });
+                        handleUpdateStatus(receipt.promptId, 'proposed');
+                      }}
+                    />
+                  ))}
+                  {pendingReceipts.length === 0 && (
+                    <div className="text-center p-8 text-xs text-gray-600 border border-dashed border-[#2A1D13] rounded m-2">No pending audits</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Approved Receipts Lane */}
+              <div className="w-[340px] flex-none flex flex-col h-[500px] bg-[#0A0F0D] border border-[#13271F] rounded">
+                <div className="p-3 border-b border-[#13271F] text-[10px] font-bold text-[#46D38B] uppercase flex justify-between items-center bg-black/40">
+                  <span>Approved Receipts</span>
+                  <span className="bg-[#13271F] px-2 py-0.5 rounded text-[#46D38B]">{approvedReceipts.length}</span>
+                </div>
+                <div className="flex-1 overflow-y-auto p-2 space-y-2.5">
+                  {approvedReceipts.map(r => (
+                    <ReceiptCard key={r.id} receipt={r} />
+                  ))}
+                  {approvedReceipts.length === 0 && (
+                    <div className="text-center p-8 text-xs text-gray-600 border border-dashed border-[#13271F] rounded m-2">No committed receipts</div>
+                  )}
+                </div>
+              </div>
+
             </div>
           </Section>
 
-          <Section title="Local Artifacts" icon={FileText} color="#D4A853" description="Returned from your local workbench. Not shared.">
+          <Section defaultExpanded={false} title="Local Artifacts" itemCount={localArtifacts.length} icon={FileText} color="#D4A853" description="Returned from your local workbench. Not shared.">
             <div className="flex gap-4 overflow-x-auto pb-4">
               <Lane title="Artifacts" items={localArtifacts} onClick={setSelectedPrompt} />
             </div>
           </Section>
 
-          <Section title="Local Drafts" icon={Edit3} color="#E8842A" description="Visible only to your local session.">
+          <Section defaultExpanded={false} title="Local Drafts" itemCount={localDrafts.length} icon={Edit3} color="#E8842A" description="Visible only to your local session.">
             <div className="flex gap-4 overflow-x-auto pb-4">
               <Lane title="Drafts" items={localDrafts.filter(p => p.status === 'draft')} onClick={setSelectedPrompt} />
               <Lane title="Proposed (Unpublished)" items={localDrafts.filter(p => p.status === 'proposed')} onClick={setSelectedPrompt} />
             </div>
           </Section>
 
-          <Section title="Seed Demonstrations" icon={Database} color="#8A7A64" description="Static examples from the repository.">
+          <Section defaultExpanded={false} title="Seed Demonstrations" itemCount={seedDemos.length} icon={Database} color="#8A7A64" description="Static examples from the repository.">
             <div className="flex gap-4 overflow-x-auto pb-4 opacity-75">
               <Lane title="Proposed" items={seedDemos.filter(p => p.status === 'proposed')} onClick={setSelectedPrompt} />
               <Lane title="Claimed / Active" items={seedDemos.filter(p => p.status === 'claimed' || p.status === 'in_progress')} onClick={setSelectedPrompt} />
-              <Lane title="Receipted" items={seedDemos.filter(p => p.status === 'receipted' || p.status === 'closed')} onClick={setSelectedPrompt} />
+              <Lane title="Closed / Example Receipts" items={seedDemos.filter(p => p.status === 'receipted' || p.status === 'closed')} onClick={setSelectedPrompt} />
             </div>
           </Section>
 
@@ -299,19 +667,39 @@ function FilterButton({ active, onClick, children }: { active: boolean, onClick:
   );
 }
 
-function Section({ title, icon: Icon, color, description, children }: { title: string, icon: any, color: string, description: string, children: React.ReactNode }) {
+function Section({ title, icon: Icon, color, description, children, defaultExpanded = true, itemCount }: { title: string, icon: any, color: string, description: string, children: React.ReactNode, defaultExpanded?: boolean, itemCount?: number }) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
   return (
     <div className="bg-[#0A0604] border border-[#1A1410] rounded-lg overflow-hidden">
-      <div className="p-4 border-b border-[#1A1410] flex items-center justify-between bg-black/20">
+      <div 
+        className="p-4 border-b border-[#1A1410] flex items-center justify-between bg-black/20 cursor-pointer hover:bg-black/40 transition-colors"
+        onClick={() => setExpanded(!expanded)}
+      >
         <div className="flex items-center gap-3">
           <Icon className="w-5 h-5" style={{ color }} />
           <h2 className="text-lg font-bold uppercase tracking-wider" style={{ color }}>{title}</h2>
+          {!expanded && itemCount !== undefined && (
+            <span className="text-xs text-gray-500 bg-[#1A1410] px-2 py-0.5 rounded border border-[#2A1F16]">
+              {itemCount} items
+            </span>
+          )}
         </div>
-        <div className="text-xs text-gray-500 uppercase tracking-widest">{description}</div>
+        <div className="flex items-center gap-4">
+          <div className="text-xs text-gray-500 uppercase tracking-widest">{description}</div>
+          <button className="text-[10px] uppercase tracking-widest font-bold px-3 py-1 rounded bg-[#1A1410] text-gray-400 border border-[#2A1F16] hover:text-white transition-colors">
+            {expanded ? 'Hide' : 'Show'}
+          </button>
+        </div>
       </div>
-      <div className="p-4 bg-[#0A0604]">
-        {children}
-      </div>
+      <AnimatePresence>
+        {expanded && (
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}>
+            <div className="p-4 bg-[#0A0604]">
+              {children}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -395,6 +783,10 @@ function Sidecar({ prompt, onClose, allPrompts, onUpdateStatus, onSpawnFollowup,
   const children = allPrompts.filter(p => p.parent_id === prompt.id);
   const parent = prompt.parent_id ? allPrompts.find(p => p.id === prompt.parent_id) : null;
   const [followupText, setFollowupText] = useState("");
+  const [reviews, setReviews] = useState<LocalReviewNode[]>([]);
+  const [reviewVerdict, setReviewVerdict] = useState<'PASS' | 'WARN' | 'CRITICAL'>('PASS');
+  const [reviewNote, setReviewNote] = useState('');
+  const [showDetails, setShowDetails] = useState(false);
 
   const handleReturnToWorld = () => {
     if (prompt.object_ref) {
@@ -405,6 +797,60 @@ function Sidecar({ prompt, onClose, allPrompts, onUpdateStatus, onSpawnFollowup,
 
   const VisIcon = VISIBILITY_ICONS[prompt.visibility] || Eye;
   const WatchIcon = prompt.is_watched ? EyeOff : Eye;
+  const latestReview = reviews[0] ?? null;
+  const boundarySummary = (() => {
+    if (prompt.visibility === 'local_artifact') return 'Local review, not published'
+    if (prompt.visibility === 'local_draft') return 'Local draft, not published'
+    if (prompt.visibility === 'public_witnessed') return 'Public witnessed item'
+    if (prompt.visibility === 'seed_demo') return 'Seed example'
+    return prompt.boundary === 'local_only' ? 'Local session item' : prompt.boundary
+  })();
+
+  useEffect(() => {
+    if (prompt.visibility !== 'local_artifact') {
+      setReviews([]);
+      setReviewNote('');
+      setReviewVerdict('PASS');
+      return;
+    }
+
+    const raw = sessionStorage.getItem(localReviewStorageKey(prompt.id));
+    if (!raw) {
+      setReviews([]);
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(raw);
+      setReviews(Array.isArray(parsed) ? parsed : []);
+    } catch {
+      setReviews([]);
+    }
+  }, [prompt.id, prompt.visibility]);
+
+  const handleAppendReview = () => {
+    if (prompt.visibility !== 'local_artifact') return;
+    const cleanNote = sanitizeReviewNote(reviewNote).slice(0, 500);
+    if (!cleanNote) return;
+
+    const newReview: LocalReviewNode = {
+      id: `review-${Date.now()}`,
+      target_id: prompt.id,
+      target_kind: 'local_artifact',
+      verdict: reviewVerdict,
+      note: cleanNote,
+      author_type: 'human',
+      author_id: 'local_user',
+      created_at: new Date().toISOString(),
+      boundary: 'local_only',
+    };
+
+    const next = [newReview, ...reviews];
+    setReviews(next);
+    sessionStorage.setItem(localReviewStorageKey(prompt.id), JSON.stringify(next));
+    setReviewNote('');
+    setReviewVerdict('PASS');
+  };
 
   return (
     <motion.div
@@ -420,6 +866,11 @@ function Sidecar({ prompt, onClose, allPrompts, onUpdateStatus, onSpawnFollowup,
           {VISIBILITY_LABELS[prompt.visibility]}
         </h2>
         <div className="flex items-center gap-3">
+          {prompt.source_route === '/workbench' && (
+            <span className="text-[10px] text-[#E8842A] uppercase font-bold tracking-widest px-2 py-1 bg-[#E8842A]/10 border border-[#E8842A]/20 rounded">
+              Opened from Workbench
+            </span>
+          )}
           <button 
             onClick={() => onToggleWatch(prompt.id)}
             className={`flex items-center gap-1 text-[10px] uppercase font-bold tracking-widest px-2 py-1 rounded transition-colors ${prompt.is_watched ? 'bg-[#4A90D9]/20 text-[#4A90D9] border border-[#4A90D9]/50' : 'text-gray-500 hover:text-white border border-transparent hover:bg-[#1A1410]'}`}
@@ -459,50 +910,164 @@ function Sidecar({ prompt, onClose, allPrompts, onUpdateStatus, onSpawnFollowup,
           </div>
         </div>
 
-        {/* Meta */}
-        <div className="grid grid-cols-2 gap-4 text-[10px] uppercase font-bold tracking-widest">
-          <div>
-            <div className="text-gray-600 mb-1">STATUS</div>
-            <div className="text-gray-300">{prompt.status}</div>
+        <div className="rounded border border-[#2A1F16] bg-[#0F0A06] p-3 space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-1 rounded border border-[#3D2C1E] bg-[#1A1410] text-[10px] uppercase tracking-widest font-bold text-gray-200">
+                {prompt.status}
+              </span>
+              {latestReview ? (
+                <span className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-widest ${
+                  latestReview.verdict === 'PASS'
+                    ? 'bg-[#34D399]/10 text-[#34D399] border border-[#34D399]/20'
+                    : latestReview.verdict === 'WARN'
+                      ? 'bg-[#D4A853]/10 text-[#D4A853] border border-[#D4A853]/20'
+                      : 'bg-[#EF4444]/10 text-[#EF4444] border border-[#EF4444]/20'
+                }`}>
+                  {latestReview.verdict === 'PASS' && <CheckCircle className="w-3 h-3" />}
+                  {latestReview.verdict === 'WARN' && <AlertTriangle className="w-3 h-3" />}
+                  {latestReview.verdict === 'CRITICAL' && <XCircle className="w-3 h-3" />}
+                  {latestReview.verdict}
+                </span>
+              ) : null}
+            </div>
+            <span className="text-[10px] text-gray-500">{new Date(prompt.updated_at || prompt.created_at).toLocaleString()}</span>
           </div>
-          <div>
-            <div className="text-gray-600 mb-1">BOUNDARY</div>
-            <div className="text-gray-300">{prompt.boundary}</div>
-          </div>
-          <div>
-            <div className="text-gray-600 mb-1">SOURCE ROUTE</div>
-            <div className="text-[#4A90D9]">{prompt.source_route || 'N/A'}</div>
-          </div>
-          <div>
-            <div className="text-gray-600 mb-1">COST / RISK</div>
-            <div className="text-[#E8842A]">{prompt.cost_label || '0 EMBER'}</div>
-          </div>
+          <div className="text-[11px] text-[#c9bba5]">{boundarySummary}</div>
+          {latestReview ? (
+            <div className="text-sm text-gray-200 leading-relaxed bg-[#1A1410] p-3 rounded border border-[#2A1F16] whitespace-pre-wrap">
+              {latestReview.note}
+            </div>
+          ) : null}
+        </div>
+
+        {/* Details */}
+        <div className="border border-[#1A1410] rounded bg-[#0F0A06]">
+          <button
+            type="button"
+            onClick={() => setShowDetails((prev) => !prev)}
+            className="w-full flex items-center justify-between p-3 text-[10px] text-gray-500 uppercase font-bold tracking-widest"
+          >
+            <span>Details</span>
+            <span>{showDetails ? 'Hide' : 'Show'}</span>
+          </button>
+          {showDetails ? (
+            <div className="px-3 pb-3 grid grid-cols-2 gap-4 text-[10px] uppercase font-bold tracking-widest border-t border-[#1A1410]">
+              <div className="pt-3">
+                <div className="text-gray-600 mb-1">Boundary</div>
+                <div className="text-gray-300 break-words">{prompt.boundary}</div>
+              </div>
+              <div className="pt-3">
+                <div className="text-gray-600 mb-1">Source Route</div>
+                <div className="text-[#4A90D9] break-words">{prompt.source_route || 'N/A'}</div>
+              </div>
+              <div>
+                <div className="text-gray-600 mb-1">Cost / Risk</div>
+                <div className="text-[#E8842A] break-words">{prompt.cost_label || '0 EMBER'}</div>
+              </div>
+              <div>
+                <div className="text-gray-600 mb-1">Object ID</div>
+                <div className="text-gray-300 break-all">{prompt.object_ref?.id || prompt.id}</div>
+              </div>
+              {prompt.receipt_hash ? (
+                <div className="col-span-2">
+                  <div className="text-gray-600 mb-1">Receipt Hash</div>
+                  <div className="bg-[#1A1410] p-3 rounded border border-[#5C3D1E] text-[10px] font-mono break-all text-gray-400 normal-case tracking-normal">
+                    {prompt.receipt_hash}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
         {/* Receipt / Local Export Info */}
-        {prompt.receipt_hash ? (
-          <div>
-            <div className="text-[10px] text-[#E8842A] uppercase font-bold tracking-widest mb-2 flex items-center gap-1">
-              <Shield className="w-3 h-3" /> Output Receipt
-            </div>
-            <div className="bg-[#1A1410] p-3 rounded border border-[#5C3D1E] text-[10px] font-mono break-all text-gray-400">
-              {prompt.receipt_hash}
-            </div>
-          </div>
-        ) : prompt.visibility === 'local_artifact' ? (
+        {!prompt.receipt_hash && prompt.visibility === 'local_artifact' ? (
           <div>
             <div className="text-[10px] text-[#D4A853] uppercase font-bold tracking-widest mb-2 flex items-center gap-1">
               <AlertCircle className="w-3.5 h-3.5" /> Local Artifact
             </div>
-            <div className="bg-[#1A1410]/50 p-3 rounded border border-[#3D2C1E] text-[10px] font-mono text-gray-400 leading-relaxed space-y-1.5">
+            <div className="bg-[#1A1410]/50 p-3 rounded border border-[#3D2C1E] text-[10px] text-gray-400 leading-relaxed space-y-1.5">
               <div>• Exists only in this session. Not shared.</div>
-              <div>• Not yet promoted to Public Witness.</div>
-              <div>• No ledger entry. No cryptographic proof.</div>
               <div>• Can be promoted to Public Witness when ready.</div>
-              <div>• Not on any chain. Not receipted.</div>
+              <div>• No receipt has been minted for this item.</div>
             </div>
           </div>
         ) : null}
+
+        {prompt.visibility === 'local_artifact' && (
+          <div>
+            <div className="text-[10px] text-[#E8842A] uppercase font-bold tracking-widest mb-2 flex items-center gap-1">
+              <FileText className="w-3.5 h-3.5" /> Local Review
+            </div>
+            <div className="bg-[#0F0A06] border border-[#2A1F16] rounded p-4 space-y-4">
+              <div className="text-[10px] text-[#E8842A]/90 leading-relaxed border border-[#E8842A]/20 bg-[#E8842A]/10 p-2 rounded">
+                Local review, not published. This note stays in the current browser session and does not mint a receipt.
+              </div>
+
+              {reviews.length === 0 ? (
+                <div className="text-[10px] text-gray-600 italic">No local review nodes attached to this artifact yet.</div>
+              ) : (
+                <div className="space-y-2.5 max-h-48 overflow-y-auto pr-1">
+                  {reviews.map((review) => (
+                    <div key={review.id} className="rounded border border-[#2A1F16] bg-[#1A1410] p-3 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-sm text-[10px] font-bold uppercase tracking-widest ${
+                          review.verdict === 'PASS'
+                            ? 'bg-[#34D399]/10 text-[#34D399] border border-[#34D399]/20'
+                            : review.verdict === 'WARN'
+                              ? 'bg-[#D4A853]/10 text-[#D4A853] border border-[#D4A853]/20'
+                              : 'bg-[#EF4444]/10 text-[#EF4444] border border-[#EF4444]/20'
+                        }`}>
+                          {review.verdict === 'PASS' && <CheckCircle className="w-3 h-3" />}
+                          {review.verdict === 'WARN' && <AlertTriangle className="w-3 h-3" />}
+                          {review.verdict === 'CRITICAL' && <XCircle className="w-3 h-3" />}
+                          {review.verdict}
+                        </span>
+                        <span className="text-[9px] text-gray-500">{new Date(review.created_at).toLocaleString()}</span>
+                      </div>
+                      <div className="text-xs text-gray-300 leading-relaxed whitespace-pre-wrap">{review.note}</div>
+                      <div className="text-[9px] uppercase tracking-widest text-gray-500">
+                        Local review • {review.author_id}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="pt-2 border-t border-[#2A1F16] space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] text-gray-500 uppercase font-bold tracking-widest">Append local review</span>
+                  <select
+                    value={reviewVerdict}
+                    onChange={(e) => setReviewVerdict(e.target.value as 'PASS' | 'WARN' | 'CRITICAL')}
+                    className="bg-[#0A0604] border border-[#2A1F16] text-gray-300 text-[10px] p-1.5 rounded"
+                  >
+                    <option value="PASS">PASS</option>
+                    <option value="WARN">WARN</option>
+                    <option value="CRITICAL">CRITICAL</option>
+                  </select>
+                </div>
+                <textarea
+                  value={reviewNote}
+                  onChange={(e) => setReviewNote(e.target.value.slice(0, 500))}
+                  placeholder="Write a short, structured evaluation of this local artifact..."
+                  className="w-full h-24 bg-[#0A0604] border border-[#2A1F16] text-gray-300 text-xs p-2 rounded focus:outline-none focus:border-[#D4A853]"
+                />
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[9px] text-gray-600">{reviewNote.length}/500</span>
+                  <button
+                    disabled={!sanitizeReviewNote(reviewNote)}
+                    onClick={handleAppendReview}
+                    className="bg-[#2A1F16] text-[#D4A853] text-[10px] uppercase font-bold tracking-wider py-2 px-3 rounded border border-[#3D2C1E] disabled:opacity-50"
+                  >
+                    Append Local Review
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Return to World Object */}
         {prompt.object_ref && (
@@ -536,7 +1101,7 @@ function Sidecar({ prompt, onClose, allPrompts, onUpdateStatus, onSpawnFollowup,
         {/* Draft -> Publish Actions */}
         {prompt.is_local_session && (prompt.visibility === 'local_draft' || prompt.visibility === 'local_artifact') && (
           <div className="bg-[#1A1410] border border-[#4A90D9]/30 rounded p-4 text-center">
-            <div className="text-[10px] text-[#4A90D9] uppercase font-bold tracking-widest mb-2">Publish to Commons</div>
+            <div className="text-[10px] text-[#4A90D9] uppercase font-bold tracking-widest mb-2">Publish to Public Witness</div>
             <div className="text-[10px] text-gray-400 mb-4 px-2">Move this local object to the Public Witness board. (Local Preview)</div>
             
             <div className="mb-3">
