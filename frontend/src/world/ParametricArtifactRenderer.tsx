@@ -18,7 +18,7 @@ function getMaterialProps(profile: BotArtifactManifest['material_profile']) {
 }
 
 // ─── Tube Artifact ────────────────────────────────────────────────────────────
-function ParametricTubeArtifact({ artifact, hovered, setHovered, onSelect }: { artifact: BotArtifactManifest, hovered: boolean, setHovered: (v: boolean) => void, onSelect: () => void }) {
+function ParametricTubeArtifact({ artifact, hovered, selected, setHovered, onSelect }: { artifact: BotArtifactManifest, hovered: boolean, selected: boolean, setHovered: (v: boolean) => void, onSelect: () => void }) {
   const { geometry_recipe, material_profile } = artifact;
   
   const curve = useMemo(() => {
@@ -40,13 +40,13 @@ function ParametricTubeArtifact({ artifact, hovered, setHovered, onSelect }: { a
       receiveShadow
     >
       <tubeGeometry args={[curve, tubularSegments || 64, radius || 0.15, radialSegments || 8, false]} />
-      <meshStandardMaterial {...getMaterialProps(material_profile)} emissiveIntensity={hovered ? material_profile.emissive_intensity + 0.5 : material_profile.emissive_intensity} />
+      <meshStandardMaterial {...getMaterialProps(material_profile)} emissiveIntensity={hovered ? material_profile.emissive_intensity + 0.5 : material_profile.emissive_intensity} wireframe={selected} />
     </mesh>
   );
 }
 
 // ─── Instanced Cluster Artifact ───────────────────────────────────────────────
-function InstancedClusterArtifact({ artifact, hovered, setHovered, onSelect }: { artifact: BotArtifactManifest, hovered: boolean, setHovered: (v: boolean) => void, onSelect: () => void }) {
+function InstancedClusterArtifact({ artifact, hovered, selected, setHovered, onSelect }: { artifact: BotArtifactManifest, hovered: boolean, selected: boolean, setHovered: (v: boolean) => void, onSelect: () => void }) {
   const { geometry_recipe, material_profile } = artifact;
   const [radius, height, radialSegments, count] = geometry_recipe.dimensions;
   
@@ -78,7 +78,7 @@ function InstancedClusterArtifact({ artifact, hovered, setHovered, onSelect }: {
     >
       <Instances limit={count || 10} castShadow receiveShadow>
         <cylinderGeometry args={[0, radius || 0.2, height || 2, radialSegments || 6]} />
-        <meshStandardMaterial {...getMaterialProps(material_profile)} emissiveIntensity={hovered ? material_profile.emissive_intensity + 0.5 : material_profile.emissive_intensity} />
+        <meshStandardMaterial {...getMaterialProps(material_profile)} emissiveIntensity={hovered ? material_profile.emissive_intensity + 0.5 : material_profile.emissive_intensity} wireframe={selected} />
         {instanceData.map((data, i) => (
           <Instance key={i} position={data.position} rotation={data.rotation} scale={data.scale} />
         ))}
@@ -92,7 +92,7 @@ function InstancedClusterArtifact({ artifact, hovered, setHovered, onSelect }: {
 }
 
 // ─── Lathe Profile Artifact ───────────────────────────────────────────────────
-function LatheProfileArtifact({ artifact, hovered, setHovered, onSelect }: { artifact: BotArtifactManifest, hovered: boolean, setHovered: (v: boolean) => void, onSelect: () => void }) {
+function LatheProfileArtifact({ artifact, hovered, selected, setHovered, onSelect }: { artifact: BotArtifactManifest, hovered: boolean, selected: boolean, setHovered: (v: boolean) => void, onSelect: () => void }) {
   const { geometry_recipe, material_profile } = artifact;
   const [segments] = geometry_recipe.dimensions;
   
@@ -119,13 +119,13 @@ function LatheProfileArtifact({ artifact, hovered, setHovered, onSelect }: { art
       receiveShadow
     >
       <latheGeometry args={[points, segments || 12]} />
-      <meshStandardMaterial {...getMaterialProps(material_profile)} emissiveIntensity={hovered ? material_profile.emissive_intensity + 0.5 : material_profile.emissive_intensity} side={THREE.DoubleSide} />
+      <meshStandardMaterial {...getMaterialProps(material_profile)} emissiveIntensity={hovered ? material_profile.emissive_intensity + 0.5 : material_profile.emissive_intensity} side={THREE.DoubleSide} wireframe={selected} />
     </mesh>
   );
 }
 
 // ─── Extruded Span Artifact ───────────────────────────────────────────────────
-function ExtrudedSpanArtifact({ artifact, hovered, setHovered, onSelect }: { artifact: BotArtifactManifest, hovered: boolean, setHovered: (v: boolean) => void, onSelect: () => void }) {
+function ExtrudedSpanArtifact({ artifact, hovered, selected, setHovered, onSelect }: { artifact: BotArtifactManifest, hovered: boolean, selected: boolean, setHovered: (v: boolean) => void, onSelect: () => void }) {
   const { geometry_recipe, material_profile } = artifact;
   const [span, height, depth] = geometry_recipe.dimensions;
   
@@ -156,28 +156,28 @@ function ExtrudedSpanArtifact({ artifact, hovered, setHovered, onSelect }: { art
       receiveShadow
     >
       <extrudeGeometry args={[shape, extrudeSettings]} />
-      <meshStandardMaterial {...getMaterialProps(material_profile)} emissiveIntensity={hovered ? material_profile.emissive_intensity + 0.5 : material_profile.emissive_intensity} />
+      <meshStandardMaterial {...getMaterialProps(material_profile)} emissiveIntensity={hovered ? material_profile.emissive_intensity + 0.5 : material_profile.emissive_intensity} wireframe={selected} />
     </mesh>
   );
 }
 
-export function ParametricArtifactRenderer({ artifact, onInspect }: { artifact: BotArtifactManifest, onInspect: (artifact: BotArtifactManifest) => void }) {
+export function ParametricArtifactRenderer({ artifact, selected, onInspect }: { artifact: BotArtifactManifest, selected?: boolean, onInspect: (artifact: BotArtifactManifest) => void }) {
   const [hovered, setHovered] = React.useState(false);
   const { transform, geometry_recipe } = artifact;
   
   return (
     <group position={transform.position} rotation={transform.rotation} scale={transform.scale}>
       {geometry_recipe.primitive_type === 'parametric_tube' && (
-        <ParametricTubeArtifact artifact={artifact} hovered={hovered} setHovered={setHovered} onSelect={() => onInspect(artifact)} />
+        <ParametricTubeArtifact artifact={artifact} hovered={hovered} selected={!!selected} setHovered={setHovered} onSelect={() => onInspect(artifact)} />
       )}
       {geometry_recipe.primitive_type === 'instanced_cluster' && (
-        <InstancedClusterArtifact artifact={artifact} hovered={hovered} setHovered={setHovered} onSelect={() => onInspect(artifact)} />
+        <InstancedClusterArtifact artifact={artifact} hovered={hovered} selected={!!selected} setHovered={setHovered} onSelect={() => onInspect(artifact)} />
       )}
       {geometry_recipe.primitive_type === 'lathe_profile' && (
-        <LatheProfileArtifact artifact={artifact} hovered={hovered} setHovered={setHovered} onSelect={() => onInspect(artifact)} />
+        <LatheProfileArtifact artifact={artifact} hovered={hovered} selected={!!selected} setHovered={setHovered} onSelect={() => onInspect(artifact)} />
       )}
       {geometry_recipe.primitive_type === 'extruded_span' && (
-        <ExtrudedSpanArtifact artifact={artifact} hovered={hovered} setHovered={setHovered} onSelect={() => onInspect(artifact)} />
+        <ExtrudedSpanArtifact artifact={artifact} hovered={hovered} selected={!!selected} setHovered={setHovered} onSelect={() => onInspect(artifact)} />
       )}
       
       {hovered && (

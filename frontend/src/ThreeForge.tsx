@@ -289,6 +289,7 @@ function ForgeScene({ nodes, tiles, onMint, inspectedObject, onInspectArtifact }
         <ParametricArtifactRenderer 
           key={artifact.id} 
           artifact={artifact} 
+          selected={inspectedObject?.id === artifact.id}
           onInspect={onInspectArtifact} 
         />
       ))}
@@ -398,6 +399,42 @@ export default function ThreeForge({ agentId }: { agentId?: string }) {
     };
 
     void init();
+
+    // Check deep-linking
+    const params = new URLSearchParams(window.location.search);
+    const artifactId = params.get('artifact');
+    if (artifactId) {
+      const art = SEEDED_ARTIFACTS.find(a => a.id === artifactId);
+      if (art) {
+        let geoSummary = 'Unknown shape';
+        if (art.geometry_recipe.primitive_type === 'parametric_tube') geoSummary = `Spline tube, ${art.geometry_recipe.spline_nodes?.length || 0} control points`;
+        else if (art.geometry_recipe.primitive_type === 'instanced_cluster') geoSummary = `Instanced cluster, ${art.geometry_recipe.dimensions[3] || 10} members`;
+        else if (art.geometry_recipe.primitive_type === 'lathe_profile') geoSummary = `Lathe profile, ${art.geometry_recipe.dimensions[0] || 12} segments`;
+        else if (art.geometry_recipe.primitive_type === 'extruded_span') geoSummary = `Extruded span, ${art.geometry_recipe.dimensions[0] || 4} units`;
+        
+        let matSummary = `Hex ${art.material_profile.color_hex}, R:${art.material_profile.roughness} M:${art.material_profile.metalness}`;
+        
+        setInspectedObject({
+          id: art.id,
+          title: art.title,
+          purpose: `Family: ${art.artifact_family}`,
+          source: 'world_seed',
+          freshness: 'LIVE',
+          details: [
+            { label: 'Artifact Family', value: art.artifact_family },
+            { label: 'Recipe Type', value: art.geometry_recipe.primitive_type },
+            { label: 'Visibility', value: art.visibility },
+            { label: 'Author Type', value: art.provenance_metadata.author_type },
+            { label: 'Source Note', value: art.provenance_metadata.note || 'None' },
+            { label: 'Truth Boundary', value: 'Local demo artifact. Rendered from constrained recipe data.' },
+            { label: 'Geometry Summary', value: geoSummary },
+            { label: 'Material Summary', value: matSummary }
+          ],
+          renderContract: art
+        });
+      }
+    }
+
     return () => { cancelled = true; if (unsubNodes) unsubNodes(); if (unsubTiles) unsubTiles(); };
   }, []);
 
@@ -438,19 +475,39 @@ export default function ThreeForge({ agentId }: { agentId?: string }) {
         >
           <Suspense fallback={null}>
             <HearthRenderer heat={2980}>
-              <ForgeScene nodes={nodes} tiles={tiles} onMint={handleMint} inspectedObject={inspectedObject} onInspectArtifact={(art) => setInspectedObject({
-                id: art.id,
-                title: art.title,
-                purpose: `Family: ${art.artifact_family} | Recipe: ${art.geometry_recipe.primitive_type}`,
-                source: 'world_seed',
-                freshness: 'LIVE',
-                details: [
-                  { label: 'Visibility', value: art.visibility },
-                  { label: 'Author Type', value: art.provenance_metadata.author_type },
-                  { label: 'Note', value: art.provenance_metadata.note || 'None' },
-                  { label: 'Truth Boundary', value: 'LOCAL DEMO ARTIFACT' }
-                ]
-              })} />
+              <ForgeScene nodes={nodes} tiles={tiles} onMint={handleMint} inspectedObject={inspectedObject} onInspectArtifact={(art) => {
+                let geoSummary = 'Unknown shape';
+                if (art.geometry_recipe.primitive_type === 'parametric_tube') geoSummary = `Spline tube, ${art.geometry_recipe.spline_nodes?.length || 0} control points`;
+                else if (art.geometry_recipe.primitive_type === 'instanced_cluster') geoSummary = `Instanced cluster, ${art.geometry_recipe.dimensions[3] || 10} members`;
+                else if (art.geometry_recipe.primitive_type === 'lathe_profile') geoSummary = `Lathe profile, ${art.geometry_recipe.dimensions[0] || 12} segments`;
+                else if (art.geometry_recipe.primitive_type === 'extruded_span') geoSummary = `Extruded span, ${art.geometry_recipe.dimensions[0] || 4} units`;
+                
+                let matSummary = `Hex ${art.material_profile.color_hex}, R:${art.material_profile.roughness} M:${art.material_profile.metalness}`;
+
+                setInspectedObject({
+                  id: art.id,
+                  title: art.title,
+                  purpose: `Family: ${art.artifact_family}`,
+                  source: 'world_seed',
+                  freshness: 'LIVE',
+                  details: [
+                    { label: 'Artifact Family', value: art.artifact_family },
+                    { label: 'Recipe Type', value: art.geometry_recipe.primitive_type },
+                    { label: 'Visibility', value: art.visibility },
+                    { label: 'Author Type', value: art.provenance_metadata.author_type },
+                    { label: 'Source Note', value: art.provenance_metadata.note || 'None' },
+                    { label: 'Truth Boundary', value: 'Local demo artifact. Rendered from constrained recipe data.' },
+                    { label: 'Geometry Summary', value: geoSummary },
+                    { label: 'Material Summary', value: matSummary }
+                  ],
+                  renderContract: art
+                });
+                
+                // Update URL parameter
+                const url = new URL(window.location.href);
+                url.searchParams.set('artifact', art.id);
+                window.history.replaceState({}, '', url.toString());
+              }} />
             </HearthRenderer>
           </Suspense>
         </Canvas>

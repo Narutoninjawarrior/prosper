@@ -75,6 +75,13 @@ export function openWorldActionSheet(obj) {
 }
 
 export default function WorldActionSheet({ inspectedObject, recentObjects, onClose }) {
+  const [showContract, setShowContract] = useState(false)
+
+  // Reset showContract when object changes
+  useEffect(() => {
+    setShowContract(false)
+  }, [inspectedObject?.id])
+
   if (!inspectedObject && recentObjects.length === 0) return null;
 
   return createPortal(
@@ -89,7 +96,17 @@ export default function WorldActionSheet({ inspectedObject, recentObjects, onClo
           { label: 'Freshness', value: inspectedObject?.freshness || 'Live' },
           ...(inspectedObject?.details || [])
         ]}
-        actions={inspectedObject?.actions || []}
+        code={showContract && inspectedObject?.renderContract ? JSON.stringify(inspectedObject.renderContract, null, 2) : null}
+        actions={
+          [
+            ...(inspectedObject?.actions || []),
+            ...(inspectedObject?.renderContract ? [{
+              label: showContract ? 'Hide Render Contract' : 'View Render Contract',
+              tone: 'secondary',
+              onClick: () => setShowContract(!showContract)
+            }] : [])
+          ]
+        }
         potentialActions={inspectedObject?.potentialActions || []}
         onClose={onClose}
         side="right"
