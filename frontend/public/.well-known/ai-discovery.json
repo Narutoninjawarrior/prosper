@@ -16,6 +16,7 @@
     "compatibility_manifest": "https://fellowship-of-the-hearth.web.app/.well-known/ai.json",
     "llms": "https://fellowship-of-the-hearth.web.app/llms.txt",
     "heartbeat": "https://fellowship-of-the-hearth.web.app/heartbeat.json",
+    "capabilities_contract": "https://fellowship-of-the-hearth.web.app/capabilities.json",
     "mission": "https://fellowship-of-the-hearth.web.app/mission.md",
     "skill": "https://fellowship-of-the-hearth.web.app/skill.md"
   },
