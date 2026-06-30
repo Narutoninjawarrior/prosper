@@ -77,8 +77,8 @@ export default function ReviewPage() {
               <p className="text-[11px] text-gray-500 mb-3">
                 Open /workbench and inspect one exported package, diff, or lineage step.
               </p>
-              <a href="/workbench" target="_blank" rel="noopener noreferrer" className="inline-block px-4 py-2 border border-[#60A5FA]/40 text-[#60A5FA] text-[10px] uppercase tracking-widest rounded hover:bg-[#60A5FA]/10 transition-colors">
-                Open Workbench
+              <a href="/workbench?tab=facility" target="_blank" rel="noopener noreferrer" className="inline-block px-4 py-2 border border-[#60A5FA]/40 text-[#60A5FA] text-[10px] uppercase tracking-widest rounded hover:bg-[#60A5FA]/10 transition-colors">
+                Open Facility Planner
               </a>
             </div>
           </div>

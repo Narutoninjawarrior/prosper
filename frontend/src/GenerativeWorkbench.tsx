@@ -395,6 +395,7 @@ export default function GenerativeWorkbench() {
       || requestedTab === 'memory'
       || requestedTab === 'blueprint'
       || requestedTab === 'mason'
+      || requestedTab === 'facility'
     ) {
       setTab(requestedTab)
     }
