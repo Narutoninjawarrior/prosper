@@ -23,6 +23,7 @@ export interface ArtifactLineagePanelProps {
   isStaged?: boolean;
   isCommonsHandoff?: boolean;
   proofReceiptHash?: string;
+  onExportEvidenceClick?: () => void;
 }
 
 function scopeColor(scope: ArtifactLineageStage['scope']) {
@@ -50,6 +51,7 @@ export default function ArtifactLineagePanel({
   isStaged = false,
   isCommonsHandoff = false,
   proofReceiptHash,
+  onExportEvidenceClick,
 }: ArtifactLineagePanelProps) {
 
   // Build the logical chain
@@ -77,6 +79,7 @@ export default function ArtifactLineagePanel({
       evidenceLabel: hasExports ? 'View Snapshot' : 'No evidence yet',
       timestamp: lastExportTime,
       metadata: hasExports ? 'Exported to local session' : 'Awaiting export',
+      linkAction: hasExports ? onExportEvidenceClick : undefined,
     },
     {
       id: 'staging',
@@ -168,7 +171,11 @@ export default function ArtifactLineagePanel({
                     {/* Evidence Link */}
                     <div className="pt-2 border-t border-[#2A1F16]/50">
                       {stage.hasEvidence ? (
-                        <button className="text-[9px] uppercase tracking-widest text-[#E8842A] hover:text-white transition-colors flex items-center gap-1">
+                        <button 
+                          onClick={stage.linkAction}
+                          disabled={!stage.linkAction}
+                          className={`text-[9px] uppercase tracking-widest flex items-center gap-1 transition-colors ${stage.linkAction ? 'text-[#E8842A] hover:text-white' : 'text-gray-500 cursor-default'}`}
+                        >
                           ↳ {stage.evidenceLabel}
                         </button>
                       ) : (

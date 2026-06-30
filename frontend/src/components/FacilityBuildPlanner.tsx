@@ -567,6 +567,13 @@ export default function FacilityBuildPlanner({ onManifestChange, onValidationCha
           lastExportTime={exportHistory[0]?.exported_at}
           isStaged={false} // Will be properly hooked when locker state lifts
           isCommonsHandoff={false}
+          onExportEvidenceClick={() => {
+            if (exportHistory.length > 0) {
+              setDiffBase(exportHistory[0]);
+              setLastExportedManifest(exportHistory[0].manifest);
+              setShowDiff(true);
+            }
+          }}
         />
       </div>
 
