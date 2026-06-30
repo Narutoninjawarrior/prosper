@@ -542,6 +542,7 @@ export * from './workshopApi';
 export * from './chemistryApi';
 export * from './agentPassportApi';
 export * from './fulfillmentApi';
+export { experimentLogApi } from './experimentLogApi';
 
 const WELCOME_EMBER = 100;
 const INNER_RING_PLOTS = [1, 2, 3, 4, 5, 6];
