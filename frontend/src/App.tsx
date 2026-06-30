@@ -25,6 +25,7 @@ const CouncilBoard = lazy(() => import('./CouncilBoard'));
 const ObservatoryRoute = lazy(() => import('./ObservatoryRoute'));
 const CommonsRoute = lazy(() => import('./CommonsRoute'));
 const BotCapabilityCatalog = lazy(() => import('./components/BotCapabilityCatalog'));
+const RouteHealthPage = lazy(() => import('./RouteHealthPage'));
 
 const HiveTester = lazy(() => import('./HiveTester'));
 const WitnessPage = lazy(() => import('./WitnessPage').then(m => ({ default: m.WitnessPage })));
@@ -134,6 +135,14 @@ function App() {
     return (
       <Suspense fallback={<LoadingSurface label="Loading welcome..." />}>
         <WelcomeRoute />
+      </Suspense>
+    );
+  }
+
+  if (pathname === '/route-health') {
+    return (
+      <Suspense fallback={<LoadingSurface label="Loading health metrics..." />}>
+        <RouteHealthPage />
       </Suspense>
     );
   }
