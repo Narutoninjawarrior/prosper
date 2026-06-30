@@ -27,6 +27,7 @@ const CommonsRoute = lazy(() => import('./CommonsRoute'));
 const BotCapabilityCatalog = lazy(() => import('./components/BotCapabilityCatalog'));
 const RouteHealthPage = lazy(() => import('./RouteHealthPage'));
 const ProofLogPage = lazy(() => import('./ProofLogPage'));
+const ReviewPage = lazy(() => import('./ReviewPage'));
 
 const HiveTester = lazy(() => import('./HiveTester'));
 const WitnessPage = lazy(() => import('./WitnessPage').then(m => ({ default: m.WitnessPage })));
@@ -171,6 +172,16 @@ function App() {
       <SuspendedPublicShell className="min-h-screen w-screen bg-[#020804] text-gray-200" label="Loading registry...">
         <div className="h-full overflow-y-auto">
           <RegistryExplorer />
+        </div>
+      </SuspendedPublicShell>
+    );
+  }
+
+  if (pathname === '/review') {
+    return (
+      <SuspendedPublicShell className="h-screen w-screen bg-[#050806] text-gray-200" label="Loading Review Guide...">
+        <div className="h-full overflow-y-auto">
+          <ReviewPage />
         </div>
       </SuspendedPublicShell>
     );
