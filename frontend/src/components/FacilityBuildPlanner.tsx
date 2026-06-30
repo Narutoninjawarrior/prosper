@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import type { ValidationReport, ConstraintResult } from '../lib/constraintValidator';
-import { Download, History } from 'lucide-react';
+import { Download, History, ChevronDown, ChevronRight } from 'lucide-react';
 import ArtifactDiffPanel from './ArtifactDiffPanel';
+import InventoryStagingLocker from './InventoryStagingLocker';
 
 export interface FacilityManifest {
   id: string;
@@ -24,6 +25,19 @@ export interface FacilityBuildPlannerProps {
   onManifestChange?: (manifest: FacilityManifest | null) => void;
   onValidationChange?: (report: ValidationReport) => void;
 }
+
+interface FacilityExportSnapshot {
+  snapshot_id: string;
+  manifest_id: string;
+  title: string;
+  facility_type: string;
+  exported_at: string;
+  exported_files: string[];
+  manifest: FacilityManifest;
+}
+
+const FACILITY_EXPORT_HISTORY_KEY = 'hearth_facility_export_history';
+const MAX_EXPORT_HISTORY = 6;
 
 const PRESETS: Record<string, Partial<FacilityManifest>> = {
   'Workshop Pod': {
@@ -115,7 +129,35 @@ export default function FacilityBuildPlanner({ onManifestChange, onValidationCha
   });
 
   const [lastExportedManifest, setLastExportedManifest] = useState<FacilityManifest | null>(null);
+  const [exportHistory, setExportHistory] = useState<FacilityExportSnapshot[]>([]);
+  const [diffBase, setDiffBase] = useState<FacilityExportSnapshot | null>(null);
   const [showDiff, setShowDiff] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(FACILITY_EXPORT_HISTORY_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return;
+      const normalized = parsed.filter((entry): entry is FacilityExportSnapshot => {
+        return Boolean(
+          entry &&
+          typeof entry === 'object' &&
+          typeof entry.snapshot_id === 'string' &&
+          typeof entry.manifest_id === 'string' &&
+          typeof entry.title === 'string' &&
+          typeof entry.facility_type === 'string' &&
+          typeof entry.exported_at === 'string' &&
+          Array.isArray(entry.exported_files) &&
+          entry.manifest &&
+          typeof entry.manifest === 'object'
+        );
+      });
+      setExportHistory(normalized.slice(0, MAX_EXPORT_HISTORY));
+    } catch {
+      sessionStorage.removeItem(FACILITY_EXPORT_HISTORY_KEY);
+    }
+  }, []);
 
   const handleApplyPreset = (presetName: string) => {
     const preset = PRESETS[presetName];
@@ -217,24 +259,52 @@ export default function FacilityBuildPlanner({ onManifestChange, onValidationCha
     URL.revokeObjectURL(url);
   };
 
-  const handleExportManifest = () => {
-    const data = JSON.stringify({
-      ...manifest,
-      _meta: { boundary: 'local draft / planning aid only', version: '1.0' }
-    }, null, 2);
-    triggerDownload(`${manifest.id}-manifest.json`, data, 'application/json');
-    setLastExportedManifest(manifest);
+  const persistExportSnapshot = (files: string[]) => {
+    const exportedAt = new Date().toISOString();
+    const snapshot: FacilityExportSnapshot = {
+      snapshot_id: `${manifest.id}-${exportedAt}`,
+      manifest_id: manifest.id,
+      title: manifest.title,
+      facility_type: manifest.facility_type,
+      exported_at: exportedAt,
+      exported_files: files,
+      manifest: {
+        ...manifest,
+        materials: [...manifest.materials],
+        tools_required: [...manifest.tools_required],
+        dependencies: [...manifest.dependencies],
+      },
+    };
+
+    setLastExportedManifest(snapshot.manifest);
+    setDiffBase(snapshot);
+    setExportHistory((prev) => {
+      const existing = prev.find((entry) => entry.manifest_id === snapshot.manifest_id);
+      const nextEntry = existing
+        ? {
+            ...snapshot,
+            exported_files: Array.from(new Set([...existing.exported_files, ...snapshot.exported_files])),
+          }
+        : snapshot;
+
+      const next = [nextEntry, ...prev.filter((entry) => entry.manifest_id !== snapshot.manifest_id)].slice(0, MAX_EXPORT_HISTORY);
+      sessionStorage.setItem(FACILITY_EXPORT_HISTORY_KEY, JSON.stringify(next));
+      return next;
+    });
   };
 
-  const handleExportBOM = () => {
+  const buildManifestJson = () => JSON.stringify({
+    ...manifest,
+    _meta: { boundary: 'local draft / planning aid only', version: '1.0' }
+  }, null, 2);
+
+  const buildBomCsv = () => {
     const header = 'Material,Quantity,Unit,Note\n';
     const rows = manifest.materials.filter(m => m.trim()).map(m => `"${m.replace(/"/g, '""')}",,,`).join('\n');
-    triggerDownload(`${manifest.id}-bom.csv`, header + rows, 'text/csv');
-    setLastExportedManifest(manifest);
+    return header + rows;
   };
 
-  const handleExportSummary = () => {
-    const content = `# Facility Planning Package: ${manifest.title}
+  const buildSummaryMarkdown = () => `# Facility Planning Package: ${manifest.title}
 
 **Facility Type:** ${manifest.facility_type}
 **Footprint:** ${manifest.footprint}
@@ -250,9 +320,31 @@ export default function FacilityBuildPlanner({ onManifestChange, onValidationCha
 ## Truth Boundary Note
 *Planning aid only. Not structural certification. Not procurement automation. Local-only draft unless separately promoted.*
 `;
-    triggerDownload(`${manifest.id}-summary.md`, content, 'text/markdown');
-    setLastExportedManifest(manifest);
+
+  const handleExportManifest = () => {
+    const data = buildManifestJson();
+    triggerDownload(`${manifest.id}-manifest.json`, data, 'application/json');
+    persistExportSnapshot(['manifest.json']);
   };
+
+  const handleExportBOM = () => {
+    triggerDownload(`${manifest.id}-bom.csv`, buildBomCsv(), 'text/csv');
+    persistExportSnapshot(['bom.csv']);
+  };
+
+  const handleExportSummary = () => {
+    triggerDownload(`${manifest.id}-summary.md`, buildSummaryMarkdown(), 'text/markdown');
+    persistExportSnapshot(['summary.md']);
+  };
+
+  const handleExportPackage = () => {
+    triggerDownload(`${manifest.id}-manifest.json`, buildManifestJson(), 'application/json');
+    triggerDownload(`${manifest.id}-bom.csv`, buildBomCsv(), 'text/csv');
+    triggerDownload(`${manifest.id}-summary.md`, buildSummaryMarkdown(), 'text/markdown');
+    persistExportSnapshot(['manifest.json', 'bom.csv', 'summary.md']);
+  };
+
+  const activeDiffBase = diffBase?.manifest ?? lastExportedManifest;
 
   return (
     <div className="flex flex-col gap-6 w-full text-sm">
@@ -393,6 +485,9 @@ export default function FacilityBuildPlanner({ onManifestChange, onValidationCha
           Export local draft files for external handoff.
         </p>
         <div className="flex flex-wrap gap-3">
+          <button onClick={handleExportPackage} className="flex items-center gap-2 px-3 py-2 text-[10px] uppercase tracking-widest text-[#D4A853] hover:text-white border border-[#D4A853]/30 rounded hover:bg-[#D4A853]/20 transition-colors">
+            <Download className="w-3 h-3" /> Planning Package
+          </button>
           <button onClick={handleExportManifest} className="flex items-center gap-2 px-3 py-2 text-[10px] uppercase tracking-widest text-[#7A9E7E] hover:text-white border border-[#7A9E7E]/30 rounded hover:bg-[#7A9E7E]/20 transition-colors">
             <Download className="w-3 h-3" /> Manifest.json
           </button>
@@ -402,21 +497,101 @@ export default function FacilityBuildPlanner({ onManifestChange, onValidationCha
           <button onClick={handleExportSummary} className="flex items-center gap-2 px-3 py-2 text-[10px] uppercase tracking-widest text-[#7A9E7E] hover:text-white border border-[#7A9E7E]/30 rounded hover:bg-[#7A9E7E]/20 transition-colors">
             <Download className="w-3 h-3" /> Summary.md
           </button>
-          {lastExportedManifest && (
+          {activeDiffBase && (
             <button onClick={() => setShowDiff(true)} className="flex items-center gap-2 px-3 py-2 text-[10px] uppercase tracking-widest text-[#D4A853] hover:text-white border border-[#D4A853]/30 rounded hover:bg-[#D4A853]/20 transition-colors ml-auto">
-              <History className="w-3 h-3" /> Compare vs Last Export
+              <History className="w-3 h-3" /> Compare vs Export Base
             </button>
           )}
         </div>
+
+        {exportHistory.length > 0 && (
+          <div className="mt-4 border-t border-[#7A9E7E]/20 pt-4">
+            <div className="mb-2 text-[10px] uppercase tracking-widest text-[#b7c9be] font-mono">
+              Local Export History
+            </div>
+            <div className="space-y-2">
+              {exportHistory.map((entry) => {
+                const isActive = diffBase?.snapshot_id === entry.snapshot_id;
+                return (
+                  <div key={entry.snapshot_id} className={`rounded border px-3 py-2 text-[11px] font-mono ${isActive ? 'border-[#D4A853]/40 bg-[#D4A853]/10' : 'border-[#7A9E7E]/20 bg-black/20'}`}>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <div className="text-white">{entry.title}</div>
+                        <div className="text-[#8a7a64] text-[10px] uppercase tracking-wider">
+                          {entry.facility_type} · {new Date(entry.exported_at).toLocaleString()}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setDiffBase(entry);
+                          setLastExportedManifest(entry.manifest);
+                          setShowDiff(true);
+                        }}
+                        className={`px-2 py-1 rounded border text-[10px] uppercase tracking-widest transition-colors ${isActive ? 'border-[#D4A853]/40 text-[#D4A853]' : 'border-[#7A9E7E]/30 text-[#7A9E7E] hover:text-white hover:bg-[#7A9E7E]/20'}`}
+                      >
+                        Use as Diff Base
+                      </button>
+                    </div>
+                    <div className="mt-2 text-[10px] text-gray-500">
+                      Files: {entry.exported_files.join(', ')} · Materials: {entry.manifest.materials.filter(m => m.trim()).length} · Budget: {entry.manifest.estimated_budget_ember} EMBER
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <div className="mt-4 text-[10px] text-[#8a7a64] italic">
+          Export history is local to this browser session. It is not published, witnessed, or synced to a backend.
+        </div>
       </div>
 
-      {showDiff && lastExportedManifest && (
+      {showDiff && activeDiffBase && (
         <div className="mt-4">
           <ArtifactDiffPanel
-            original={lastExportedManifest}
+            original={activeDiffBase}
             modified={manifest}
-            title="Diff: Current Draft vs Last Export"
+            title={`Diff: Current Draft vs ${diffBase ? 'Selected Export' : 'Last Export'}`}
             onClose={() => setShowDiff(false)}
+          />
+        </div>
+      )}
+
+      {/* Inventory Staging Locker */}
+      <InventoryLockerPanel manifest={manifest} />
+    </div>
+  );
+}
+
+/** Collapsible wrapper so the locker doesn't crowd the planner by default */
+function InventoryLockerPanel({ manifest }: { manifest: import('./FacilityBuildPlanner').FacilityManifest }) {
+  const [open, setOpen] = useState(false);
+  const cleanedMaterials = manifest.materials.filter((m) => m.trim());
+
+  return (
+    <div className="border border-[#2A4A3A]/50 rounded-lg overflow-hidden">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 bg-black/30 hover:bg-black/40 transition-colors text-left"
+      >
+        <div className="flex items-center gap-2">
+          {open ? <ChevronDown className="w-3.5 h-3.5 text-[#7A9E7E]" /> : <ChevronRight className="w-3.5 h-3.5 text-[#7A9E7E]" />}
+          <span className="text-[#b7c9be] text-xs uppercase tracking-widest font-bold">Inventory Staging Locker</span>
+          {cleanedMaterials.length > 0 && (
+            <span className="text-[9px] text-[#60A5FA] border border-[#60A5FA]/30 px-1.5 py-0.5 rounded uppercase tracking-widest">
+              {cleanedMaterials.length} BOM line{cleanedMaterials.length !== 1 ? 's' : ''} active
+            </span>
+          )}
+        </div>
+        <span className="text-[9px] text-gray-600 uppercase tracking-widest">Physical resource staging</span>
+      </button>
+      {open && (
+        <div className="p-4 border-t border-[#2A4A3A]/30">
+          <InventoryStagingLocker
+            planMaterials={cleanedMaterials}
+            planId={manifest.id}
+            planTitle={manifest.title}
           />
         </div>
       )}
