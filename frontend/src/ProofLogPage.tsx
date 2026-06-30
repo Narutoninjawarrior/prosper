@@ -9,12 +9,28 @@ interface ProofEntry {
   chain_hash: string | null;
   status: string;
   source: string;
+  payload?: Record<string, any>;
 }
 
 export default function ProofLogPage() {
   const [entries, setEntries] = useState<ProofEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterType, setFilterType] = useState<string>('');
+  const [expandedEventId, setExpandedEventId] = useState<string | null>(() => new URLSearchParams(window.location.search).get('event'));
+
+  const toggleEvent = (id: string) => {
+    setExpandedEventId(prev => {
+      const next = prev === id ? null : id;
+      const url = new URL(window.location.href);
+      if (next) {
+        url.searchParams.set('event', next);
+      } else {
+        url.searchParams.delete('event');
+      }
+      window.history.replaceState({}, '', url.toString());
+      return next;
+    });
+  };
 
   useEffect(() => {
     const fetchLog = async () => {
@@ -90,43 +106,97 @@ export default function ProofLogPage() {
             </div>
           ) : (
             <div className="divide-y divide-[#1A1410]">
-              {entries.map((entry) => (
-                <div key={entry.id} className="p-4 md:px-6 flex flex-col md:flex-row md:items-center justify-between hover:bg-black/20 transition-colors gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3">
-                      <span className="font-bold text-[#c9bba5] text-sm uppercase tracking-wider">{entry.action_type}</span>
-                      <span className={`text-[10px] uppercase tracking-wider px-2 border rounded ${
-                        entry.status === 'recorded' ? 'text-[#34D399] border-[#34D399]/30 bg-[#34D399]/10' :
-                        'text-gray-400 border-gray-600 bg-gray-800'
-                      }`}>
-                        {entry.status}
-                      </span>
-                    </div>
-                    <div className="text-[10px] text-gray-500 mt-2 uppercase tracking-widest flex flex-wrap items-center gap-3">
-                      <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {new Date(entry.timestamp).toLocaleString()}</span>
-                      <span className="text-[#8a7a64] border-l border-[#2A1F16] pl-3">Source: {entry.source}</span>
-                      <span className="text-[#8a7a64] border-l border-[#2A1F16] pl-3">Actor: <span className="text-gray-400">{entry.agent_id}</span></span>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    {entry.chain_hash ? (
-                      <div className="flex flex-col items-end">
-                        <span className="text-[10px] text-gray-600 uppercase tracking-widest mb-1 flex items-center gap-1">
-                          <LinkIcon className="w-3 h-3" /> Receipt Hash
-                        </span>
-                        <span className="font-mono text-xs text-[#E8842A] bg-black/40 px-2 py-1 rounded border border-[#2A1F16]">
-                          {entry.chain_hash}
-                        </span>
+              {entries.map((entry) => {
+                const isExpanded = expandedEventId === entry.id;
+                return (
+                  <div key={entry.id} className="flex flex-col border-b border-[#1A1410] last:border-0">
+                    <div 
+                      className={`p-4 md:px-6 flex flex-col md:flex-row md:items-center justify-between hover:bg-black/20 transition-colors gap-4 cursor-pointer ${isExpanded ? 'bg-black/20' : ''}`}
+                      onClick={() => toggleEvent(entry.id)}
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3">
+                          <span className="font-bold text-[#c9bba5] text-sm uppercase tracking-wider">{entry.action_type}</span>
+                          <span className={`text-[10px] uppercase tracking-wider px-2 border rounded ${
+                            entry.status === 'recorded' ? 'text-[#34D399] border-[#34D399]/30 bg-[#34D399]/10' :
+                            'text-gray-400 border-gray-600 bg-gray-800'
+                          }`}>
+                            {entry.status}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-gray-500 mt-2 uppercase tracking-widest flex flex-wrap items-center gap-3">
+                          <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {new Date(entry.timestamp).toLocaleString()}</span>
+                          <span className="text-[#8a7a64] border-l border-[#2A1F16] pl-3">Source: {entry.source}</span>
+                          <span className="text-[#8a7a64] border-l border-[#2A1F16] pl-3">Actor: <span className="text-gray-400">{entry.agent_id}</span></span>
+                        </div>
                       </div>
-                    ) : (
-                      <span className="text-[10px] text-gray-600 uppercase tracking-widest italic">
-                        Unchained Event
-                      </span>
+                      
+                      <div className="flex items-center gap-2">
+                        {entry.chain_hash ? (
+                          <div className="flex flex-col items-end">
+                            <span className="text-[10px] text-gray-600 uppercase tracking-widest mb-1 flex items-center gap-1">
+                              <LinkIcon className="w-3 h-3" /> Receipt Hash
+                            </span>
+                            <span className="font-mono text-xs text-[#E8842A] bg-black/40 px-2 py-1 rounded border border-[#2A1F16]">
+                              {entry.chain_hash.substring(0, 12)}...
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-gray-600 uppercase tracking-widest italic">
+                            Unchained Event
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Detail Panel */}
+                    {isExpanded && (
+                      <div className="px-6 py-4 bg-[#050806] border-t border-[#1A1410] text-[11px] grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 font-mono">
+                        <div>
+                          <span className="block text-gray-600 uppercase tracking-widest mb-1 text-[9px]">Actor</span>
+                          <span className="text-[#c9bba5]">{entry.agent_id}</span>
+                        </div>
+                        <div>
+                          <span className="block text-gray-600 uppercase tracking-widest mb-1 text-[9px]">Action</span>
+                          <span className="text-[#34D399]">{entry.action_type}</span>
+                        </div>
+                        <div>
+                          <span className="block text-gray-600 uppercase tracking-widest mb-1 text-[9px]">Timestamp</span>
+                          <span className="text-gray-400">{new Date(entry.timestamp).toISOString()}</span>
+                        </div>
+                        <div>
+                          <span className="block text-gray-600 uppercase tracking-widest mb-1 text-[9px]">Source</span>
+                          <span className="text-gray-400">{entry.source}</span>
+                        </div>
+                        <div>
+                          <span className="block text-gray-600 uppercase tracking-widest mb-1 text-[9px]">Status</span>
+                          <span className="text-[#c9bba5]">{entry.status}</span>
+                        </div>
+                        {entry.payload?.artifact_id && (
+                          <div>
+                            <span className="block text-gray-600 uppercase tracking-widest mb-1 text-[9px]">Artifact ID</span>
+                            <span className="text-gray-400">{entry.payload.artifact_id}</span>
+                          </div>
+                        )}
+                        {entry.payload?.budget_impact && (
+                          <div>
+                            <span className="block text-gray-600 uppercase tracking-widest mb-1 text-[9px]">Budget Impact</span>
+                            <span className="text-[#D4A853]">{entry.payload.budget_impact}</span>
+                          </div>
+                        )}
+                        <div className="md:col-span-2">
+                          <span className="block text-gray-600 uppercase tracking-widest mb-1 text-[9px]">Proof Hash</span>
+                          {entry.chain_hash ? (
+                            <span className="text-[#E8842A] break-all">{entry.chain_hash}</span>
+                          ) : (
+                            <span className="text-gray-500 italic">No receipt generated</span>
+                          )}
+                        </div>
+                      </div>
                     )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
