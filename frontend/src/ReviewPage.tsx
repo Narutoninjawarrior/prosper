@@ -41,7 +41,7 @@ export default function ReviewPage() {
                 Proof Log
               </h2>
               <p className="text-[11px] text-gray-500 mb-3">
-                Open /proof-log and inspect one visible event.
+                Open /proof-log and inspect one visible event (check actor, action, proof-hash, and timestamp).
               </p>
               <a href="/proof-log" target="_blank" rel="noopener noreferrer" className="inline-block px-4 py-2 border border-[#34D399]/40 text-[#34D399] text-[10px] uppercase tracking-widest rounded hover:bg-[#34D399]/10 transition-colors">
                 Open Proof Log
@@ -100,8 +100,9 @@ export default function ReviewPage() {
 
         {/* Example Proof Detail Block */}
         <div className="border border-[#2A1F16] bg-[#0A0604] rounded-lg p-5 mb-10">
-          <h3 className="text-xs uppercase tracking-widest text-gray-500 font-bold mb-4 border-b border-[#2A1F16] pb-2">
-            Example Proof Structure
+          <h3 className="text-xs uppercase tracking-widest text-gray-500 font-bold mb-4 border-b border-[#2A1F16] pb-2 flex items-center justify-between">
+            <span>Example Proof Structure</span>
+            <span className="text-[9px] text-[#E8842A]/70">(For Orientation)</span>
           </h3>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-6 text-[10px]">
             <div>
