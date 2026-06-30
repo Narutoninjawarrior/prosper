@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Bot, Gamepad2, Cpu, Wrench, Zap, Droplets, Wallet, Coins, Network, Box } from 'lucide-react';
+import HermesConsole from './HermesConsole';
 
 const PalaceExplorerPane = lazy(() => import('./PalaceExplorerPane'));
 const HearthlandsGame = lazy(() => import('./Hearthlands'));
@@ -24,7 +25,8 @@ type TabId =
   | 'treasury'
   | 'solcot'
   | 'forge'
-  | 'hall';
+  | 'hall'
+  | 'hermes';
 
 function LoadingPane({ label = 'Loading pane...' }: { label?: string }) {
   return (
@@ -78,6 +80,8 @@ export default function InternalAppShell() {
         return <div className="h-full overflow-y-auto"><TreasuryDonation /></div>;
       case 'solcot':
         return <div className="h-full overflow-y-auto"><SOLCOTShop /></div>;
+      case 'hermes':
+        return <HermesConsole />;
       default:
         return <EaseOfFlow />;
     }
@@ -116,6 +120,9 @@ export default function InternalAppShell() {
           </button>
           <button onClick={() => setActiveTab('solcot')} className={`flex items-center gap-3 p-3 rounded-xl transition-all font-semibold ${activeTab === 'solcot' ? 'bg-[#10b981]/15 text-[#10b981] border border-[#10b981]/30 shadow-[0_0_15px_rgba(16,185,129,0.15)]' : 'hover:bg-white/5 border border-transparent'}`}>
             <Coins size={20} /> SOLCOT Shop
+          </button>
+          <button onClick={() => setActiveTab('hermes')} className={`flex items-center gap-3 p-3 rounded-xl transition-all font-semibold ${activeTab === 'hermes' ? 'bg-[#10b981]/15 text-[#10b981] border border-[#10b981]/30 shadow-[0_0_15px_rgba(16,185,129,0.15)]' : 'hover:bg-white/5 border border-transparent'}`}>
+            <Cpu size={20} /> Hermes Console
           </button>
         </div>
         <div className="mt-auto pt-5 border-t border-gray-800 px-1">
