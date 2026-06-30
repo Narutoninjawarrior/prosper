@@ -66,49 +66,50 @@ export default function RouteHealthPage() {
   return (
     <div className="min-h-screen bg-[#050806] text-gray-200 font-mono p-4 md:p-8 flex flex-col items-center">
       <div className="w-full max-w-4xl">
-        <header className="mb-8 border-b border-[#2A1F16] pb-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-bold text-[#E8842A] flex items-center gap-2">
-                <Activity className="w-5 h-5" />
-                Route Health & Source Availability
-              </h1>
-              <p className="text-[10px] text-gray-500 mt-2 uppercase tracking-widest bg-black/40 border border-[#2A1F16] inline-block px-3 py-1.5 rounded">
-                Availability status. Not a security or performance audit. Public read-only.
-              </p>
+        <header className="mb-10 border-b border-[#2A1F16] pb-8 flex flex-col md:flex-row md:items-start justify-between gap-6">
+          <div>
+            <h1 className="text-xl font-bold text-[#E8842A] flex items-center gap-2 mb-2">
+              <Activity className="w-5 h-5" />
+              Route Health & Source Availability
+            </h1>
+            <p className="text-[#8a7a64] text-sm leading-relaxed max-w-xl mb-4">
+              Simple read-only sanity check of Hearthlands public surfaces.
+            </p>
+            <div className="text-[10px] text-gray-500 uppercase tracking-widest bg-black/40 border border-[#2A1F16] inline-flex px-3 py-1.5 rounded">
+              Availability status. Not a security audit. Public read-only.
             </div>
-            {lastSweep && (
-              <div className="text-right">
-                <div className="text-[#34D399] font-bold text-sm uppercase tracking-wider">
-                  {availableCount} of {routes.length} Available
-                </div>
-                <div className="text-[10px] text-gray-500 mt-1 uppercase flex items-center gap-1 justify-end">
-                  <Clock className="w-3 h-3" /> Last check: {new Date(lastSweep).toLocaleTimeString()}
-                </div>
-              </div>
-            )}
           </div>
+          {lastSweep && (
+            <div className="text-right flex flex-col items-end">
+              <div className="text-[#34D399] font-bold text-sm uppercase tracking-wider mb-1">
+                {availableCount} of {routes.length} Available
+              </div>
+              <div className="text-[10px] text-gray-500 uppercase flex items-center gap-1">
+                <Clock className="w-3 h-3" /> Last check: {new Date(lastSweep).toLocaleTimeString()}
+              </div>
+            </div>
+          )}
         </header>
 
-        <div className="bg-[#0A0604] border border-[#1A1410] rounded-lg overflow-hidden shadow-xl mb-8">
+        <div className="bg-[#0A0604] border border-[#1A1410] rounded-lg overflow-hidden shadow-lg mb-10">
           <div className="divide-y divide-[#1A1410]">
             {routes.map((route) => (
-              <div key={route.id} className="p-4 md:px-6 flex items-center justify-between hover:bg-black/20 transition-colors">
+              <div key={route.id} className="p-4 md:px-6 flex items-center justify-between hover:bg-[#110D0A] transition-colors">
                 <div className="flex-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3 mb-1">
                     <span className="font-bold text-[#c9bba5] text-sm">{route.path}</span>
-                    <span className="text-[10px] uppercase tracking-wider text-gray-600 px-2 border border-gray-800 rounded bg-black/40">
+                    <span className="text-[9px] uppercase tracking-wider text-gray-500 px-2 border border-[#2A1F16] rounded bg-black/40">
                       {route.label}
                     </span>
                   </div>
-                  <div className="text-[10px] text-gray-500 mt-1 uppercase tracking-widest flex items-center gap-2">
+                  <div className="text-[10px] text-gray-500 uppercase tracking-widest flex items-center gap-2">
                     {route.note || 'Awaiting ping...'}
                   </div>
                 </div>
                 
                 <div className="flex items-center gap-2">
                   <div className="flex flex-col items-end">
-                    <span className={`text-xs uppercase font-bold tracking-widest flex items-center gap-1.5 ${
+                    <span className={`text-[10px] uppercase font-bold tracking-widest flex items-center gap-1.5 ${
                       route.status === 'Available' ? 'text-[#34D399]' :
                       route.status === 'Degraded' ? 'text-[#FBBF24]' :
                       route.status === 'Local-only' ? 'text-[#60A5FA]' :
@@ -130,8 +131,8 @@ export default function RouteHealthPage() {
         </div>
 
         {/* Truth Legend */}
-        <div className="bg-black/40 border border-[#2A1F16] rounded-lg p-5">
-          <h2 className="text-[10px] uppercase tracking-widest font-bold text-gray-500 mb-4 flex items-center gap-2 border-b border-[#2A1F16] pb-2">
+        <div className="bg-[#0A0604] border border-[#1A1410] rounded-lg p-5 shadow-lg">
+          <h2 className="text-[10px] uppercase tracking-widest font-bold text-gray-500 mb-4 flex items-center gap-2 border-b border-[#2A1F16] pb-3">
             <Info className="w-4 h-4" /> Truth Legend
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-[11px] leading-relaxed">

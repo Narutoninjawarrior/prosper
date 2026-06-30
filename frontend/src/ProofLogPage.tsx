@@ -58,43 +58,44 @@ export default function ProofLogPage() {
   return (
     <div className="min-h-screen bg-[#050806] text-gray-200 font-mono p-4 md:p-8 flex flex-col items-center">
       <div className="w-full max-w-4xl">
-        <header className="mb-8 border-b border-[#2A1F16] pb-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-bold text-[#E8842A] flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5" />
-                Public Proof Log
-              </h1>
-              <p className="text-[10px] text-gray-500 mt-2 uppercase tracking-widest bg-black/40 border border-[#2A1F16] inline-block px-3 py-1.5 rounded">
-                Event history. Not a witness service. Public read-only.
-              </p>
+        <header className="mb-10 border-b border-[#2A1F16] pb-8 flex flex-col md:flex-row md:items-start justify-between gap-6">
+          <div>
+            <h1 className="text-xl font-bold text-[#E8842A] flex items-center gap-2 mb-2">
+              <ShieldCheck className="w-5 h-5" />
+              Public Proof Log
+            </h1>
+            <p className="text-[#8a7a64] text-sm leading-relaxed max-w-xl mb-4">
+              Read-only projection of the internal forge log.
+            </p>
+            <div className="text-[10px] text-gray-500 uppercase tracking-widest bg-black/40 border border-[#2A1F16] inline-flex px-3 py-1.5 rounded">
+              Event history. Not a witness service. Public read-only.
             </div>
-            <div className="text-right">
-              <div className="flex gap-2 justify-end">
-                <button
-                  onClick={() => setFilterType('')}
-                  className={`px-3 py-1 text-[10px] uppercase tracking-wider rounded border ${filterType === '' ? 'bg-[#1A1410] border-[#E8842A] text-[#E8842A]' : 'border-[#2A1F16] text-gray-500 hover:text-gray-300'}`}
-                >
-                  All Events
-                </button>
-                <button
-                  onClick={() => setFilterType('budget_reserve')}
-                  className={`px-3 py-1 text-[10px] uppercase tracking-wider rounded border ${filterType === 'budget_reserve' ? 'bg-[#1A1410] border-[#E8842A] text-[#E8842A]' : 'border-[#2A1F16] text-gray-500 hover:text-gray-300'}`}
-                >
-                  Budget
-                </button>
-                <button
-                  onClick={() => setFilterType('chemistry_synthesis')}
-                  className={`px-3 py-1 text-[10px] uppercase tracking-wider rounded border ${filterType === 'chemistry_synthesis' ? 'bg-[#1A1410] border-[#E8842A] text-[#E8842A]' : 'border-[#2A1F16] text-gray-500 hover:text-gray-300'}`}
-                >
-                  Chemistry
-                </button>
-              </div>
+          </div>
+          <div className="text-right flex flex-col items-end">
+            <div className="flex gap-2 justify-end mb-2">
+              <button
+                onClick={() => setFilterType('')}
+                className={`px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest rounded border transition-colors ${filterType === '' ? 'bg-[#1A1410] border-[#E8842A] text-[#E8842A]' : 'border-[#2A1F16] bg-black/40 text-gray-500 hover:border-[#1A1410] hover:text-gray-300'}`}
+              >
+                All Events
+              </button>
+              <button
+                onClick={() => setFilterType('budget_reserve')}
+                className={`px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest rounded border transition-colors ${filterType === 'budget_reserve' ? 'bg-[#1A1410] border-[#E8842A] text-[#E8842A]' : 'border-[#2A1F16] bg-black/40 text-gray-500 hover:border-[#1A1410] hover:text-gray-300'}`}
+              >
+                Budget
+              </button>
+              <button
+                onClick={() => setFilterType('chemistry_synthesis')}
+                className={`px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest rounded border transition-colors ${filterType === 'chemistry_synthesis' ? 'bg-[#1A1410] border-[#E8842A] text-[#E8842A]' : 'border-[#2A1F16] bg-black/40 text-gray-500 hover:border-[#1A1410] hover:text-gray-300'}`}
+              >
+                Chemistry
+              </button>
             </div>
           </div>
         </header>
 
-        <div className="bg-[#0A0604] border border-[#1A1410] rounded-lg overflow-hidden shadow-xl mb-8">
+        <div className="bg-[#0A0604] border border-[#1A1410] rounded-lg overflow-hidden shadow-lg mb-10">
           {loading ? (
             <div className="p-12 text-center text-gray-500 text-sm uppercase tracking-widest animate-pulse flex flex-col items-center gap-3">
               <Activity className="w-6 h-6 text-[#E8842A]" />
@@ -111,13 +112,13 @@ export default function ProofLogPage() {
                 return (
                   <div key={entry.id} className="flex flex-col border-b border-[#1A1410] last:border-0">
                     <div 
-                      className={`p-4 md:px-6 flex flex-col md:flex-row md:items-center justify-between hover:bg-black/20 transition-colors gap-4 cursor-pointer ${isExpanded ? 'bg-black/20' : ''}`}
+                      className={`p-4 md:px-6 flex flex-col md:flex-row md:items-center justify-between hover:bg-[#110D0A] transition-colors gap-4 cursor-pointer ${isExpanded ? 'bg-[#110D0A]' : ''}`}
                       onClick={() => toggleEvent(entry.id)}
                     >
                       <div className="flex-1">
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 mb-1">
                           <span className="font-bold text-[#c9bba5] text-sm uppercase tracking-wider">{entry.action_type}</span>
-                          <span className={`text-[10px] uppercase tracking-wider px-2 border rounded ${
+                          <span className={`text-[9px] uppercase tracking-wider px-2 py-0.5 border rounded ${
                             entry.status === 'recorded' ? 'text-[#34D399] border-[#34D399]/30 bg-[#34D399]/10' :
                             'text-gray-400 border-gray-600 bg-gray-800'
                           }`}>
@@ -151,7 +152,7 @@ export default function ProofLogPage() {
 
                     {/* Detail Panel */}
                     {isExpanded && (
-                      <div className="px-6 py-4 bg-[#050806] border-t border-[#1A1410] text-[11px] grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 font-mono">
+                      <div className="px-6 py-5 bg-[#050806] border-t border-[#1A1410] text-[11px] grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5 font-mono shadow-inner">
                         <div>
                           <span className="block text-gray-600 uppercase tracking-widest mb-1 text-[9px]">Actor</span>
                           <span className="text-[#c9bba5]">{entry.agent_id}</span>
@@ -202,8 +203,8 @@ export default function ProofLogPage() {
         </div>
 
         {/* Truth Legend */}
-        <div className="bg-black/40 border border-[#2A1F16] rounded-lg p-5">
-          <h2 className="text-[10px] uppercase tracking-widest font-bold text-gray-500 mb-4 flex items-center gap-2 border-b border-[#2A1F16] pb-2">
+        <div className="bg-[#0A0604] border border-[#1A1410] rounded-lg p-5 shadow-lg">
+          <h2 className="text-[10px] uppercase tracking-widest font-bold text-gray-500 mb-4 flex items-center gap-2 border-b border-[#2A1F16] pb-3">
             <Info className="w-4 h-4" /> Log Boundaries
           </h2>
           <ul className="text-[11px] text-gray-400 leading-relaxed space-y-2 list-disc list-inside">

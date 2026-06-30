@@ -56,18 +56,25 @@ export default function BotCapabilityCatalog({ isFrozen = false }: { isFrozen?: 
   ]);
 
   return (
-    <div className="flex flex-col h-full bg-[#070a08] text-[#eadfcd] font-mono border border-[#D4A853]/20 rounded-xl overflow-hidden">
-      <div className="p-5 border-b border-[#D4A853]/20 bg-black/40">
-        <div className="flex items-center gap-3">
-          <Cpu className="w-5 h-5 text-[#E8842A]" />
-          <h2 className="text-lg uppercase tracking-widest font-semibold text-[#D4A853]">Bot Billing & Entitlements</h2>
+    <div className="flex flex-col h-full bg-[#050806] text-gray-200 font-mono">
+      <div className="p-6 md:p-8 border-b border-[#2A1F16] bg-transparent">
+        <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
+          <div>
+            <h1 className="text-xl font-bold text-[#E8842A] flex items-center gap-2 mb-2">
+              <Cpu className="w-5 h-5" />
+              Bot Billing & Entitlements
+            </h1>
+            <p className="text-[#8a7a64] text-sm leading-relaxed max-w-xl mb-4 normal-case tracking-normal">
+              View capability pricing, active agent quotas, and draft payment intents.
+            </p>
+            <div className="text-[10px] text-gray-500 uppercase tracking-widest bg-black/40 border border-[#2A1F16] inline-flex px-3 py-1.5 rounded">
+              Budget limits. Not a treasury or settlement rail. Operator-controlled.
+            </div>
+          </div>
         </div>
-        <p className="mt-2 text-[10px] text-gray-500 uppercase tracking-widest bg-black/40 border border-[#2A1F16] inline-block px-3 py-1.5 rounded">
-          Budget limits. Not a treasury or settlement rail. Operator-controlled.
-        </p>
         
         {isFrozen && (
-          <div className="mt-4 flex items-start gap-2 p-3 bg-red-950/30 border border-red-500/30 rounded-lg text-red-400">
+          <div className="mt-6 flex items-start gap-2 p-3 bg-red-950/30 border border-red-500/30 rounded-lg text-red-400 max-w-2xl">
             <PauseCircle className="w-4 h-4 mt-0.5 shrink-0" />
             <div className="text-[11px] leading-tight">
               <strong className="block uppercase tracking-wider mb-1">Global Freeze Active</strong>
@@ -93,8 +100,8 @@ export default function BotCapabilityCatalog({ isFrozen = false }: { isFrozen?: 
         {tab === 'catalog' && (
           <div className="grid gap-4">
             {capabilities.map(cap => (
-              <div key={cap.id} className={`p-4 rounded-lg border ${cap.status === 'active' ? 'border-white/10 bg-white/5' : 'border-white/5 bg-black/40 opacity-75'}`}>
-                <div className="flex justify-between items-start mb-2">
+              <div key={cap.id} className={`p-4 rounded-lg border ${cap.status === 'active' ? 'border-[#1A1410] bg-[#0A0604]' : 'border-[#1A1410] bg-black/40 opacity-75'} shadow-sm`}>
+                <div className="flex justify-between items-start mb-3">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-bold text-[#D4A853]">{cap.title}</span>
                     <span className={`text-[9px] px-2 py-0.5 rounded uppercase tracking-wider ${cap.status === 'active' ? 'bg-[#34D399]/20 text-[#34D399]' : cap.status === 'paused' ? 'bg-red-500/20 text-red-400' : 'bg-gray-500/20 text-gray-400'}`}>
@@ -102,15 +109,15 @@ export default function BotCapabilityCatalog({ isFrozen = false }: { isFrozen?: 
                     </span>
                   </div>
                   <div className="text-right">
-                    <div className="text-xs text-white">{cap.price_amount} SOLCOT</div>
-                    <div className="text-[9px] text-[#8a7a64] uppercase tracking-wider">{cap.price_model}</div>
+                    <div className="text-xs text-[#c9bba5] font-bold">{cap.price_amount} SOLCOT</div>
+                    <div className="text-[9px] text-gray-500 uppercase tracking-wider mt-0.5">{cap.price_model}</div>
                   </div>
                 </div>
-                <div className="text-xs text-[#c9bba5] mb-3">{cap.description}</div>
-                <div className="grid grid-cols-3 gap-2 text-[10px] bg-black/40 p-2 rounded">
-                  <div><span className="text-[#8a7a64] block">LANE</span>{cap.auth_lane_required}</div>
-                  <div><span className="text-[#8a7a64] block">QUOTA</span>{cap.quota_limit || 'Unlimited'}</div>
-                  <div><span className="text-[#8a7a64] block">COOLDOWN</span>{cap.cooldown_seconds}s</div>
+                <div className="text-[11px] text-[#8a7a64] mb-4 leading-relaxed">{cap.description}</div>
+                <div className="grid grid-cols-3 gap-2 text-[10px] bg-black/40 p-3 rounded border border-[#1A1410]">
+                  <div><span className="text-gray-600 block mb-1 uppercase tracking-widest text-[9px]">LANE</span><span className="text-gray-300">{cap.auth_lane_required}</span></div>
+                  <div><span className="text-gray-600 block mb-1 uppercase tracking-widest text-[9px]">QUOTA</span><span className="text-gray-300">{cap.quota_limit || 'Unlimited'}</span></div>
+                  <div><span className="text-gray-600 block mb-1 uppercase tracking-widest text-[9px]">COOLDOWN</span><span className="text-gray-300">{cap.cooldown_seconds}s</span></div>
                 </div>
               </div>
             ))}
@@ -120,22 +127,22 @@ export default function BotCapabilityCatalog({ isFrozen = false }: { isFrozen?: 
         {tab === 'entitlements' && (
           <div className="grid gap-4">
             {entitlements.map(ent => (
-              <div key={ent.entitlement_id} className="p-4 rounded-lg border border-white/10 bg-white/5">
+              <div key={ent.entitlement_id} className="p-4 rounded-lg border border-[#1A1410] bg-[#0A0604] shadow-sm">
                 <div className="flex justify-between items-start mb-2">
                   <div>
-                    <span className="text-[10px] text-[#8a7a64] uppercase tracking-widest block mb-1">Agent / ID</span>
+                    <span className="text-[10px] text-gray-600 uppercase tracking-widest block mb-1">Agent / ID</span>
                     <span className="text-sm font-bold text-[#E8842A]">{ent.agent_id}</span>
-                    <span className="text-xs text-gray-400 ml-2">({ent.entitlement_id})</span>
+                    <span className="text-xs text-gray-500 ml-2">({ent.entitlement_id})</span>
                   </div>
                   <span className={`text-[9px] px-2 py-0.5 rounded uppercase tracking-wider ${ent.status === 'active' ? 'bg-[#34D399]/20 text-[#34D399]' : 'bg-red-500/20 text-red-400'}`}>
                     {ent.status}
                   </span>
                 </div>
-                <div className="grid grid-cols-2 gap-4 mt-3 pt-3 border-t border-white/5 text-xs">
-                  <div><strong className="text-[#8a7a64] block text-[9px] uppercase tracking-widest mb-1">Capability</strong>{ent.capability_id}</div>
-                  <div><strong className="text-[#8a7a64] block text-[9px] uppercase tracking-widest mb-1">Quota</strong>{ent.quota_remaining !== null ? `${ent.quota_remaining} remaining` : 'Unlimited'}</div>
-                  <div><strong className="text-[#8a7a64] block text-[9px] uppercase tracking-widest mb-1">Valid Until</strong>{new Date(ent.valid_until).toLocaleDateString()}</div>
-                  <div><strong className="text-[#8a7a64] block text-[9px] uppercase tracking-widest mb-1">Note</strong>{ent.note}</div>
+                <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-[#1A1410] text-[11px]">
+                  <div><strong className="text-gray-600 block text-[9px] uppercase tracking-widest mb-1">Capability</strong><span className="text-[#c9bba5]">{ent.capability_id}</span></div>
+                  <div><strong className="text-gray-600 block text-[9px] uppercase tracking-widest mb-1">Quota</strong><span className="text-[#c9bba5]">{ent.quota_remaining !== null ? `${ent.quota_remaining} remaining` : 'Unlimited'}</span></div>
+                  <div><strong className="text-gray-600 block text-[9px] uppercase tracking-widest mb-1">Valid Until</strong><span className="text-gray-400">{new Date(ent.valid_until).toLocaleDateString()}</span></div>
+                  <div><strong className="text-gray-600 block text-[9px] uppercase tracking-widest mb-1">Note</strong><span className="text-gray-400">{ent.note}</span></div>
                 </div>
               </div>
             ))}
@@ -153,18 +160,18 @@ export default function BotCapabilityCatalog({ isFrozen = false }: { isFrozen?: 
               </div>
             </div>
             {intents.map(intent => (
-              <div key={intent.payment_intent_id} className="p-4 rounded-lg border border-dashed border-white/20 bg-black/20">
-                <div className="flex justify-between items-start mb-2">
-                  <div className="text-xs font-bold text-white">{intent.reference}</div>
+              <div key={intent.payment_intent_id} className="p-4 rounded-lg border border-dashed border-[#2A1F16] bg-black/20 shadow-sm">
+                <div className="flex justify-between items-start mb-3">
+                  <div className="text-xs font-bold text-[#c9bba5]">{intent.reference}</div>
                   <div className="text-right">
                     <div className="text-sm text-[#34D399] font-bold">{intent.amount} {intent.expected_token}</div>
-                    <div className="text-[9px] text-[#8a7a64] uppercase tracking-wider">{intent.status}</div>
+                    <div className="text-[9px] text-gray-500 uppercase tracking-wider mt-0.5">{intent.status}</div>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2 text-[10px] text-[#c9bba5] mt-3">
-                  <div>ID: {intent.payment_intent_id}</div>
-                  <div>Payer: {intent.payer_type}</div>
-                  <div className="col-span-2">Wallet: <span className="font-mono text-gray-400">{intent.wallet_reference}</span></div>
+                <div className="grid grid-cols-2 gap-2 text-[10px] text-gray-400 mt-4 pt-3 border-t border-[#1A1410]">
+                  <div><span className="text-gray-600 mr-1">ID:</span>{intent.payment_intent_id}</div>
+                  <div><span className="text-gray-600 mr-1">Payer:</span><span className="text-[#E8842A] uppercase">{intent.payer_type}</span></div>
+                  <div className="col-span-2"><span className="text-gray-600 mr-1">Wallet:</span><span className="font-mono text-gray-500">{intent.wallet_reference}</span></div>
                 </div>
               </div>
             ))}
