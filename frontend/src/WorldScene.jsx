@@ -242,6 +242,7 @@ function WorldContent({
   const [showPresence, setShowPresence] = useState(false)
   const [showFeed, setShowFeed] = useState(false)
   const [hudOpen, setHudOpen] = useState(false)
+  const [isFocusedEntry, setIsFocusedEntry] = useState(false)
   const playerRef = useRef(new THREE.Vector3(0, 0, 2))
   const movementKeysRef = useRef({
     up: false,
@@ -251,15 +252,21 @@ function WorldContent({
   })
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const focusId = params.get('focus')
     const handoff = sessionStorage.getItem('world_focus_handoff')
+
     if (handoff) {
       sessionStorage.removeItem('world_focus_handoff')
       try {
         const obj = JSON.parse(handoff)
+        setIsFocusedEntry(true)
         setTimeout(() => setInspectedObject(obj), 500) // slight delay to allow scene to mount
       } catch (err) {
         console.error('Failed to parse world focus handoff', err)
       }
+    } else if (focusId) {
+      setIsFocusedEntry(true)
     }
   }, [setInspectedObject])
 
@@ -477,7 +484,27 @@ function WorldContent({
       <Html>
         {typeof document !== 'undefined' && createPortal(
           <>
-        {showPresence && (
+        {isFocusedEntry && (
+          <div style={{
+            position: 'fixed',
+            top: 24,
+            left: 24,
+            background: 'rgba(10,6,4,0.85)',
+            border: '0.5px solid #4A90D9',
+            borderRadius: 6,
+            padding: '6px 12px',
+            fontFamily: 'monospace',
+            fontSize: 11,
+            color: '#4A90D9',
+            zIndex: 100,
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em'
+          }}>
+            Focused Artifact Context
+          </div>
+        )}
+
+        {showPresence && !isFocusedEntry && (
           <PresenceHud
             status={status}
             displayName={localName}
@@ -519,27 +546,30 @@ function WorldContent({
           />
         )}
 
-        <StewardMount
-          emberBalance={emberBalance}
-          realm="world"
-          anchor="right"
-          openSignal={stewardSignal}
-        />
+        {!isFocusedEntry && (
+          <StewardMount
+            emberBalance={emberBalance}
+            realm="world"
+            anchor="right"
+            openSignal={stewardSignal}
+          />
+        )}
 
-        <div
-          style={{
-            position: 'fixed',
-            top: compactUi ? 64 : 72,
-            right: 16,
-            display: 'flex',
-            gap: 8,
-            zIndex: 26,
-            flexWrap: 'wrap',
-            justifyContent: 'flex-end',
-            maxWidth: compactUi ? 'calc(100vw - 32px)' : 420,
-          }}
-        >
-            <button
+        {!isFocusedEntry && (
+          <div
+            style={{
+              position: 'fixed',
+              top: compactUi ? 64 : 72,
+              right: 16,
+              display: 'flex',
+              gap: 8,
+              zIndex: 26,
+              flexWrap: 'wrap',
+              justifyContent: 'flex-end',
+              maxWidth: compactUi ? 'calc(100vw - 32px)' : 420,
+            }}
+          >
+              <button
               type="button"
               onClick={() => setShowPulse((value) => !value)}
               style={{
@@ -594,12 +624,14 @@ function WorldContent({
               {showFeed ? 'Hide feed' : 'Show feed'}
             </button>
         </div>
+        )}
 
         {/* HUD — bottom left */}
-        <div style={{
-          position: 'fixed',
-          bottom: 16,
-          left: 16,
+        {!isFocusedEntry && (
+          <div style={{
+            position: 'fixed',
+            bottom: 16,
+            left: 16,
           maxWidth: compactUi ? 'calc(100vw - 32px)' : 280,
           background: 'rgba(10,6,4,0.85)',
           border: '0.5px solid #5C3D1E',
@@ -666,6 +698,7 @@ function WorldContent({
             </button>
           )}
         </div>
+        )}
           </>,
           document.body
         )}
