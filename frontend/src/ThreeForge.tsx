@@ -26,6 +26,8 @@ import { startInteractionEngine } from './lib/interactionEngine';
 import HearthRenderer from './HearthRenderer';
 // @ts-ignore
 import WorldActionSheet, { useWorldActionSheet } from './world/WorldActionSheet';
+import { SEEDED_ARTIFACTS } from './lib/worldArtifactSeeds';
+import { ParametricArtifactRenderer } from './world/ParametricArtifactRenderer';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface ForgeNode {
@@ -219,7 +221,7 @@ function ForgeTile({ tile }: { tile: WorldMapTile }) {
 }
 
 // ─── Scene (inner — has access to R3F context) ────────────────────────────────
-function ForgeScene({ nodes, tiles, onMint, inspectedObject }: { nodes: ForgeNode[], tiles: WorldMapTile[], onMint: (id: string) => void, inspectedObject?: any }) {
+function ForgeScene({ nodes, tiles, onMint, inspectedObject, onInspectArtifact }: { nodes: ForgeNode[], tiles: WorldMapTile[], onMint: (id: string) => void, inspectedObject?: any, onInspectArtifact: (artifact: any) => void }) {
   return (
     <>
       <HearthLights />
@@ -282,6 +284,15 @@ function ForgeScene({ nodes, tiles, onMint, inspectedObject }: { nodes: ForgeNod
       {tiles.map(tile => (
         <ForgeTile key={tile.tile_id} tile={tile} />
       ))}
+      
+      {SEEDED_ARTIFACTS.map(artifact => (
+        <ParametricArtifactRenderer 
+          key={artifact.id} 
+          artifact={artifact} 
+          onInspect={onInspectArtifact} 
+        />
+      ))}
+
       {nodes.filter(n => n.object_type !== 'lodge' && n.object_type !== 'flora').map(node => (
         <ForgeObject key={node.id} node={node} />
       ))}
@@ -427,7 +438,19 @@ export default function ThreeForge({ agentId }: { agentId?: string }) {
         >
           <Suspense fallback={null}>
             <HearthRenderer heat={2980}>
-              <ForgeScene nodes={nodes} tiles={tiles} onMint={handleMint} inspectedObject={inspectedObject} />
+              <ForgeScene nodes={nodes} tiles={tiles} onMint={handleMint} inspectedObject={inspectedObject} onInspectArtifact={(art) => setInspectedObject({
+                id: art.id,
+                title: art.title,
+                purpose: `Family: ${art.artifact_family} | Recipe: ${art.geometry_recipe.primitive_type}`,
+                source: 'world_seed',
+                freshness: 'LIVE',
+                details: [
+                  { label: 'Visibility', value: art.visibility },
+                  { label: 'Author Type', value: art.provenance_metadata.author_type },
+                  { label: 'Note', value: art.provenance_metadata.note || 'None' },
+                  { label: 'Truth Boundary', value: 'LOCAL DEMO ARTIFACT' }
+                ]
+              })} />
             </HearthRenderer>
           </Suspense>
         </Canvas>
