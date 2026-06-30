@@ -420,16 +420,16 @@ export default function ThreeForge({ agentId }: { agentId?: string }) {
           purpose: `Family: ${art.artifact_family}`,
           source: 'world_seed',
           freshness: 'LIVE',
-          details: [
-            { label: 'Artifact Family', value: art.artifact_family },
-            { label: 'Recipe Type', value: art.geometry_recipe.primitive_type },
-            { label: 'Visibility', value: art.visibility },
-            { label: 'Author Type', value: art.provenance_metadata.author_type },
-            { label: 'Source Note', value: art.provenance_metadata.note || 'None' },
-            { label: 'Truth Boundary', value: 'Local demo artifact. Rendered from constrained recipe data.' },
-            { label: 'Geometry Summary', value: geoSummary },
-            { label: 'Material Summary', value: matSummary }
-          ],
+                  details: [
+                    { label: 'Artifact Family', value: art.artifact_family },
+                    { label: 'Recipe Type', value: art.geometry_recipe.primitive_type },
+                    { label: 'Geometry Summary', value: geoSummary },
+                    { label: 'Material Summary', value: matSummary },
+                    { label: 'Author Type', value: art.provenance_metadata.author_type },
+                    { label: 'Visibility', value: art.visibility },
+                    { label: 'Truth Boundary', value: 'Local demo artifact. Rendered from constrained recipe data.' },
+                    { label: 'Source Note', value: art.provenance_metadata.note || 'None' }
+                  ],
           renderContract: art
         });
       }
@@ -493,12 +493,12 @@ export default function ThreeForge({ agentId }: { agentId?: string }) {
                   details: [
                     { label: 'Artifact Family', value: art.artifact_family },
                     { label: 'Recipe Type', value: art.geometry_recipe.primitive_type },
-                    { label: 'Visibility', value: art.visibility },
-                    { label: 'Author Type', value: art.provenance_metadata.author_type },
-                    { label: 'Source Note', value: art.provenance_metadata.note || 'None' },
-                    { label: 'Truth Boundary', value: 'Local demo artifact. Rendered from constrained recipe data.' },
                     { label: 'Geometry Summary', value: geoSummary },
-                    { label: 'Material Summary', value: matSummary }
+                    { label: 'Material Summary', value: matSummary },
+                    { label: 'Author Type', value: art.provenance_metadata.author_type },
+                    { label: 'Visibility', value: art.visibility },
+                    { label: 'Truth Boundary', value: 'Local demo artifact. Rendered from constrained recipe data.' },
+                    { label: 'Source Note', value: art.provenance_metadata.note || 'None' }
                   ],
                   renderContract: art
                 });
