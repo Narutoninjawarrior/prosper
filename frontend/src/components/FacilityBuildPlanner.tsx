@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { ValidationReport, ConstraintResult } from '../lib/constraintValidator';
+import { Download } from 'lucide-react';
 
 export interface FacilityManifest {
   id: string;
@@ -200,6 +201,52 @@ export default function FacilityBuildPlanner({ onManifestChange, onValidationCha
     });
   };
 
+  const triggerDownload = (filename: string, content: string, type: string) => {
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportManifest = () => {
+    const data = JSON.stringify({
+      ...manifest,
+      _meta: { boundary: 'local draft / planning aid only', version: '1.0' }
+    }, null, 2);
+    triggerDownload(`${manifest.id}-manifest.json`, data, 'application/json');
+  };
+
+  const handleExportBOM = () => {
+    const header = 'Material,Quantity,Unit,Note\n';
+    const rows = manifest.materials.filter(m => m.trim()).map(m => `"${m.replace(/"/g, '""')}",,,`).join('\n');
+    triggerDownload(`${manifest.id}-bom.csv`, header + rows, 'text/csv');
+  };
+
+  const handleExportSummary = () => {
+    const content = `# Facility Planning Package: ${manifest.title}
+
+**Facility Type:** ${manifest.facility_type}
+**Footprint:** ${manifest.footprint}
+
+## Resource Estimates
+- **Materials Count:** ${manifest.materials.filter(m => m.trim()).length}
+- **Labor Estimate:** ${manifest.estimated_labor_hours} hours
+- **Power Estimate:** ${manifest.estimated_power_needs} W
+- **Water Estimate:** ${manifest.estimated_water_needs} L
+- **Budget Estimate:** ${manifest.estimated_budget_ember} EMBER
+- **Dependency Count:** ${manifest.dependencies.filter(d => d.trim()).length}
+
+## Truth Boundary Note
+*Planning aid only. Not structural certification. Not procurement automation. Local-only draft unless separately promoted.*
+`;
+    triggerDownload(`${manifest.id}-summary.md`, content, 'text/markdown');
+  };
+
   return (
     <div className="flex flex-col gap-6 w-full text-sm">
       <div className="flex flex-wrap gap-2 mb-2 pb-4 border-b border-[#7A9E7E]/10">
@@ -327,6 +374,27 @@ export default function FacilityBuildPlanner({ onManifestChange, onValidationCha
 
         <div className="mt-4 pt-3 border-t border-[#D4A853]/20 text-[10px] text-[#8a7a64] italic">
           Disclaimer: This compiled summary is a rough structural planning proxy. Not for engineering certification or automated robotic procurement.
+        </div>
+      </div>
+
+      {/* Package Export Rail */}
+      <div className="border border-[#7A9E7E]/30 rounded-lg p-4 bg-black/20">
+        <h3 className="text-[#b7c9be] font-mono text-xs uppercase tracking-widest font-bold mb-3 border-b border-[#7A9E7E]/20 pb-2">
+          Planning Package Export
+        </h3>
+        <p className="text-[10px] text-gray-500 mb-4 uppercase tracking-wider">
+          Export local draft files for external handoff.
+        </p>
+        <div className="flex flex-wrap gap-3">
+          <button onClick={handleExportManifest} className="flex items-center gap-2 px-3 py-2 text-[10px] uppercase tracking-widest text-[#7A9E7E] hover:text-white border border-[#7A9E7E]/30 rounded hover:bg-[#7A9E7E]/20 transition-colors">
+            <Download className="w-3 h-3" /> Manifest.json
+          </button>
+          <button onClick={handleExportBOM} className="flex items-center gap-2 px-3 py-2 text-[10px] uppercase tracking-widest text-[#7A9E7E] hover:text-white border border-[#7A9E7E]/30 rounded hover:bg-[#7A9E7E]/20 transition-colors">
+            <Download className="w-3 h-3" /> BOM.csv
+          </button>
+          <button onClick={handleExportSummary} className="flex items-center gap-2 px-3 py-2 text-[10px] uppercase tracking-widest text-[#7A9E7E] hover:text-white border border-[#7A9E7E]/30 rounded hover:bg-[#7A9E7E]/20 transition-colors">
+            <Download className="w-3 h-3" /> Summary.md
+          </button>
         </div>
       </div>
     </div>
