@@ -211,7 +211,7 @@ export default function ProofLogPage() {
             <li>This is a read-only projection of the internal <span className="text-[#c9bba5]">forge_log</span>.</li>
             <li>Events reflect real, authenticated system writes (e.g., budget reservations, chemistry execution).</li>
             <li>Local browser-only work (like facility drafting) is <strong>not</strong> written to the log until explicitly committed.</li>
-            <li>"Off-chain" means the event is tracked by our verifiable receipt system, but does not settle on an external blockchain or token network.</li>
+            <li>"Off-chain" means the event is tracked by our system receipt trail, but does not settle on an external blockchain or token network.</li>
             <li>Freeze-aware actions may pause under operator control, which will prevent new events from appending.</li>
           </ul>
         </div>

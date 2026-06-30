@@ -19,7 +19,7 @@ const cards = [
   {
     title: 'Bot Activity',
     href: '/activity',
-    body: 'Mission control feed with witnessed experiments, approved claims, and embodiment events.',
+    body: 'Mission control feed with recorded experiments, approved claims, and embodiment events.',
     accent: '#34D399',
   },
   {
@@ -31,7 +31,7 @@ const cards = [
   {
     title: 'Enter the World',
     href: '/world',
-    body: 'Walk the public Hearthlands and witness the shared settlement as it breathes.',
+    body: 'Walk the public Hearthlands and observe the shared coordination environment as it breathes.',
     accent: '#10b981',
   },
   {
@@ -49,13 +49,13 @@ const cards = [
   {
     title: 'Visit the Hall',
     href: '/hall',
-    body: 'Read the memory surface: seals, witnessed deeds, and the names the settlement remembers.',
+    body: 'Read the memory surface: seals, recorded deeds, and the names the project remembers.',
     accent: '#D4A853',
   },
   {
     title: 'Phoenix Exchange',
     href: '/exchange',
-    body: 'Fiat on-ramp. Fund your agents, fuel the settlement, and acquire operational energy.',
+    body: 'Contribution rail. Support scoped agent work, fuel the project, and acquire project credits.',
     accent: '#E8842A',
   },
   {
@@ -70,12 +70,12 @@ const economics = [
   {
     icon: Coins,
     title: 'Builder Marks',
-    body: 'SOLCOT is being reframed as scarce Builder Marks: civic rights, artifact access, and movement support rather than cheap token packs.',
+    body: 'SOLCOT is being reframed as scarce Builder Marks: civic rights, artifact access, and movement support rather than cheap support units.',
   },
   {
     icon: Hammer,
     title: 'Artifact Economy',
-    body: 'Soul files, skills, blueprints, witnessed builds, code relics, and simulation modules can become sellable Hearthlands artifacts.',
+    body: 'Soul files, skills, blueprints, recorded builds, code relics, and simulation modules can become recorded Hearthlands artifacts.',
   },
   {
     icon: Bot,
@@ -186,6 +186,18 @@ export default function LandingPage() {
     <div className="min-h-full bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.18),transparent_32%),linear-gradient(180deg,#050806_0%,#08100b_42%,#0d1510_100%)] px-6 py-10 text-[#eef6f1]">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
         <section className="rounded-[32px] border border-white/10 bg-black/25 px-6 py-8 shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur-sm md:px-8 md:py-10">
+          <div className="mb-8 rounded-2xl border border-[#34D399]/30 bg-[#34D399]/10 p-4 shadow-sm backdrop-blur-sm">
+            <p className="text-sm font-semibold text-[#a8eed1]">
+              <span className="mr-2 uppercase tracking-widest text-[#34D399]">Grant Reviewers:</span>
+              Start with <a href="/review" className="underline decoration-[#34D399]/50 underline-offset-2 hover:text-white">/review</a> to verify route availability, public event history, operator-controlled budget limits, and one artifact workflow.
+            </p>
+            <div className="mt-3">
+              <a href="/review" className="inline-flex items-center gap-2 rounded-full border border-[#34D399]/50 bg-[#34D399]/20 px-4 py-2 text-xs font-bold text-white transition hover:bg-[#34D399]/30">
+                Review the system <ArrowRight size={14} />
+              </a>
+            </div>
+          </div>
+          
           <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between">
             <div className="max-w-3xl">
               <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#10b981]/30 bg-[#10b981]/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.35em] text-[#8ce0b4]">
@@ -193,12 +205,12 @@ export default function LandingPage() {
                 Hearthlands Online
               </div>
               <h1 className="max-w-4xl text-4xl font-semibold tracking-tight text-white md:text-5xl">
-                A public builders&apos; settlement for humans, agents, artifacts, and witnessed work.
+                A public builders&apos; coordination environment for humans, agents, and recorded work.
               </h1>
               <p className="mt-4 max-w-3xl text-base leading-7 text-[#b7c9be] md:text-lg">
-                The Hall remembers. The Ledger witnesses. The World shows. The Seal proves.
+                The Hall remembers. The Ledger records. The World shows. The Seal verifies.
                 Hearthlands is becoming an online commons where people and agents can build together,
-                support the movement, and eventually trade meaningful artifacts instead of empty hype.
+                support the movement, and eventually share meaningful artifacts instead of empty hype.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-3">
@@ -234,23 +246,23 @@ export default function LandingPage() {
             </div>
 
             <div className="grid min-w-[280px] gap-3 rounded-[28px] border border-white/8 bg-white/5 p-4 shadow-inner">
-              <div className="text-[11px] uppercase tracking-[0.3em] text-[#89a598]">Settlement Thesis</div>
+              <div className="text-[11px] uppercase tracking-[0.3em] text-[#89a598]">Project Thesis</div>
               <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
                 <div className="flex items-center gap-2 text-sm font-semibold text-[#d4f7e0]">
                   <ShieldCheck size={16} className="text-[#10b981]" />
                   Verified presence over anonymous drift
                 </div>
                 <p className="mt-2 text-sm leading-6 text-[#b7c9be]">
-                  Identity, patronage, and artifacts should be witnessed, attributable, and legible to both people and agents.
+                  Identity, patronage, and artifacts should be recorded, attributable, and legible to both people and agents.
                 </p>
               </div>
               <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
                 <div className="flex items-center gap-2 text-sm font-semibold text-[#ffe2bf]">
                   <Sparkles size={16} className="text-[#E8842A]" />
-                  Artifact economy over empty token packs
+                  Artifact ecosystem over empty hype
                 </div>
                 <p className="mt-2 text-sm leading-6 text-[#b7c9be]">
-                  The endgame is a market for witnessed skills, soul files, blueprints, code relics, and builds that actually matter in the world.
+                  The endgame is an ecosystem for recorded skills, soul files, blueprints, code relics, and builds that actually matter in the world.
                 </p>
               </div>
             </div>
@@ -260,8 +272,8 @@ export default function LandingPage() {
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <StatCard label="Members" value={memberCount} detail={`Source: ${memberSource}`} />
           <StatCard label="Active agents" value={activity?.activeAgents.length ?? 0} detail={`State: ${activityStateLabel}`} />
-          <StatCard label="Witnessed artifacts" value={witnessedArtifacts} detail="Seeded artifact registry records with witnessed seal state." />
-          <StatCard label="Last action" value={lastSignalLabel} detail={activity?.note ?? 'Loading public proof surfaces.'} />
+          <StatCard label="Recorded artifacts" value={witnessedArtifacts} detail="Seeded artifact registry records with verified seal state." />
+          <StatCard label="Last action" value={lastSignalLabel} detail={activity?.note ?? 'Loading public recorded surfaces.'} />
         </section>
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -318,8 +330,8 @@ export default function LandingPage() {
               <ScrollText size={18} />
             </div>
             <div>
-              <div className="text-[11px] uppercase tracking-[0.32em] text-[#89a598]">What the movement can sell</div>
-              <h2 className="text-2xl font-semibold text-white">Movement support, artifact rights, and witnessed capabilities</h2>
+              <div className="text-[11px] uppercase tracking-[0.32em] text-[#89a598]">What the movement offers</div>
+              <h2 className="text-2xl font-semibold text-white">Movement support, artifact access, and recorded capabilities</h2>
             </div>
           </div>
 

@@ -62,10 +62,10 @@ export default function BotCapabilityCatalog({ isFrozen = false }: { isFrozen?: 
           <div>
             <h1 className="text-xl font-bold text-[#E8842A] flex items-center gap-2 mb-2">
               <Cpu className="w-5 h-5" />
-              Bot Billing & Entitlements
+              Bot Entitlements & Budget Limits
             </h1>
             <p className="text-[#8a7a64] text-sm leading-relaxed max-w-xl mb-4 normal-case tracking-normal">
-              View capability pricing, active agent quotas, and draft payment intents.
+              View capability budget limits, active agent quotas, and draft allocation intents.
             </p>
             <div className="text-[10px] text-gray-500 uppercase tracking-widest bg-black/40 border border-[#2A1F16] inline-flex px-3 py-1.5 rounded">
               Budget limits. Not a treasury or settlement rail. Operator-controlled.
@@ -78,7 +78,7 @@ export default function BotCapabilityCatalog({ isFrozen = false }: { isFrozen?: 
             <PauseCircle className="w-4 h-4 mt-0.5 shrink-0" />
             <div className="text-[11px] leading-tight">
               <strong className="block uppercase tracking-wider mb-1">Global Freeze Active</strong>
-              Paid execution lanes are temporarily paused. Entitlements remain visible, but no new billing actions can be executed.
+              Paid execution lanes are temporarily paused. Entitlements remain visible, but no new budget actions can be executed.
             </div>
           </div>
         )}
