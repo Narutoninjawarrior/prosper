@@ -8,6 +8,9 @@ export interface ArtifactLineageStage {
   title: string;
   status: 'active' | 'completed' | 'pending' | 'mocked';
   scope: 'local' | 'operator' | 'public';
+  truthBadge: string;
+  hasEvidence: boolean;
+  evidenceLabel?: string;
   timestamp?: string;
   metadata?: string;
   linkAction?: () => void;
@@ -57,6 +60,9 @@ export default function ArtifactLineagePanel({
       title: 'Current Draft',
       status: 'active',
       scope: 'local',
+      truthBadge: 'LOCAL: browser-only',
+      hasEvidence: true,
+      evidenceLabel: 'View Metadata',
       timestamp: manifest.updated_at,
       metadata: `${manifest.materials.filter(m => m.trim()).length} materials`,
     },
@@ -66,6 +72,9 @@ export default function ArtifactLineagePanel({
       title: 'Package Export',
       status: hasExports ? 'completed' : 'pending',
       scope: 'local',
+      truthBadge: 'LOCAL: exported package',
+      hasEvidence: hasExports,
+      evidenceLabel: hasExports ? 'View Snapshot' : 'No evidence yet',
       timestamp: lastExportTime,
       metadata: hasExports ? 'Exported to local session' : 'Awaiting export',
     },
@@ -75,6 +84,9 @@ export default function ArtifactLineagePanel({
       title: 'Inventory Staged',
       status: isStaged ? 'completed' : 'pending',
       scope: 'operator',
+      truthBadge: 'OPERATOR: system reservation',
+      hasEvidence: isStaged,
+      evidenceLabel: isStaged ? 'View Locker State' : 'No evidence yet',
       metadata: isStaged ? 'Resources reserved in locker' : 'Not staged',
     },
     {
@@ -82,7 +94,10 @@ export default function ArtifactLineagePanel({
       stage_type: 'commons',
       title: 'Commons Handoff',
       status: isCommonsHandoff ? 'completed' : 'pending',
-      scope: 'public',
+      scope: 'operator',
+      truthBadge: 'OPERATOR: review intent',
+      hasEvidence: isCommonsHandoff,
+      evidenceLabel: isCommonsHandoff ? 'View Proposal' : 'No evidence yet',
       metadata: isCommonsHandoff ? 'Proposed to Commons' : 'Not proposed',
     },
   ];
@@ -95,6 +110,9 @@ export default function ArtifactLineagePanel({
       title: 'Public Proof Log',
       status: 'completed',
       scope: 'public',
+      truthBadge: 'PUBLIC: read-only event',
+      hasEvidence: true,
+      evidenceLabel: 'View Log Entry',
       metadata: `Hash: ${proofReceiptHash.substring(0, 8)}...`,
     });
   }
@@ -122,13 +140,13 @@ export default function ArtifactLineagePanel({
                   {/* Scope badge */}
                   <div className="mb-2">
                     <span className={`text-[8px] uppercase tracking-widest px-1.5 py-0.5 border rounded ${scopeColor(stage.scope)}`}>
-                      {stage.scope}
+                      {stage.truthBadge}
                     </span>
                   </div>
                   
                   {/* Node */}
                   <div className={`border rounded p-3 ${isActiveOrCompleted ? 'border-[#E8842A]/30 bg-[#E8842A]/5' : 'border-[#2A1F16] bg-black/40'}`}>
-                    <div className="flex items-center gap-2 mb-2">
+                    <div className="flex items-center gap-2 mb-2 border-b border-[#2A1F16]/50 pb-2">
                       <div className={isActiveOrCompleted ? 'text-[#E8842A]' : 'text-gray-600'}>
                         {stageIcon(stage.stage_type)}
                       </div>
@@ -137,7 +155,7 @@ export default function ArtifactLineagePanel({
                       </span>
                     </div>
                     
-                    <div className="text-[9px] text-gray-500 uppercase tracking-widest space-y-1">
+                    <div className="text-[9px] text-gray-500 uppercase tracking-widest space-y-1 mb-2">
                       {stage.timestamp && (
                         <div className="flex items-center gap-1">
                           <Clock className="w-3 h-3" />
@@ -145,6 +163,19 @@ export default function ArtifactLineagePanel({
                         </div>
                       )}
                       <div>{stage.metadata}</div>
+                    </div>
+                    
+                    {/* Evidence Link */}
+                    <div className="pt-2 border-t border-[#2A1F16]/50">
+                      {stage.hasEvidence ? (
+                        <button className="text-[9px] uppercase tracking-widest text-[#E8842A] hover:text-white transition-colors flex items-center gap-1">
+                          ↳ {stage.evidenceLabel}
+                        </button>
+                      ) : (
+                        <span className="text-[9px] uppercase tracking-widest text-gray-600 italic flex items-center gap-1">
+                          ↳ {stage.evidenceLabel || 'No evidence yet'}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
