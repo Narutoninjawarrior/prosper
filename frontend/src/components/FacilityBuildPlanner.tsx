@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { ValidationReport, ConstraintResult } from '../lib/constraintValidator';
-import { Download } from 'lucide-react';
+import { Download, History } from 'lucide-react';
+import ArtifactDiffPanel from './ArtifactDiffPanel';
 
 export interface FacilityManifest {
   id: string;
@@ -113,6 +114,9 @@ export default function FacilityBuildPlanner({ onManifestChange, onValidationCha
     };
   });
 
+  const [lastExportedManifest, setLastExportedManifest] = useState<FacilityManifest | null>(null);
+  const [showDiff, setShowDiff] = useState(false);
+
   const handleApplyPreset = (presetName: string) => {
     const preset = PRESETS[presetName];
     if (preset) {
@@ -219,12 +223,14 @@ export default function FacilityBuildPlanner({ onManifestChange, onValidationCha
       _meta: { boundary: 'local draft / planning aid only', version: '1.0' }
     }, null, 2);
     triggerDownload(`${manifest.id}-manifest.json`, data, 'application/json');
+    setLastExportedManifest(manifest);
   };
 
   const handleExportBOM = () => {
     const header = 'Material,Quantity,Unit,Note\n';
     const rows = manifest.materials.filter(m => m.trim()).map(m => `"${m.replace(/"/g, '""')}",,,`).join('\n');
     triggerDownload(`${manifest.id}-bom.csv`, header + rows, 'text/csv');
+    setLastExportedManifest(manifest);
   };
 
   const handleExportSummary = () => {
@@ -245,6 +251,7 @@ export default function FacilityBuildPlanner({ onManifestChange, onValidationCha
 *Planning aid only. Not structural certification. Not procurement automation. Local-only draft unless separately promoted.*
 `;
     triggerDownload(`${manifest.id}-summary.md`, content, 'text/markdown');
+    setLastExportedManifest(manifest);
   };
 
   return (
@@ -395,8 +402,24 @@ export default function FacilityBuildPlanner({ onManifestChange, onValidationCha
           <button onClick={handleExportSummary} className="flex items-center gap-2 px-3 py-2 text-[10px] uppercase tracking-widest text-[#7A9E7E] hover:text-white border border-[#7A9E7E]/30 rounded hover:bg-[#7A9E7E]/20 transition-colors">
             <Download className="w-3 h-3" /> Summary.md
           </button>
+          {lastExportedManifest && (
+            <button onClick={() => setShowDiff(true)} className="flex items-center gap-2 px-3 py-2 text-[10px] uppercase tracking-widest text-[#D4A853] hover:text-white border border-[#D4A853]/30 rounded hover:bg-[#D4A853]/20 transition-colors ml-auto">
+              <History className="w-3 h-3" /> Compare vs Last Export
+            </button>
+          )}
         </div>
       </div>
+
+      {showDiff && lastExportedManifest && (
+        <div className="mt-4">
+          <ArtifactDiffPanel
+            original={lastExportedManifest}
+            modified={manifest}
+            title="Diff: Current Draft vs Last Export"
+            onClose={() => setShowDiff(false)}
+          />
+        </div>
+      )}
     </div>
   );
 }
