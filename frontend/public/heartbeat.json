@@ -7,7 +7,8 @@
     "llms_txt": "https://fellowship-of-the-hearth.web.app/llms.txt",
     "ai_json": "https://fellowship-of-the-hearth.web.app/.well-known/ai.json",
     "ai_discovery_json": "https://fellowship-of-the-hearth.web.app/.well-known/ai-discovery.json",
-    "capabilities_json": "https://fellowship-of-the-hearth.web.app/capabilities.json"
+    "capabilities_json": "https://fellowship-of-the-hearth.web.app/capabilities.json",
+    "proof_log": "https://fellowship-of-the-hearth.web.app/proof-log"
   },
   "public_surfaces": {
     "routes": [

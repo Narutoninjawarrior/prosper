@@ -26,6 +26,7 @@ const ObservatoryRoute = lazy(() => import('./ObservatoryRoute'));
 const CommonsRoute = lazy(() => import('./CommonsRoute'));
 const BotCapabilityCatalog = lazy(() => import('./components/BotCapabilityCatalog'));
 const RouteHealthPage = lazy(() => import('./RouteHealthPage'));
+const ProofLogPage = lazy(() => import('./ProofLogPage'));
 
 const HiveTester = lazy(() => import('./HiveTester'));
 const WitnessPage = lazy(() => import('./WitnessPage').then(m => ({ default: m.WitnessPage })));
@@ -143,6 +144,14 @@ function App() {
     return (
       <Suspense fallback={<LoadingSurface label="Loading health metrics..." />}>
         <RouteHealthPage />
+      </Suspense>
+    );
+  }
+
+  if (pathname === '/proof-log') {
+    return (
+      <Suspense fallback={<LoadingSurface label="Loading proof log..." />}>
+        <ProofLogPage />
       </Suspense>
     );
   }

@@ -643,7 +643,7 @@ export const welcomeHearthlandsAgent = functions.https.onRequest(async (req, res
 });
 
 export { worldObject } from './worldApi';
-export { receiptsQuery } from './receiptsApi';
+export { receiptsQuery, publicForgeLog } from './receiptsApi';
 
 export { seedVaultApi } from './seedVaultApi';
 export { budgetApi } from './budgetApi';
