@@ -24,6 +24,7 @@ const ForgePage = lazy(() => import('./ForgePage'));
 const CouncilBoard = lazy(() => import('./CouncilBoard'));
 const ObservatoryRoute = lazy(() => import('./ObservatoryRoute'));
 const CommonsRoute = lazy(() => import('./CommonsRoute'));
+const BotCapabilityCatalog = lazy(() => import('./components/BotCapabilityCatalog'));
 
 const HiveTester = lazy(() => import('./HiveTester'));
 const WitnessPage = lazy(() => import('./WitnessPage').then(m => ({ default: m.WitnessPage })));
@@ -226,6 +227,16 @@ function App() {
       <SuspendedPublicShell className="min-h-screen w-screen bg-[#050806] text-gray-200" label="Loading council chamber...">
         <div className="h-full overflow-y-auto">
           <CouncilBoard />
+        </div>
+      </SuspendedPublicShell>
+    );
+  }
+
+  if (pathname === '/entitlements') {
+    return (
+      <SuspendedPublicShell className="min-h-screen w-screen bg-[#050806] text-gray-200" label="Loading entitlements console...">
+        <div className="h-full overflow-y-auto p-4 max-w-5xl mx-auto">
+          <BotCapabilityCatalog />
         </div>
       </SuspendedPublicShell>
     );
