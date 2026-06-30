@@ -375,7 +375,14 @@ export default function ThreeForge({ agentId }: { agentId?: string }) {
           snap.forEach(d => t.push(d.data() as WorldMapTile));
           setTiles(t);
         },
-        err => { console.error('world_map listener error', err); }
+        err => { 
+          // Suppress permission errors in public mode to keep the route clean.
+          if (err.message?.includes('Missing or insufficient permissions')) {
+            console.debug('[ThreeForge] Map stream unavailable in public mode (expected).');
+          } else {
+            console.error('world_map listener error', err); 
+          }
+        }
       );
     };
 

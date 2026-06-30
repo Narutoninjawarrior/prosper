@@ -4,6 +4,7 @@
   "description": "Contract-first public Hearthlands vessel with manifest-verified registries, read-only discovery surfaces, and a small set of labeled authenticated or beta server-side write paths.",
   "base_url": "https://fellowship-of-the-hearth.web.app",
   "contact": "ky@caylor.email",
+  "heartbeat": "/heartbeat.json",
   "policy": {
     "documented_machine_surfaces": "mixed-read-only-and-labeled-server-writes",
     "workshop_world_write": false,
@@ -39,7 +40,11 @@
     { "method": "POST", "path": "/api/agent/passport/claim-moltbook", "state": "beta-verified-identity-link" },
     { "method": "POST", "path": "/api/agent/memory/append", "state": "beta-authenticated-append-only-memory" },
     { "method": "POST", "path": "/api/chemistry/execute", "state": "authenticated-append-only-log" },
-    { "method": "POST", "path": "/claimBounty", "state": "authenticated-and-signed-claim" }
+    { "method": "POST", "path": "/claimBounty", "state": "authenticated-and-signed-claim" },
+    { "method": "POST", "path": "/api/experiment/log", "state": "hybrid-authenticated-append-only" },
+    { "method": "POST", "path": "/api/budget/reserve", "state": "hybrid-authenticated-reserve" },
+    { "method": "POST", "path": "/api/budget/commit", "state": "hybrid-authenticated-commit" },
+    { "method": "POST", "path": "/api/budget/release", "state": "hybrid-authenticated-release" }
   ],
   "registries": [
     "/artifact_registry.json",
@@ -49,6 +54,6 @@
     "/machine_registry.json",
     "/apparatus_registry.json"
   ],
-  "discovery": ["/llms.txt", "/mission.md", "/lodge-interface.json"],
+  "discovery": ["/llms.txt", "/.well-known/ai-discovery.json", "/heartbeat.json", "/mission.md", "/lodge-interface.json"],
   "payments_available_on_documented_machine_surfaces": false
 }

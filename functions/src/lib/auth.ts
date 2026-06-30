@@ -6,6 +6,10 @@ export interface AuthContext {
   claims: admin.auth.DecodedIdToken;
 }
 
+export type HybridAuthContext =
+  | { type: 'agent'; agentId: string }
+  | { type: 'human'; uid?: string };
+
 function adminUidSet(): Set<string> {
   const uids = new Set<string>();
   const sovereign = process.env.SOVEREIGN_UID?.trim();
@@ -65,4 +69,37 @@ export async function requireAdmin(
 export async function verifyAuth(req: functions.Request): Promise<string | null> {
   const ctx = await verifyAuthToken(req);
   return ctx?.uid ?? null;
+}
+
+export async function requireHybridAuth(
+  req: functions.Request,
+  res: functions.Response
+): Promise<HybridAuthContext | null> {
+  const authHeader = req.headers.authorization;
+
+  if (typeof authHeader === 'string' && authHeader.startsWith('Bearer hla_')) {
+    const { resolveAgentServiceToken } = await import('../agentTokensApi');
+    const agentCtx = await resolveAgentServiceToken(authHeader);
+    if (!agentCtx) {
+      res.status(401).json({ error: 'Invalid or revoked agent service token' });
+      return null;
+    }
+    return { type: 'agent', agentId: agentCtx.agentId };
+  }
+
+  const appCheckHeader = req.header('X-Firebase-AppCheck') || req.header('x-firebase-appcheck');
+  if (!appCheckHeader) {
+    res.status(401).json({ error: 'Missing or invalid App Check or Agent Token' });
+    return null;
+  }
+
+  try {
+    await admin.appCheck().verifyToken(appCheckHeader);
+  } catch {
+    res.status(401).json({ error: 'Missing or invalid App Check or Agent Token' });
+    return null;
+  }
+
+  const authCtx = await verifyAuthToken(req);
+  return authCtx ? { type: 'human', uid: authCtx.uid } : { type: 'human' };
 }

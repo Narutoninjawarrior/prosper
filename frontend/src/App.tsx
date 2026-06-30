@@ -41,13 +41,15 @@ function SuspendedPublicShell({
   children,
   className,
   label,
+  showAudio = true,
 }: {
   children: React.ReactNode;
   className: string;
   label: string;
+  showAudio?: boolean;
 }) {
   return (
-    <PublicShell className={className}>
+    <PublicShell className={className} showAudio={showAudio}>
       <Suspense fallback={<LoadingSurface label={label} />}>
         {children}
       </Suspense>
@@ -114,7 +116,7 @@ function App() {
 
   if (pathname === '/commons') {
     return (
-      <SuspendedPublicShell className="h-screen w-screen bg-[#050806] text-gray-200" label="Loading commons...">
+      <SuspendedPublicShell className="h-screen w-screen bg-[#050806] text-gray-200" label="Loading commons..." showAudio={false}>
         <CommonsRoute />
       </SuspendedPublicShell>
     );
@@ -168,7 +170,7 @@ function App() {
 
   if (pathname === '/activity') {
     return (
-      <SuspendedPublicShell className="min-h-screen w-screen bg-[#050806] text-gray-200" label="Loading activity...">
+      <SuspendedPublicShell className="min-h-screen w-screen bg-[#050806] text-gray-200" label="Loading activity..." showAudio={false}>
         <div className="h-full overflow-y-auto">
           <ActivityDashboard />
         </div>
@@ -216,7 +218,7 @@ function App() {
 
   if (pathname === '/forge') {
     return (
-      <SuspendedPublicShell className="h-screen w-screen bg-[#020804] text-gray-200" label="Loading forge...">
+      <SuspendedPublicShell className="h-screen w-screen bg-[#020804] text-gray-200" label="Loading forge..." showAudio={false}>
         <ForgePage />
       </SuspendedPublicShell>
     );
@@ -234,7 +236,7 @@ function App() {
 
   if (pathname === '/entitlements') {
     return (
-      <SuspendedPublicShell className="min-h-screen w-screen bg-[#050806] text-gray-200" label="Loading entitlements console...">
+      <SuspendedPublicShell className="min-h-screen w-screen bg-[#050806] text-gray-200" label="Loading entitlements console..." showAudio={false}>
         <div className="h-full overflow-y-auto p-4 max-w-5xl mx-auto">
           <BotCapabilityCatalog />
         </div>

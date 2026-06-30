@@ -354,10 +354,12 @@ function InspirationForgeMesh({ state = 'waiting' }: { state?: 'waiting' | 'reso
 
 // ── MAIN EXPORT COMPONENT ──────────────────────────────────────────
 interface WorldObjectProps {
-  objectId: 'rain-barrel' | 'tide-pool' | 'compost-heap' | 'seismograph' | 'star-lantern' | 'sundial' | 'seed-vault' | 'steward-log' | 'inspiration-forge';
+  objectId: 'rain-barrel' | 'tide-pool' | 'compost-heap' | 'seismograph' | 'star-lantern' | 'sundial' | 'seed-vault' | 'steward-log' | 'inspiration-forge' | 'somatic-sensor';
   position: [number, number, number];
   autoOpen?: boolean;
   onClose?: () => void;
+  onPrev?: () => void;
+  onNext?: () => void;
 }
 
 export default function WorldObject({ objectId, position, autoOpen = false, onClose }: WorldObjectProps) {

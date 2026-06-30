@@ -10,6 +10,20 @@
       {
         "source": "/.well-known/ai-catalog.json",
         "headers": [{ "key": "Content-Type", "value": "application/json" }]
+      },
+      {
+        "source": "/heartbeat.json",
+        "headers": [
+          { "key": "Content-Type", "value": "application/json; charset=utf-8" },
+          { "key": "Cache-Control", "value": "public, max-age=300" }
+        ]
+      },
+      {
+        "source": "/heartbeat.md",
+        "headers": [
+          { "key": "Content-Type", "value": "text/markdown; charset=utf-8" },
+          { "key": "Cache-Control", "value": "public, max-age=300" }
+        ]
       }
     ],
     "rewrites": [
@@ -140,6 +154,10 @@
       {
         "source": "/api/seeds/**",
         "function": "seedVaultApi"
+      },
+      {
+        "source": "/api/experiment/log",
+        "function": "experimentLogApi"
       },
       {
         "source": "/api/budget/**",
