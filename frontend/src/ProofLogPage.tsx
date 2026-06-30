@@ -49,8 +49,8 @@ export default function ProofLogPage() {
                 <ShieldCheck className="w-5 h-5" />
                 Public Proof Log
               </h1>
-              <p className="text-xs text-gray-500 mt-2 uppercase tracking-widest">
-                Structured Event History (Read-Only)
+              <p className="text-[10px] text-gray-500 mt-2 uppercase tracking-widest bg-black/40 border border-[#2A1F16] inline-block px-3 py-1.5 rounded">
+                Event history. Not a witness service. Public read-only.
               </p>
             </div>
             <div className="text-right">

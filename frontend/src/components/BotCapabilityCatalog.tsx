@@ -62,8 +62,8 @@ export default function BotCapabilityCatalog({ isFrozen = false }: { isFrozen?: 
           <Cpu className="w-5 h-5 text-[#E8842A]" />
           <h2 className="text-lg uppercase tracking-widest font-semibold text-[#D4A853]">Bot Billing & Entitlements</h2>
         </div>
-        <p className="mt-2 text-xs text-[#8a7a64] max-w-2xl leading-relaxed">
-          Operational control surface for metered agent access. This layer enforces off-chain quotas, pricing models, and service token scopes before any on-chain treasury movement or autonomous wallet custody is permitted.
+        <p className="mt-2 text-[10px] text-gray-500 uppercase tracking-widest bg-black/40 border border-[#2A1F16] inline-block px-3 py-1.5 rounded">
+          Budget limits. Not a treasury or settlement rail. Operator-controlled.
         </p>
         
         {isFrozen && (

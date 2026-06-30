@@ -73,8 +73,8 @@ export default function RouteHealthPage() {
                 <Activity className="w-5 h-5" />
                 Route Health & Source Availability
               </h1>
-              <p className="text-xs text-gray-500 mt-2 uppercase tracking-widest">
-                Public Transparency Surface
+              <p className="text-[10px] text-gray-500 mt-2 uppercase tracking-widest bg-black/40 border border-[#2A1F16] inline-block px-3 py-1.5 rounded">
+                Availability status. Not a security or performance audit. Public read-only.
               </p>
             </div>
             {lastSweep && (
