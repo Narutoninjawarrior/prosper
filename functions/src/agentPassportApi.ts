@@ -755,6 +755,8 @@ export const agentPassportApi = functions.https.onRequest(async (req, res) => {
       res.status(405).json({ error: 'POST only' });
       return;
     }
+    const { applyGlobalFreeze } = await import('./lib/edgeGuard');
+    if (!(await applyGlobalFreeze(req, res))) return;
     if (!applyRateLimit(req, res, { bucket: 'agent-memory-append', windowMs: 60_000, max: 18 })) return;
     if (!applyBodyLimit(req, res, 8 * 1024)) return;
 
@@ -791,6 +793,8 @@ export const agentPassportApi = functions.https.onRequest(async (req, res) => {
       res.status(405).json({ error: 'POST only' });
       return;
     }
+    const { applyGlobalFreeze } = await import('./lib/edgeGuard');
+    if (!(await applyGlobalFreeze(req, res))) return;
     if (!applyRateLimit(req, res, { bucket: 'agent-task-event', windowMs: 60_000, max: 24 })) return;
     if (!applyBodyLimit(req, res, 12 * 1024)) return;
 

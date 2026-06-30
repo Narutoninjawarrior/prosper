@@ -3,6 +3,7 @@ import * as admin from 'firebase-admin';
 import * as nacl from 'tweetnacl';
 import * as bs58 from 'bs58';
 import { applyBodyLimit, applyRateLimit } from './lib/edgeGuard';
+import { requireHybridAuth } from './lib/auth';
 import {
   buildLogReceipt,
   buildLogSignPayload,
@@ -12,7 +13,7 @@ import {
 function applyCors(res: functions.Response): void {
   res.set('Access-Control-Allow-Origin', '*');
   res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.set('Access-Control-Allow-Headers', 'Content-Type');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Firebase-AppCheck');
 }
 
 export async function fetchLoggedExperimentIds(limit = 500): Promise<Set<string>> {
@@ -78,8 +79,21 @@ export const experimentLogApi = functions.https.onRequest(async (req, res) => {
     res.status(405).json({ error: 'Method not allowed. Use GET or POST on /api/experiment/log' });
     return;
   }
-  if (!applyRateLimit(req, res, { bucket: 'experiment-log-post', windowMs: 60_000, max: 12 })) return;
   if (!applyBodyLimit(req, res, 16 * 1024)) return;
+
+  const { applyGlobalFreeze } = await import('./lib/edgeGuard');
+  if (!(await applyGlobalFreeze(req, res))) return;
+
+  const authContext = await requireHybridAuth(req, res);
+  if (!authContext) return;
+
+  if (authContext.type === 'agent') {
+    const bodyAgentId = typeof req.body?.agent_id === 'string' ? req.body.agent_id.trim() : '';
+    if (!bodyAgentId || bodyAgentId !== authContext.agentId) {
+      res.status(403).json({ error: 'forbidden: agent token does not match body agent_id' });
+      return;
+    }
+  }
 
   try {
     const result = await submitExperimentLog(req.body);

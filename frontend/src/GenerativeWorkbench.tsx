@@ -12,12 +12,13 @@ import MasonPanel from './mason/MasonPanel'
 import ParametricSitePlanner from './components/ParametricSitePlanner'
 import FoodCompliancePlanner from './components/FoodCompliancePlanner'
 import AllonicSchemaAssembler from './components/AllonicSchemaAssembler'
+import FacilityBuildPlanner from './components/FacilityBuildPlanner'
 
-type TabId = 'graphics' | 'soulfile' | 'memory' | 'blueprint' | 'siteplan' | 'mason' | 'food_compliance' | 'allonic'
+type TabId = 'graphics' | 'soulfile' | 'memory' | 'blueprint' | 'siteplan' | 'mason' | 'food_compliance' | 'allonic' | 'facility'
 type DraftStage = 'Rough Cut' | 'Smoothed' | 'Sealed'
 type SaveState = 'Saved locally' | 'Saving...' | 'Unsaved changes'
 type PlannerContractRecord = {
-  tab: 'siteplan' | 'food_compliance' | 'allonic'
+  tab: 'siteplan' | 'food_compliance' | 'allonic' | 'facility'
   state_boundary: 'local_only' | string
   primary_payload_schema_name: string
   export_targets: string[]
@@ -27,7 +28,7 @@ type PlannerContractRecord = {
 }
 type ExportTargetRecord = {
   id: string
-  planner_tab: 'siteplan' | 'food_compliance' | 'allonic'
+  planner_tab: 'siteplan' | 'food_compliance' | 'allonic' | 'facility'
   label: string
   format: string
   state_boundary: 'local_only' | string
@@ -92,6 +93,7 @@ const TABS: Array<{ id: TabId; label: string }> = [
   { id: 'siteplan', label: 'Site Planner' },
   { id: 'food_compliance', label: 'Cottage Food Planner' },
   { id: 'allonic', label: 'Allonic Robotics' },
+  { id: 'facility', label: 'Facility Build Planner' },
   { id: 'mason', label: 'Mason' },
 ]
 
@@ -369,6 +371,7 @@ export default function GenerativeWorkbench() {
   const [foodCompliancePayload, setFoodCompliancePayload] = useState<any>(null)
   const [sitePlanPayload, setSitePlanPayload] = useState<any>(null)
   const [allonicPayload, setAllonicPayload] = useState<any>(null)
+  const [facilityPayload, setFacilityPayload] = useState<any>(null)
   const [draftReport, setDraftReport] = useState<ValidationReport | null>(null)
 
   const [handoff, setHandoff] = useState<WorkbenchHandoff | null>(null)
@@ -650,6 +653,7 @@ export default function GenerativeWorkbench() {
     : tab === 'siteplan' ? (sitePlanPayload || { schema: 'site-plan-v1', note: 'Use the Site Planner tab to configure a local geometry + sequencing manifest.' })
     : tab === 'food_compliance' ? (foodCompliancePayload || { schema: 'food-compliance-v1', note: 'Use the Cottage Food Planner tab to stage local compliance data.' })
     : tab === 'allonic' ? (allonicPayload || { schema: 'allonic-blueprint-v1', note: 'Use the Allonic Robotics tab to assemble a local mixed-module robot blueprint.' })
+    : tab === 'facility' ? (facilityPayload || { schema: 'facility-manifest-v1', note: 'Use the Facility Build Planner tab to coordinate physical resources.' })
     : tab === 'mason' ? (masonBlueprint || { workbench: 'mason-blueprint-v1', note: 'Generate or select a template to preview JSON.' })
     : blueprintPayload
 
@@ -764,6 +768,37 @@ export default function GenerativeWorkbench() {
     const sessionPrompts = JSON.parse(sessionStorage.getItem('hearth_commons_session_prompts') || '[]')
     sessionStorage.setItem('hearth_commons_session_prompts', JSON.stringify([newPrompt, ...sessionPrompts]))
     window.location.href = `/commons?source=workbench&object=${allonicPayload.blueprint.id}`
+  }
+
+  const pushFacilityToCommons = () => {
+    if (!facilityPayload) return
+    const newPrompt = {
+      id: `local-facility-${Date.now()}`,
+      prompt_text: `### Facility Build Manifest: ${facilityPayload.title}\n\nType: ${facilityPayload.facility_type}\nFootprint: ${facilityPayload.footprint}\nLabor Est: ${facilityPayload.estimated_labor_hours} hours\nBudget Est: ${facilityPayload.estimated_budget_ember} EMBER\nMaterials: ${facilityPayload.materials.length}\nTools: ${facilityPayload.tools_required.length}${formatConstraintSummary()}\n\n\`\`\`json\n${JSON.stringify(facilityPayload, null, 2)}\n\`\`\``,
+      author_type: 'human',
+      author_id: 'local_user',
+      target_type: 'route',
+      target_id: 'commons',
+      status: 'draft',
+      boundary: 'local_only',
+      visibility: 'local_artifact',
+      scope: 'local_draft',
+      cost_label: 'EXPORT ONLY',
+      source_route: '/workbench',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      is_local_session: true,
+      object_ref: {
+        id: facilityPayload.id,
+        title: facilityPayload.title,
+        purpose: 'Facility Build Manifest',
+        source: 'Workbench Planner',
+        freshness: 'Local Session',
+      }
+    }
+    const sessionPrompts = JSON.parse(sessionStorage.getItem('hearth_commons_session_prompts') || '[]')
+    sessionStorage.setItem('hearth_commons_session_prompts', JSON.stringify([newPrompt, ...sessionPrompts]))
+    window.location.href = `/commons?source=workbench&object=${facilityPayload.id}`
   }
 
   return (
@@ -1262,6 +1297,17 @@ export default function GenerativeWorkbench() {
                 />
               )}
 
+              {tab === 'facility' && (
+                <FacilityBuildPlanner
+                  onManifestChange={(payload) => {
+                    setFacilityPayload(payload)
+                    setExportJson('')
+                    setDigest('')
+                  }}
+                  onValidationChange={setDraftReport}
+                />
+              )}
+
               {tab === 'mason' && (
                 <MasonPanel
                   onStamp={(json, hash) => {
@@ -1339,6 +1385,17 @@ export default function GenerativeWorkbench() {
                       Push Blueprint to Commons (Local Draft)
                     </button>
                   )}
+                  {tab === 'facility' && facilityPayload && (
+                    <button
+                      type="button"
+                      onClick={pushFacilityToCommons}
+                      disabled={draftReport?.level === 'hard_fail'}
+                      className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 font-mono text-[11px] font-semibold transition-colors ${draftReport?.level === 'hard_fail' ? 'bg-red-500/10 border-red-500/30 text-red-400 opacity-50 cursor-not-allowed' : draftReport?.level === 'warning' ? 'bg-[#FBBF24]/20 border-[#FBBF24]/40 text-[#FBBF24] hover:bg-[#FBBF24]/30' : 'bg-[#10B981]/20 border-[#10B981]/40 text-[#34D399] hover:bg-[#10B981]/30'}`}
+                    >
+                      <ArrowLeftRight size={14} />
+                      Push Facility Plan to Commons (Local Draft)
+                    </button>
+                  )}
                 </div>
               )}
             </section>
@@ -1346,7 +1403,7 @@ export default function GenerativeWorkbench() {
             <section className="rounded-[20px] border border-[#D4A853]/15 bg-[#0a0806]/90 flex flex-col overflow-hidden">
               <div className="border-b border-[#D4A853]/15 bg-black/40 px-5 py-3 flex items-center justify-between">
                 <div className="text-[10px] uppercase tracking-[0.24em] text-[#8a7a64]">Human / Machine Mirror</div>
-                {(tab === 'siteplan' || tab === 'food_compliance' || tab === 'allonic') && (
+                {(tab === 'siteplan' || tab === 'food_compliance' || tab === 'allonic' || tab === 'facility') && (
                   <div className="text-[10px] uppercase tracking-[0.18em] font-semibold">
                     {draftReport?.level === 'hard_fail' ? (
                       <span className="text-[#EF4444]">Missing required structure</span>
@@ -1386,6 +1443,15 @@ export default function GenerativeWorkbench() {
                       <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Mass</strong> {allonicPayload.summary.total_mass_kg} kg</div>
                       <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Power</strong> {allonicPayload.summary.net_power_draw_watts} W</div>
                       <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Modules</strong> {allonicPayload.summary.module_count} active modules</div>
+                    </div>
+                  ) : tab === 'facility' && facilityPayload ? (
+                    <div className="grid gap-3 text-sm text-[#c9bba5]">
+                      <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Facility</strong> {facilityPayload.title}</div>
+                      <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Type</strong> {facilityPayload.facility_type}</div>
+                      <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Footprint</strong> {facilityPayload.footprint}</div>
+                      <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Materials</strong> {facilityPayload.materials.length} items listed</div>
+                      <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Labor Est</strong> {facilityPayload.estimated_labor_hours} hours</div>
+                      <div><strong className="text-[#34D399] block text-[11px] uppercase tracking-wider">Budget Est</strong> {facilityPayload.estimated_budget_ember} EMBER</div>
                     </div>
                   ) : (
                     <div className="text-sm text-[#6b5d4b] italic">

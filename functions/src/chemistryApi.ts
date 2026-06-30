@@ -27,6 +27,8 @@ export const chemistryApi = functions.https.onRequest(async (req, res) => {
     // If it's an execution request
     if (req.path === '/execute') {
       if (!applyRateLimit(req, res, { bucket: 'chemistry-execute', windowMs: 60_000, max: 8 })) return;
+      const { applyGlobalFreeze } = await import('./lib/edgeGuard');
+      if (!(await applyGlobalFreeze(req, res))) return;
       const auth = await requireAuth(req, res);
       if (!auth) return;
 

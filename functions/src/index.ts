@@ -502,6 +502,27 @@ export const admin_sync_balance = functions.https.onRequest(async (req, res) => 
   res.status(200).json({ status: 'synced', target_agent_id, balance });
 });
 
+export const admin_toggle_freeze = functions.https.onRequest(async (req, res) => {
+  if (req.method !== 'POST') { res.status(405).end(); return; }
+
+  const auth = await requireAdmin(req, res);
+  if (!auth) return;
+
+  const { freeze, reason } = req.body;
+  if (typeof freeze !== 'boolean') {
+    res.status(400).json({ error: 'freeze must be a boolean' });
+    return;
+  }
+
+  await db.collection('system').doc('flags').set({
+    global_freeze: freeze,
+    freeze_reason: reason || (freeze ? 'Manual operator freeze active.' : null),
+    frozen_at: freeze ? admin.firestore.FieldValue.serverTimestamp() : null
+  }, { merge: true });
+
+  res.status(200).json({ status: 'success', global_freeze: freeze });
+});
+
 export const get_world_map = functions.https.onRequest(async (req, res) => {
   if (handleCorsForge(req, res)) return;
   retiredLegacy(

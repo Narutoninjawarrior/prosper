@@ -1,4 +1,49 @@
 import * as functions from 'firebase-functions';
+import * as admin from 'firebase-admin';
+
+let freezeCache = {
+  isFrozen: false,
+  reason: 'unknown',
+  lastCheck: 0,
+};
+
+export async function applyGlobalFreeze(
+  req: functions.Request,
+  res: functions.Response
+): Promise<boolean> {
+  const now = Date.now();
+  if (now - freezeCache.lastCheck > 60000) {
+    try {
+      const doc = await admin.firestore().collection('system').doc('flags').get();
+      if (doc.exists) {
+        const data = doc.data() || {};
+        freezeCache.isFrozen = data.global_freeze === true;
+        freezeCache.reason = data.freeze_reason || 'Manual operator freeze active.';
+      } else {
+        freezeCache.isFrozen = false;
+      }
+      freezeCache.lastCheck = now;
+    } catch (err) {
+      // If we cannot read the freeze state, fail closed to be safe?
+      // "Failure policy: if freeze state cannot be read: fail open for public read-only routes; fail closed only on routes where we explicitly apply this middleware"
+      // Wait, we are explicitly applying this to write routes, so we SHOULD fail closed.
+      freezeCache.isFrozen = true;
+      freezeCache.reason = 'Cannot read system state. Failing closed for safety.';
+      // We don't update lastCheck so it tries again next time
+    }
+  }
+
+  if (freezeCache.isFrozen) {
+    res.status(503).json({
+      error: 'system_frozen',
+      reason: freezeCache.reason,
+      note: 'Write and execution routes are temporarily paused by operator control.'
+    });
+    return false;
+  }
+
+  return true;
+}
 
 type WindowCounter = {
   count: number;
