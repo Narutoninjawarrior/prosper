@@ -774,7 +774,7 @@ export default function GenerativeWorkbench() {
     if (!facilityPayload) return
     const newPrompt = {
       id: `local-facility-${Date.now()}`,
-      prompt_text: `### Facility Build Manifest: ${facilityPayload.title}\n\nType: ${facilityPayload.facility_type}\nFootprint: ${facilityPayload.footprint}\nLabor Est: ${facilityPayload.estimated_labor_hours} hours\nBudget Est: ${facilityPayload.estimated_budget_ember} EMBER\nMaterials: ${facilityPayload.materials.length}\nTools: ${facilityPayload.tools_required.length}${formatConstraintSummary()}\n\n\`\`\`json\n${JSON.stringify(facilityPayload, null, 2)}\n\`\`\``,
+      prompt_text: `### Facility Build Manifest: ${facilityPayload.title}\n\n**Derived BOM Summary**\n- Type: ${facilityPayload.facility_type}\n- Footprint: ${facilityPayload.footprint}\n- Material Lines: ${facilityPayload.materials.length}\n- Labor Est: ${facilityPayload.estimated_labor_hours} hours\n- Power Needs: ${facilityPayload.estimated_power_needs} W\n- Water Needs: ${facilityPayload.estimated_water_needs} L\n- Budget Est: ${facilityPayload.estimated_budget_ember} EMBER\n- Dependency Count: ${facilityPayload.dependencies.length}${formatConstraintSummary()}\n\n\`\`\`json\n${JSON.stringify(facilityPayload, null, 2)}\n\`\`\``,
       author_type: 'human',
       author_id: 'local_user',
       target_type: 'route',
@@ -1449,9 +1449,15 @@ export default function GenerativeWorkbench() {
                       <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Facility</strong> {facilityPayload.title}</div>
                       <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Type</strong> {facilityPayload.facility_type}</div>
                       <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Footprint</strong> {facilityPayload.footprint}</div>
-                      <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Materials</strong> {facilityPayload.materials.length} items listed</div>
-                      <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Labor Est</strong> {facilityPayload.estimated_labor_hours} hours</div>
-                      <div><strong className="text-[#34D399] block text-[11px] uppercase tracking-wider">Budget Est</strong> {facilityPayload.estimated_budget_ember} EMBER</div>
+                      <div className="grid grid-cols-2 gap-2 mt-2">
+                        <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Material Lines</strong> {facilityPayload.materials.length}</div>
+                        <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Tools Required</strong> {facilityPayload.tools_required.length}</div>
+                        <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Labor Est</strong> {facilityPayload.estimated_labor_hours} hrs</div>
+                        <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Dependencies</strong> {facilityPayload.dependencies.length}</div>
+                        <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Power</strong> {facilityPayload.estimated_power_needs} W</div>
+                        <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Water</strong> {facilityPayload.estimated_water_needs} L</div>
+                      </div>
+                      <div className="mt-2"><strong className="text-[#34D399] block text-[11px] uppercase tracking-wider border-t border-white/10 pt-2">Budget Est</strong> <span className="text-[#34D399] font-bold">{facilityPayload.estimated_budget_ember} EMBER</span></div>
                     </div>
                   ) : (
                     <div className="text-sm text-[#6b5d4b] italic">
