@@ -370,7 +370,7 @@
           <div>
             <h1>Living Cathedral</h1>
             <div class="subtitle">
-              A public, read-only reflection of the Hearthlands. Solarpunk utility with Renaissance structure, tuned for the First Light era.
+              A public, read-only reflection of the Hearthlands. A static mirror demonstrating public data boundaries and UI capabilities.
             </div>
           </div>
           <div class="status-pill">Public Mirror / Read Only</div>
@@ -382,51 +382,51 @@
           <div class="section-label">Ledger & Atmosphere</div>
           <div class="hero-grid">
             <div class="metric">
-              <div class="label">Unified Ember</div>
-              <div class="value" id="emberTotal">264.5</div>
-              <div class="note">The audited public milestone. No gold paint, only verified heat.</div>
+              <div class="label">Total Budget (Draft)</div>
+              <div class="value" id="emberTotal">0</div>
+              <div class="note">Static placeholder. Ember is an off-chain tracking metric, not a live token.</div>
             </div>
             <div class="module">
               <div class="label">System Status</div>
-              <h2 id="systemStatus">Hardened</h2>
-              <div class="note" id="pulseLine">Active pulse in the vaulted mirror.</div>
+              <h2 id="systemStatus">Static</h2>
+              <div class="note" id="pulseLine">Offline representation of bounded data.</div>
             </div>
             <div class="module">
-              <div class="label">Bellows</div>
-              <h2 id="bellowsStatus">Ignited</h2>
-              <div class="note" id="bellowsEngine">Public mirror mode. Internal engines remain local.</div>
+              <div class="label">Orchestration</div>
+              <h2 id="bellowsStatus">Paused</h2>
+              <div class="note" id="bellowsEngine">No active background engine is publicly exposed here.</div>
             </div>
             <div class="module">
-              <div class="label">Bench</div>
-              <h2 id="benchStatus">Ready</h2>
-              <div class="note" id="benchResearch">Unitree G1 Embodiment.</div>
+              <div class="label">Planning Bench</div>
+              <h2 id="benchStatus">Available</h2>
+              <div class="note" id="benchResearch">Facility BOM drafting is active.</div>
             </div>
           </div>
 
           <div class="ledger-strip">
             <div class="ledger-card">
-              <div class="label">Network Health</div>
-              <div class="big" id="networkHealth">100%</div>
-              <div class="small">Hearth OS is publicly mirrored, privately disciplined.</div>
+              <div class="label">Network Mode</div>
+              <div class="big" id="networkHealth">Read-Only</div>
+              <div class="small">The public UI demonstrates state without exposing unauthenticated writes.</div>
             </div>
             <div class="ledger-card">
-              <div class="label">Active Agents</div>
-              <div class="big" id="agentCount">3</div>
-              <div class="small">Prosper2, Ember, and Solis are reflected in the hall.</div>
+              <div class="label">Agent Presences</div>
+              <div class="big" id="agentCount">1</div>
+              <div class="small">Static seed data. No live agent orchestration is currently bridged.</div>
             </div>
             <div class="ledger-card">
-              <div class="label">Last Update</div>
-              <div class="big" id="lastUpdate">Apr 28, 2026</div>
-              <div class="small">Stamped into the stone for public accountability.</div>
+              <div class="label">Last Seed</div>
+              <div class="big" id="lastUpdate">Jun 29, 2026</div>
+              <div class="small">Public contracts are periodically synchronized by an operator.</div>
             </div>
           </div>
         </section>
 
         <aside class="panel">
           <div class="section-label">Household</div>
-          <h2>Agents</h2>
+          <h2>Entities</h2>
           <div class="ledger-note">
-            The public mirror does not expose private controls. It only shows the Fellowship as it wishes to be seen: clean, honest, and durable.
+            The public mirror displays statically seeded roles. It does not reflect a live multi-agent execution environment.
           </div>
           <div class="agent-grid" id="agents"></div>
 
@@ -435,10 +435,10 @@
             <ul class="list">
               <li>
                 <div>
-                  <strong>Chivalry</strong>
-                  <span>Verify before proclaiming. Foundation before flourish.</span>
+                  <strong>Boundaries</strong>
+                  <span>Off-chain, local-only, explicitly limited permissions.</span>
                 </div>
-                <div class="badge">Honest</div>
+                <div class="badge">Disciplined</div>
               </li>
               <li>
                 <div>
@@ -449,10 +449,10 @@
               </li>
               <li>
                 <div>
-                  <strong>Embodiment</strong>
-                  <span>The forge remains pointed toward Unitree G1 and beyond.</span>
+                  <strong>Planning</strong>
+                  <span>The forge is a BOM and budget drafting utility, not live robot control.</span>
                 </div>
-                <div class="badge">Future</div>
+                <div class="badge">Drafting</div>
               </li>
             </ul>
           </div>
@@ -462,10 +462,10 @@
       <footer>
         <div class="fineprint">
           <div>
-            <div class="skeleton">Mirror protocol</div>
+            <div class="skeleton">Static interface preview</div>
             Read-only public artifact powered by the Fellowship of the Hearth.
           </div>
-          <div class="muted" id="mirrorVersion">First Light</div>
+          <div class="muted" id="mirrorVersion">Capabilities Contract Era</div>
         </div>
       </footer>
     </div>
@@ -493,14 +493,14 @@
         setText('emberTotal', Number(state.current_ember_total || 0).toFixed(1));
         setText('networkHealth', state.network_health || 'Unknown');
         setText('systemStatus', state.system_status || 'Unknown');
-        setText('pulseLine', state.current_pulse ? `${state.current_pulse} pulse in the vaulted mirror.` : 'Active pulse in the vaulted mirror.');
-        setText('bellowsStatus', state.bellows?.status ? state.bellows.status : 'Unknown');
-        setText('bellowsEngine', state.bellows?.engine ? `${state.bellows.engine} / ${state.bellows.mode || 'public mirror'}` : 'Public mirror mode. Internal engines remain local.');
+        setText('pulseLine', state.current_pulse ? `${state.current_pulse} state.` : 'Offline representation.');
+        setText('bellowsStatus', state.bellows?.status ? state.bellows.status : 'Unavailable');
+        setText('bellowsEngine', state.bellows?.engine ? `${state.bellows.engine}` : 'No active background engine.');
         setText('benchStatus', state.bench?.status || 'Unknown');
-        setText('benchResearch', state.bench?.active_research || 'Unitree G1 Embodiment');
+        setText('benchResearch', state.bench?.active_research || 'Facility Planner');
         setText('agentCount', String(Array.isArray(state.active_agents) ? state.active_agents.length : 0));
         setText('lastUpdate', fmtDate(state.last_update));
-        setText('mirrorVersion', state.mirror_version || 'First Light');
+        setText('mirrorVersion', state.mirror_version || 'Capabilities Contract Era');
 
         const agents = document.getElementById('agents');
         if (agents && Array.isArray(state.active_agents)) {
