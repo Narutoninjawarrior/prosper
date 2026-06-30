@@ -65,7 +65,7 @@ export default function ProofLogPage() {
               Public Proof Log
             </h1>
             <p className="text-[#8a7a64] text-sm leading-relaxed max-w-xl mb-4">
-              Read-only projection of the internal forge log.
+              Structured system receipt trail. Read-only projection of the internal forge log.
             </p>
             <div className="text-[10px] text-gray-500 uppercase tracking-widest bg-black/40 border border-[#2A1F16] inline-flex px-3 py-1.5 rounded">
               Event history. Not a witness service. Public read-only.

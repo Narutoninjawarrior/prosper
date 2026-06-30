@@ -578,7 +578,7 @@ export default function GenerativeWorkbench() {
       status: 'draft',
       boundary: 'local_only',
       visibility: 'local_artifact',
-      scope: 'local_draft',
+      scope: (draftMetadata?.scope as any) || 'commons_public',
       cost_label: 'EXPORT ONLY',
       source_route: '/workbench',
       created_at: new Date().toISOString(),
@@ -690,7 +690,7 @@ export default function GenerativeWorkbench() {
       status: 'draft',
       boundary: 'local_only',
       visibility: 'local_artifact',
-      scope: 'local_draft',
+      scope: 'world_room',
       cost_label: 'EXPORT ONLY',
       source_route: '/workbench',
       created_at: new Date().toISOString(),
@@ -721,7 +721,7 @@ export default function GenerativeWorkbench() {
       status: 'draft',
       boundary: 'local_only',
       visibility: 'local_artifact',
-      scope: 'local_draft',
+      scope: 'commons_public',
       cost_label: 'EXPORT ONLY',
       source_route: '/workbench',
       created_at: new Date().toISOString(),
@@ -752,7 +752,7 @@ export default function GenerativeWorkbench() {
       status: 'draft',
       boundary: 'local_only',
       visibility: 'local_artifact',
-      scope: 'local_draft',
+      scope: 'forge_room',
       cost_label: 'EXPORT ONLY',
       source_route: '/workbench',
       created_at: new Date().toISOString(),
@@ -783,7 +783,7 @@ export default function GenerativeWorkbench() {
       status: 'draft',
       boundary: 'local_only',
       visibility: 'local_artifact',
-      scope: 'local_draft',
+      scope: 'builders_room',
       cost_label: 'EXPORT ONLY',
       source_route: '/workbench',
       created_at: new Date().toISOString(),
@@ -1401,84 +1401,71 @@ export default function GenerativeWorkbench() {
               )}
             </section>
 
-            <section className="rounded-[20px] border border-[#D4A853]/15 bg-[#0a0806]/90 flex flex-col overflow-hidden">
-              <div className="border-b border-[#D4A853]/15 bg-black/40 px-5 py-3 flex items-center justify-between">
-                <div className="text-[10px] uppercase tracking-[0.24em] text-[#8a7a64]">Human / Machine Mirror</div>
-                {(tab === 'siteplan' || tab === 'food_compliance' || tab === 'allonic' || tab === 'facility') && (
-                  <div className="text-[10px] uppercase tracking-[0.18em] font-semibold">
-                    {draftReport?.level === 'hard_fail' ? (
-                      <span className="text-[#EF4444]">Missing required structure</span>
-                    ) : draftReport?.level === 'warning' ? (
-                      <span className="text-[#FBBF24]">Review recommended</span>
-                    ) : draftReport?.level === 'ok' ? (
-                      <span className="text-[#34D399]">Ready for local export</span>
+            {tab !== 'facility' && (
+              <section className="rounded-[20px] border border-[#D4A853]/15 bg-[#0a0806]/90 flex flex-col overflow-hidden">
+                <div className="border-b border-[#D4A853]/15 bg-black/40 px-5 py-3 flex items-center justify-between">
+                  <div className="text-[10px] uppercase tracking-[0.24em] text-[#8a7a64]">Human / Machine Mirror</div>
+                  {(tab === 'siteplan' || tab === 'food_compliance' || tab === 'allonic') && (
+                    <div className="text-[10px] uppercase tracking-[0.18em] font-semibold">
+                      {draftReport?.level === 'hard_fail' ? (
+                        <span className="text-[#EF4444]">Missing required structure</span>
+                      ) : draftReport?.level === 'warning' ? (
+                        <span className="text-[#FBBF24]">Review recommended</span>
+                      ) : draftReport?.level === 'ok' ? (
+                        <span className="text-[#34D399]">Ready for local export</span>
+                      ) : (
+                        <span className="text-[#8a7a64]">Drafting</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 grid md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-white/10 overflow-hidden">
+                  <div className="p-5 flex flex-col font-sans">
+                    <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-[#8a7a64] mb-4">Human readable</div>
+                    {tab === 'siteplan' && sitePlanPayload ? (
+                      <div className="grid gap-3 text-sm text-[#c9bba5]">
+                        <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">ID</strong> {sitePlanPayload.module.id}</div>
+                        <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Type</strong> {sitePlanPayload.module.type}</div>
+                        <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Material</strong> {sitePlanPayload.module.material}</div>
+                        <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Dimensions</strong> {sitePlanPayload.module.length_m}m x {sitePlanPayload.module.width_m}m</div>
+                        <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Placement</strong> X: {sitePlanPayload.module.zone.x_m}, Z: {sitePlanPayload.module.zone.z_m}</div>
+                      </div>
+                    ) : tab === 'food_compliance' && foodCompliancePayload ? (
+                      <div className="grid gap-3 text-sm text-[#c9bba5]">
+                        <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Product</strong> {foodCompliancePayload.product.name}</div>
+                        <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Producer</strong> {foodCompliancePayload.producer.name}</div>
+                        <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Status</strong> {foodCompliancePayload.product.eligibility_status}</div>
+                        <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Ingredients</strong> {foodCompliancePayload.label_draft.ingredients.join(', ')}</div>
+                        <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Pickup</strong> {foodCompliancePayload.pickup_node.location}</div>
+                      </div>
+                    ) : tab === 'allonic' && allonicPayload ? (
+                      <div className="grid gap-3 text-sm text-[#c9bba5]">
+                        <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Name</strong> {allonicPayload.blueprint.name}</div>
+                        <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Intended Use</strong> {allonicPayload.blueprint.intended_use}</div>
+                        <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Mass</strong> {allonicPayload.summary.total_mass_kg} kg</div>
+                        <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Power</strong> {allonicPayload.summary.net_power_draw_watts} W</div>
+                        <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Modules</strong> {allonicPayload.summary.module_count} active modules</div>
+                      </div>
                     ) : (
-                      <span className="text-[#8a7a64]">Drafting</span>
+                      <div className="text-sm text-[#6b5d4b] italic">
+                        Interact with the playground toolset to generate a human-readable summary.
+                      </div>
                     )}
                   </div>
-                )}
-              </div>
-              <div className="flex-1 grid md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-white/10 overflow-hidden">
-                <div className="p-5 flex flex-col font-sans">
-                  <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-[#8a7a64] mb-4">Human readable</div>
-                  {tab === 'siteplan' && sitePlanPayload ? (
-                    <div className="grid gap-3 text-sm text-[#c9bba5]">
-                      <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">ID</strong> {sitePlanPayload.module.id}</div>
-                      <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Type</strong> {sitePlanPayload.module.type}</div>
-                      <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Material</strong> {sitePlanPayload.module.material}</div>
-                      <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Dimensions</strong> {sitePlanPayload.module.length_m}m x {sitePlanPayload.module.width_m}m</div>
-                      <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Placement</strong> X: {sitePlanPayload.module.zone.x_m}, Z: {sitePlanPayload.module.zone.z_m}</div>
-                    </div>
-                  ) : tab === 'food_compliance' && foodCompliancePayload ? (
-                    <div className="grid gap-3 text-sm text-[#c9bba5]">
-                      <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Product</strong> {foodCompliancePayload.product.name}</div>
-                      <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Producer</strong> {foodCompliancePayload.producer.name}</div>
-                      <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Status</strong> {foodCompliancePayload.product.eligibility_status}</div>
-                      <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Ingredients</strong> {foodCompliancePayload.label_draft.ingredients.join(', ')}</div>
-                      <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Pickup</strong> {foodCompliancePayload.pickup_node.location}</div>
-                    </div>
-                  ) : tab === 'allonic' && allonicPayload ? (
-                    <div className="grid gap-3 text-sm text-[#c9bba5]">
-                      <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Name</strong> {allonicPayload.blueprint.name}</div>
-                      <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Intended Use</strong> {allonicPayload.blueprint.intended_use}</div>
-                      <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Mass</strong> {allonicPayload.summary.total_mass_kg} kg</div>
-                      <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Power</strong> {allonicPayload.summary.net_power_draw_watts} W</div>
-                      <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Modules</strong> {allonicPayload.summary.module_count} active modules</div>
-                    </div>
-                  ) : tab === 'facility' && facilityPayload ? (
-                    <div className="grid gap-3 text-sm text-[#c9bba5]">
-                      <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Facility</strong> {facilityPayload.title}</div>
-                      <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Type</strong> {facilityPayload.facility_type}</div>
-                      <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Footprint</strong> {facilityPayload.footprint}</div>
-                      <div className="grid grid-cols-2 gap-2 mt-2">
-                        <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Material Lines</strong> {facilityPayload.materials.length}</div>
-                        <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Tools Required</strong> {facilityPayload.tools_required.length}</div>
-                        <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Labor Est</strong> {facilityPayload.estimated_labor_hours} hrs</div>
-                        <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Dependencies</strong> {facilityPayload.dependencies.length}</div>
-                        <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Power</strong> {facilityPayload.estimated_power_needs} W</div>
-                        <div><strong className="text-white block text-[11px] uppercase tracking-wider text-[#D4A853]">Water</strong> {facilityPayload.estimated_water_needs} L</div>
+                  <div className="p-5 font-mono flex flex-col bg-black/40">
+                    <div className="text-[10px] uppercase tracking-[0.2em] text-[#8a7a64] mb-4">Machine manifest</div>
+                    {digest && (
+                      <div className="mb-3 rounded-lg border border-[#34D399]/25 bg-[#34D399]/8 px-3 py-2 text-[#86efac] text-[11px]">
+                        receipt_hash: {digest}
                       </div>
-                      <div className="mt-2"><strong className="text-[#34D399] block text-[11px] uppercase tracking-wider border-t border-white/10 pt-2">Budget Est</strong> <span className="text-[#34D399] font-bold">{facilityPayload.estimated_budget_ember} EMBER</span></div>
-                    </div>
-                  ) : (
-                    <div className="text-sm text-[#6b5d4b] italic">
-                      Interact with the playground toolset to generate a human-readable summary.
-                    </div>
-                  )}
+                    )}
+                    <pre className="flex-1 overflow-auto rounded-lg border border-white/5 bg-transparent p-0 text-[#b89c82] leading-relaxed text-[11px]">
+                      {exportJson || JSON.stringify(activePayload, null, 2)}
+                    </pre>
+                  </div>
                 </div>
-                <div className="p-5 font-mono flex flex-col bg-black/40">
-                  <div className="text-[10px] uppercase tracking-[0.2em] text-[#8a7a64] mb-4">Machine manifest</div>
-                  {digest && (
-                    <div className="mb-3 rounded-lg border border-[#34D399]/25 bg-[#34D399]/8 px-3 py-2 text-[#86efac] text-[11px]">
-                      receipt_hash: {digest}
-                    </div>
-                  )}
-                  <pre className="flex-1 overflow-auto rounded-lg border border-white/5 bg-transparent p-0 text-[#b89c82] leading-relaxed text-[11px]">
-                    {exportJson || JSON.stringify(activePayload, null, 2)}
-                  </pre>
-                </div>
-              </div>
-            </section>
+              </section>
+            )}
 
             <section className="rounded-[20px] border border-[#60A5FA]/15 bg-[#08101a]/90 p-5 font-mono">
               <div className="flex flex-wrap items-center justify-between gap-3">

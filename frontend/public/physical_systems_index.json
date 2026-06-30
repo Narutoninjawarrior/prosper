@@ -1,0 +1,86 @@
+{
+  "records": [
+    {
+      "id": "physical-node-map",
+      "label": "Physical Node Map",
+      "kind": "surface",
+      "state": "seeded",
+      "route": "/observatory",
+      "seed_url": "/physical_node_map.json",
+      "notes": "2D physical context map linking pickup, build, farm, robot, and sensor nodes to their manifest paths."
+    },
+    {
+      "id": "module-registry",
+      "label": "Module Registry",
+      "kind": "registry",
+      "state": "seeded",
+      "route": "/registry?kind=module",
+      "seed_url": "/module_registry.json",
+      "notes": "Flat public module/device records for robotics, facility nodes, and apparatus manifests."
+    },
+    {
+      "id": "module-handoffs",
+      "label": "Module Handoffs",
+      "kind": "routing",
+      "state": "seeded",
+      "route": "/registry?kind=module",
+      "seed_url": "/module_handoffs.json",
+      "notes": "Explicit planner mappings from module ids into local workbench tabs."
+    },
+    {
+      "id": "blueprint-artifacts",
+      "label": "Blueprint Artifact Archive",
+      "kind": "archive",
+      "state": "seeded",
+      "route": "/artifacts?category=Blueprints",
+      "seed_url": "/artifact_registry.json",
+      "notes": "Public blueprint-style artifact records for site plans, food compliance drafts, and allonic robot drafts."
+    },
+    {
+      "id": "site-planner",
+      "label": "Parametric Site Planner",
+      "kind": "planner",
+      "state": "local_only",
+      "route": "/workbench?tab=siteplan",
+      "seed_url": null,
+      "notes": "Local session planner for geometry, work-order sequencing, and GeoJSON-style export."
+    },
+    {
+      "id": "food-compliance-planner",
+      "label": "Cottage Food Planner",
+      "kind": "planner",
+      "state": "local_only",
+      "route": "/workbench?tab=food_compliance",
+      "seed_url": null,
+      "notes": "Local session compliance drafting surface for Arizona cottage food labeling and pickup logistics."
+    },
+    {
+      "id": "allonic-planner",
+      "label": "Allonic Robotics Planner",
+      "kind": "planner",
+      "state": "local_only",
+      "route": "/workbench?tab=allonic",
+      "seed_url": null,
+      "notes": "Local session robotics blueprint assembler for mixed-module field support machines."
+    },
+    {
+      "id": "planner-contracts",
+      "label": "Planner Contracts",
+      "kind": "registry",
+      "state": "seeded",
+      "route": "/agent-access",
+      "seed_url": "/planner_contracts.json",
+      "notes": "Read-only machine description of local planners, explicitly defining payloads and local constraints."
+    },
+    {
+      "id": "export-targets",
+      "label": "Export Targets",
+      "kind": "registry",
+      "state": "seeded",
+      "route": "/agent-access",
+      "seed_url": "/export_targets.json",
+      "notes": "Read-only machine description of what each local planner can export, what format it uses, and where it can safely hand off."
+    }
+  ],
+  "manifest_hash": "305fd7cf46792e6829c3f78f7833814da8a3fc18ef4e14fcb68b6720503b6a95"
+}

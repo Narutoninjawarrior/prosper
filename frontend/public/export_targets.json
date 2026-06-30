@@ -1,0 +1,53 @@
+{
+  "manifest_hash": "0dc90b05249f1f3a63d94d3c5fba9c0cadc7ddf593b63760d58d114cd5786bd9",
+  "records": [
+    {
+      "id": "siteplan-local-export",
+      "planner_tab": "siteplan",
+      "label": "Site Plan Local Export",
+      "format": "site_draft_json",
+      "state_boundary": "local_only",
+      "primary_route": "/workbench?tab=siteplan",
+      "handoff_route": "/commons",
+      "machine_surface": "/planner_contracts.json",
+      "downstream_examples": [
+        "GeoJSON-style site geometry draft",
+        "earthworks work-order summary",
+        "local artifact review in Commons"
+      ],
+      "notes": "Local draft export for staged site geometry and work-order planning. It does not publish a live GIS layer and does not execute field changes."
+    },
+    {
+      "id": "food-compliance-local-export",
+      "planner_tab": "food_compliance",
+      "label": "Food Compliance Local Export",
+      "format": "cottage_food_manifest_json",
+      "state_boundary": "local_only",
+      "primary_route": "/workbench?tab=food_compliance",
+      "handoff_route": "/commons",
+      "machine_surface": "/planner_contracts.json",
+      "downstream_examples": [
+        "label preview manifest",
+        "pickup-node logistics draft",
+        "local artifact review in Commons"
+      ],
+      "notes": "Local draft export for label planning and pickup coordination. It does not imply legal clearance, PMA status, or regulatory approval."
+    },
+    {
+      "id": "allonic-local-export",
+      "planner_tab": "allonic",
+      "label": "Allonic Blueprint Local Export",
+      "format": "allonic_robot_spec_json",
+      "state_boundary": "local_only",
+      "primary_route": "/workbench?tab=allonic",
+      "handoff_route": "/commons",
+      "machine_surface": "/planner_contracts.json",
+      "downstream_examples": [
+        "module mass and power summary",
+        "blueprint manifest for later CAD or field-tool handoff",
+        "local artifact review in Commons"
+      ],
+      "notes": "Local draft export for heterogeneous module planning. It does not control active robotics, route motors, or simulate physical dynamics."
+    }
+  ]
+}

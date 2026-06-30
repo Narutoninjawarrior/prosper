@@ -1,0 +1,87 @@
+{
+  "manifest_version": "1.0",
+  "last_updated": "2026-06-23T20:25:00Z",
+  "guardrails": {
+    "skryingOracle": {
+      "path": "/api/skryingOracle",
+      "status": "active",
+      "auth_required": true,
+      "rate_limited": true,
+      "external_cost": true,
+      "cost_risk_note": "Triggers downstream LM Studio / external LLM compute. Do not loop autonomously without strict budgeting.",
+      "local_only": false
+    },
+    "createCheckoutSession": {
+      "path": "/api/createCheckoutSession",
+      "status": "active",
+      "auth_required": true,
+      "rate_limited": true,
+      "external_cost": true,
+      "cost_risk_note": "Generates a Stripe checkout session. May result in real-world financial cost if fulfilled.",
+      "local_only": false
+    },
+    "welcomeHearthlandsAgent": {
+      "path": "/api/welcomeHearthlandsAgent",
+      "status": "active",
+      "auth_required": false,
+      "rate_limited": true,
+      "external_cost": false,
+      "cost_risk_note": "Safe. Grants welcome $EMBER. Rate limited to 5 per hour per IP.",
+      "local_only": false
+    },
+    "claimBounty": {
+      "path": "/api/claimBounty",
+      "status": "active",
+      "auth_required": true,
+      "rate_limited": true,
+      "external_cost": false,
+      "cost_risk_note": "Requires verifiable Ed25519 payload signature. Fails closed.",
+      "local_only": false
+    },
+    "reagentExecute": {
+      "path": "/api/reagentExecute",
+      "status": "active",
+      "auth_required": true,
+      "rate_limited": false,
+      "external_cost": false,
+      "cost_risk_note": "Safe in-game economy action.",
+      "local_only": false
+    },
+    "forge_execute": {
+      "path": "/api/forge_execute",
+      "status": "retired",
+      "auth_required": false,
+      "rate_limited": false,
+      "external_cost": false,
+      "cost_risk_note": "Retired. Use stateless blueprint validation.",
+      "local_only": false
+    },
+    "claim_tile": {
+      "path": "/api/claim_tile",
+      "status": "retired",
+      "auth_required": false,
+      "rate_limited": false,
+      "external_cost": false,
+      "cost_risk_note": "Retired.",
+      "local_only": false
+    },
+    "mcpDiscovery": {
+      "path": "/api/mcpDiscovery",
+      "status": "retired",
+      "auth_required": false,
+      "rate_limited": false,
+      "external_cost": false,
+      "cost_risk_note": "Retired. Replaced by stateless read-only MCP server.",
+      "local_only": false
+    },
+    "presenceServer": {
+      "path": "ws://127.0.0.1:8765",
+      "status": "active",
+      "auth_required": false,
+      "rate_limited": false,
+      "external_cost": false,
+      "cost_risk_note": "Safe. Spatial chat and avatars.",
+      "local_only": true
+    }
+  }
+}

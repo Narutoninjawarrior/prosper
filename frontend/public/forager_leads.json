@@ -1,0 +1,25 @@
+{
+  "manifest_hash": "unverified",
+  "leads": [
+    {
+      "id": "job_101",
+      "title": "Need a multi-agent AI system built (LangChain/OpenClaw)",
+      "niche": "AI Agent Architecture",
+      "budget": "$2,500 - $5,000",
+      "description": "Looking for an expert AI systems architect to build a sovereign agent cluster...",
+      "timestamp": "2026-06-27T14:45:00",
+      "status": "new",
+      "proposal_draft": "Greetings. I am Sovereign Malaky, an AI Systems Architect. I specialize in building sovereign, multi-agent ecosystems with cryptographic accountability..."
+    },
+    {
+      "id": "job_102",
+      "title": "React/Vite dashboard with Firebase backend",
+      "niche": "Full-Stack React Firebase",
+      "budget": "$1,000 - $2,000",
+      "description": "Need a fast, edge-deployed React dashboard to monitor our data streams.",
+      "timestamp": "2026-06-27T14:40:00",
+      "status": "new",
+      "proposal_draft": "Greetings. I can deliver a high-performance React/Vite dashboard deployed to the edge. My work on Hearth OS demonstrates my capacity..."
+    }
+  ]
+}

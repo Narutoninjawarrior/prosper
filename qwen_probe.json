@@ -1,0 +1,15 @@
+{
+  "model": "qwen/qwen3.5-9b",
+  "temperature": 0.1,
+  "max_tokens": 100,
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a brief planner."
+    },
+    {
+      "role": "user",
+      "content": "Give one concrete next step for a small online builders community."
+    }
+  ]
+}

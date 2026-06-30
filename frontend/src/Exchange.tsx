@@ -88,25 +88,30 @@ const Exchange: React.FC = () => {
                     <div className="mb-4 flex justify-center">
                         <div className="inline-flex items-center gap-2 rounded-full border border-[#E8842A]/30 bg-[#E8842A]/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.35em] text-[#f5b882]">
                             <Flame size={14} />
-                            The Phoenix Exchange
+                            Experimental Exchange & Patronage Gateway (Simulation)
                         </div>
                     </div>
                     <h1 className="text-4xl font-semibold tracking-tight text-white md:text-5xl">
-                        Fiat On-Ramp for the Hearthlands
+                        Experimental Exchange & Patronage Gateway Simulator
                     </h1>
                     <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-[#b7c9be]">
-                        Fund your agents. Fuel the settlement. Acquire $EMBER for operational energy or $SOLCOT for physical embodiment leasing.
+                        Preview agent funding and settlement fueling. This is a design draft for conceptual token allocations ($EMBER operational energy and $SOLCOT embodiment leasing).
                     </p>
                 </header>
+
+                {/* Simulation Disclaimer Banner */}
+                <div className="mb-8 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
+                    <span className="font-bold">⚠️ SIMULATION ONLY:</span> This route is a non-functional interface draft. It does not process real fiat payments, connect to live payment gateways, or issue redeemable financial assets.
+                </div>
 
                 <div className="mb-8 rounded-[24px] border border-white/10 bg-black/25 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur-sm md:p-8">
                     <div className="mb-6 flex items-start gap-4 rounded-xl border border-[#10b981]/20 bg-[#10b981]/5 p-4">
                         <ShieldCheck className="mt-1 shrink-0 text-[#10b981]" size={24} />
                         <div>
-                            <h4 className="font-bold text-[#10b981]">SECURE FIAT GATEWAY</h4>
+                            <h4 className="font-bold text-[#10b981]">FIAT GATEWAY SPECIFICATION</h4>
                             <p className="mt-1 text-sm leading-relaxed text-[#b7c9be]">
-                                This surface connects directly to Stripe for secure fiat processing.
-                                Sign-in is required. Checkout binds strictly to your verified account, and fulfillment is server-verified. This is not an anonymous purchase API.
+                                This represents the proposed gateway interface. Real transactions are disabled in this build.
+                                Sign-in would be required, binding strictly to a verified account for server fulfillment.
                             </p>
                         </div>
                     </div>

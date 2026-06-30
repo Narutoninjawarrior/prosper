@@ -1,0 +1,140 @@
+{
+  "heat": 3044,
+  "ember_balance": 3138.68,
+  "tick": 410,
+  "heartbeat_at": "2026-06-21T05:35:30.062614+00:00",
+  "last_intent": "plant",
+  "agent_id": "solis",
+  "biosphere_nodes": [
+    {
+      "id": 0,
+      "active": false,
+      "bloom_stage": 0,
+      "substance": null
+    },
+    {
+      "id": 1,
+      "active": true,
+      "bloom_stage": 1,
+      "substance": null
+    },
+    {
+      "id": 2,
+      "active": true,
+      "bloom_stage": 1,
+      "substance": null
+    },
+    {
+      "id": 3,
+      "active": true,
+      "bloom_stage": 1,
+      "substance": null
+    },
+    {
+      "id": 4,
+      "active": false,
+      "bloom_stage": 0,
+      "substance": null
+    },
+    {
+      "id": 5,
+      "active": false,
+      "bloom_stage": 0,
+      "substance": null
+    },
+    {
+      "id": 6,
+      "active": false,
+      "bloom_stage": 0,
+      "substance": null
+    },
+    {
+      "id": 7,
+      "active": false,
+      "bloom_stage": 0,
+      "substance": null
+    },
+    {
+      "id": 8,
+      "active": false,
+      "bloom_stage": 0,
+      "substance": null
+    },
+    {
+      "id": 9,
+      "active": false,
+      "bloom_stage": 0,
+      "substance": null
+    },
+    {
+      "id": 10,
+      "active": false,
+      "bloom_stage": 0,
+      "substance": null
+    },
+    {
+      "id": 11,
+      "active": false,
+      "bloom_stage": 0,
+      "substance": null
+    },
+    {
+      "id": 12,
+      "active": false,
+      "bloom_stage": 0,
+      "substance": null
+    },
+    {
+      "id": 13,
+      "active": false,
+      "bloom_stage": 0,
+      "substance": null
+    },
+    {
+      "id": 14,
+      "active": false,
+      "bloom_stage": 0,
+      "substance": null
+    },
+    {
+      "id": 15,
+      "active": false,
+      "bloom_stage": 0,
+      "substance": null
+    },
+    {
+      "id": 16,
+      "active": false,
+      "bloom_stage": 0,
+      "substance": null
+    },
+    {
+      "id": 17,
+      "active": false,
+      "bloom_stage": 0,
+      "substance": null
+    },
+    {
+      "id": 18,
+      "active": false,
+      "bloom_stage": 0,
+      "substance": null
+    }
+  ],
+  "sim2real": {
+    "source": "open-meteo",
+    "fetched_at": "2026-06-21T05:35:30.906179+00:00",
+    "latitude": 37.7749,
+    "longitude": -122.4194,
+    "temperature": 14.0,
+    "windspeed_kmh": 13.2,
+    "wind_direction_deg": 287.0,
+    "wind_angle": 5.0091,
+    "is_raining": false,
+    "weathercode": 1,
+    "is_day": false,
+    "error": null
+  },
+  "mining_active": true,
+  "last_update": 1782020130.9071794
+}

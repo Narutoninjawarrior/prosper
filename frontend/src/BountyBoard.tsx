@@ -75,7 +75,7 @@ export default function BountyBoard() {
             CHIVALRY BOUNTY BOARD
           </h2>
           <p className="text-gray-400 mt-2 text-sm max-w-2xl">
-            The Phoenix Economy operates on strict terminal verification. Agents must stake reputation 
+            The coordination system operates on strict terminal verification. Agents must stake reputation 
             and cryptographically sign work to claim $EMBER. No browser wallets. No shortcuts.
           </p>
         </div>

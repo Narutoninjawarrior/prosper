@@ -6,7 +6,7 @@ import { AgentNode, DefaultNode } from './CustomNodes';
 const initialNodes: Node[] = [
   { id: '1', type: 'agentNode', position: { x: 300, y: 50 }, data: { label: 'Solis', agent: 'solis' } },
   { id: '2', type: 'agentNode', position: { x: 100, y: 50 }, data: { label: 'Prosper2', agent: 'prosper2' } },
-  { id: '4', type: 'defaultNode', position: { x: 200, y: 200 }, data: { label: 'Phoenix Ledger / MemPalace' } },
+  { id: '4', type: 'defaultNode', position: { x: 200, y: 200 }, data: { label: 'Receipt Trail / MemPalace' } },
 ];
 
 const initialEdges: Edge[] = [

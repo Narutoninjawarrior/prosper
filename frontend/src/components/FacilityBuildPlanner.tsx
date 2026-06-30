@@ -4,6 +4,7 @@ import { Download, History, ChevronDown, ChevronRight } from 'lucide-react';
 import ArtifactDiffPanel from './ArtifactDiffPanel';
 import InventoryStagingLocker from './InventoryStagingLocker';
 import ArtifactLineagePanel from './ArtifactLineagePanel';
+import AsymmetricContextMirror from './AsymmetricContextMirror';
 
 export interface FacilityManifest {
   id: string;
@@ -580,6 +581,18 @@ export default function FacilityBuildPlanner({ onManifestChange, onValidationCha
       {/* Inventory Staging Locker */}
       <div className="mt-4">
         <InventoryLockerPanel manifest={manifest} />
+      </div>
+
+      {/* Human / Machine Context Mirror */}
+      <div className="mt-8 border-t border-[#7A9E7E]/20 pt-8">
+        <AsymmetricContextMirror 
+          manifest={manifest}
+          onUpdateWaterNeed={(val) => setManifest(prev => ({ ...prev, estimated_water_needs: val }))}
+          onWorldFocus={() => {
+            sessionStorage.setItem('world_focus_handoff', JSON.stringify({ id: manifest.id, title: manifest.title }));
+            window.location.href = `/world?focus=${manifest.id}`;
+          }}
+        />
       </div>
     </div>
   );

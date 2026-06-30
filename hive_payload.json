@@ -1,0 +1,8 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "What does the Fellowship need next?"
+    }
+  ]
+}

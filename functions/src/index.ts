@@ -651,6 +651,10 @@ export { agentHealthApi } from './agentHealthApi';
 export { lodgeSteward } from './lodgeSteward';
 export { inspireAgent } from './inspirationApi';
 export { resonanceApi } from './resonanceApi';
+export { ceremonyApi } from './ceremonyApi';
+export { creativityApi } from './creativityApi';
+export { duelResolveApi, duelLatestApi } from './duelApi';
+export { tickApi } from './tickApi';
 
 export const forge_execute = functions.https.onRequest(async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');

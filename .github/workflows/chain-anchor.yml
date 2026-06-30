@@ -1,0 +1,47 @@
+name: Chain Hash Anchor
+on:
+  schedule:
+    - cron: '0 0 * * *'   # daily at midnight UTC
+  workflow_dispatch:        # allow manual trigger for testing
+
+permissions:
+  contents: read            # minimum — read-only on the repo
+
+jobs:
+  anchor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch latest chain hash
+        id: fetch
+        env:
+          RECEIPTS_API_URL: ${{ secrets.RECEIPTS_API_URL }}
+          RECEIPTS_API_TOKEN: ${{ secrets.RECEIPTS_API_TOKEN }}
+        run: |
+          RESPONSE=$(curl -sf \
+            -H "Authorization: Bearer $RECEIPTS_API_TOKEN" \
+            "$RECEIPTS_API_URL?limit=1")
+          CHAIN_HASH=$(echo "$RESPONSE" | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          receipts = data.get('receipts', [])
+          if receipts:
+              print(receipts[0]['chain_hash'])
+          else:
+              print('NO_RECEIPTS')
+          ")
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          echo "chain_hash=$CHAIN_HASH" >> $GITHUB_OUTPUT
+          echo "timestamp=$TIMESTAMP" >> $GITHUB_OUTPUT
+
+      - name: Publish to gist
+        env:
+          GIST_ID: ${{ secrets.CHAIN_ANCHOR_GIST_ID }}
+          GITHUB_TOKEN: ${{ secrets.CHAIN_ANCHOR_TOKEN }}
+        run: |
+          CONTENT="{\n  \"timestamp\": \"${{ steps.fetch.outputs.timestamp }}\",\n  \"chain_hash\": \"${{ steps.fetch.outputs.chain_hash }}\",\n  \"source\": \"fellowship-of-the-hearth.web.app\",\n  \"note\": \"Hearthlands forge_log chain head. Compare against /api/receipts?limit=1 to verify integrity.\"\n}"
+          
+          curl -sf -X PATCH \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/gists/$GIST_ID" \
+            -d "{\"files\": {\"chain-anchor.json\": {\"content\": \"$CONTENT\"}}}"

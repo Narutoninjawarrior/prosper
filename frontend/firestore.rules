@@ -106,9 +106,16 @@ service cloud.firestore {
       allow write: if false; // Functions only
     }
 
+    // Governance engine proposals
+    match /proposals/{doc} {
+      allow read: if true;
+      allow write: if false; // Functions only
+    }
+
     // Default fallback
     match /{document=**} {
       allow read, write: if false;
     }
   }
 }
+

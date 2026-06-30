@@ -1,0 +1,48 @@
+{
+  "manifest_hash": "ec1c63bb46efd953ac398f8c9ff92d77d87c159f72e09b6ec2d9c995b1a2ae1f",
+  "records": [
+    {
+      "tab": "siteplan",
+      "state_boundary": "local_only",
+      "primary_payload_schema_name": "site_draft",
+      "export_targets": [
+        "/commons"
+      ],
+      "constraint_source": "Biosphere Plot Grid / Earthworks",
+      "intended_use": "Local session drafting of site geometry. Validates footprint, perimeter, and layer bounds. No live execution.",
+      "safe_handoff_routes": [
+        "/observatory",
+        "/artifacts",
+        "/forge"
+      ]
+    },
+    {
+      "tab": "food_compliance",
+      "state_boundary": "local_only",
+      "primary_payload_schema_name": "cottage_food_label",
+      "export_targets": [
+        "/commons"
+      ],
+      "constraint_source": "ADHS Cottage Food Guidelines",
+      "intended_use": "Local session drafting of cottage food labels. Checks for basic TCS limits. Does not imply regulatory approval.",
+      "safe_handoff_routes": [
+        "/observatory",
+        "/artifacts"
+      ]
+    },
+    {
+      "tab": "allonic",
+      "state_boundary": "local_only",
+      "primary_payload_schema_name": "allonic_robot_spec",
+      "export_targets": [
+        "/commons"
+      ],
+      "constraint_source": "Heterogeneous Module Assembly Spec",
+      "intended_use": "Local session tracking of module assembly. Checks mass and power budgets. Does not control active robotics.",
+      "safe_handoff_routes": [
+        "/observatory",
+        "/registry"
+      ]
+    }
+  ]
+}

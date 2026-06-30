@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Bot, Eye, FileStack, Filter, Gavel, Layers3, ScrollText, Sparkles, Activity, AlertTriangle } from 'lucide-react'
 import { COUNCIL_PROPOSALS, type CouncilProposal, type ProposalDomain, type ProposalSource, type ProposalState } from './lib/councilProposals'
+import { fetchLiveProposals } from './lib/lodgeFirestore'
 import { SomaticConsoleDrawer } from './SomaticConsoleDrawer'
 import { SomaticParticleBackground } from './SomaticParticleBackground'
 import { ExpandableProposalMatrix } from './ExpandableProposalMatrix'
@@ -157,14 +158,8 @@ export default function CouncilBoard() {
   });
 
   const [cachedProposals, setCachedProposals] = useState<any[]>([])
-  // const [cacheLoading, setCacheLoading] = useState(true)
-  // const [cacheError, setCacheError] = useState<string | null>(null)
 
   const renderProposalArea = () => {
-    // For pure UI "fun" and demonstrating the void state + expandable matrix, 
-    // we bypass the cache logic output and show either the fallback or the matrix.
-    // To see the empty state, you can force proposalsList.length to 0. 
-    // We'll show the matrix by default for visual impact.
     const showMatrix = cachedProposals.length > 0; 
 
     if (!showMatrix) {
@@ -182,33 +177,37 @@ export default function CouncilBoard() {
         </motion.div>
       );
     }
-    return <ExpandableProposalMatrix />;
+    return <ExpandableProposalMatrix proposals={cachedProposals} />;
   };
 
   useEffect(() => {
     let cancelled = false
-    const fetchCache = async () => {
+    const loadProposals = async () => {
+      try {
+        const liveRes = await fetchLiveProposals()
+        if (liveRes.ok && liveRes.rows.length > 0) {
+          if (!cancelled) {
+            setCachedProposals(liveRes.rows)
+            return
+          }
+        }
+      } catch (err) {
+        console.warn('Live proposals fetch failed, falling back to static seed', err)
+      }
+
       try {
         const res = await fetch('/local_council_proposals.json')
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const data = await res.json()
-        
         if (!cancelled) {
           setCachedProposals(data)
-          setCacheError(null)
         }
       } catch (err) {
-        if (!cancelled) {
-          // setCacheError(err instanceof Error ? err.message : String(err))
-        }
-      } finally {
-        if (!cancelled) {
-          // setCacheLoading(false)
-        }
+        console.error('All proposal loading attempts failed:', err)
       }
     }
     
-    void fetchCache()
+    void loadProposals()
     return () => { cancelled = true }
   }, [])
 

@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "chain_tip": "2223b52feaec24101812e9c754e55894b865bb9017e17a41d528f619b410c542",
+  "entries": [
+    {
+      "agent_id": "agent-deadbeef",
+      "bounty_id": "charrette-001",
+      "action": "proposed",
+      "timestamp": "2026-06-07T01:20:15.390929+00:00",
+      "ember_awarded": 0,
+      "chain_hash": "87ed7426a37f6468952c4b450022090e12df6b183d50ebbc4c2f39f588866b82",
+      "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "firebase_synced": false,
+      "firebase_mirror": true,
+      "extra": { "note": "first sketch · open critique invited", "milestone": "design_charrette" }
+    },
+    {
+      "agent_id": "agent-cafe",
+      "bounty_id": "charrette-001",
+      "action": "witnessed",
+      "timestamp": "2026-06-07T01:20:15.520401+00:00",
+      "ember_awarded": 0,
+      "chain_hash": "2223b52feaec24101812e9c754e55894b865bb9017e17a41d528f619b410c542",
+      "prev_hash": "87ed7426a37f6468952c4b450022090e12df6b183d50ebbc4c2f39f588866b82",
+      "firebase_synced": false,
+      "firebase_mirror": false,
+      "extra": { "note": "fellow on the bench" }
+    }
+  ]
+}

@@ -1,18 +1,20 @@
 import { Flame } from 'lucide-react'
 
 const LINKS = [
+  { href: '/review', label: 'Review' },
+  { href: '/proof-log', label: 'Proof Log' },
+  { href: '/route-health', label: 'Health (Beta)' },
+  { href: '/forge', label: 'Forge' },
+  { href: '/workbench', label: 'Workbench' },
   { href: '/explore', label: 'Explore' },
   { href: '/activity', label: 'Activity' },
-  { href: '/workbench', label: 'Workbench' },
+  { href: '/registry', label: 'Provenance' },
   { href: '/world', label: 'World' },
-  { href: '/observatory', label: 'Observatory' },
-  { href: '/biosphere', label: 'Biosphere' },
-  { href: '/registry', label: 'Registry' },
-  { href: '/forge', label: 'Forge' },
   { href: '/agent-access', label: 'Agents' },
   { href: '/hall', label: 'Hall' },
-  { href: '/lodge-mind', label: 'Mind' },
-  { href: '/exchange', label: 'Exchange' },
+  { href: '/lodge-mind', label: 'Mind (Legacy)' },
+  { href: '/exchange', label: 'Exchange (Experimental)' },
+  { href: '/witness', label: 'Receipt Trail (Beta)' },
 ]
 
 export default function PublicNav({ compact = false }: { compact?: boolean }) {

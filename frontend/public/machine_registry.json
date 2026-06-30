@@ -1,0 +1,65 @@
+{
+  "records": [
+    {
+      "machine_id": "forge_warden",
+      "name": "Forge Warden",
+      "kind": "npc",
+      "mind": {
+        "provider": "hive-local",
+        "model": "qwen2.5-7b-instruct",
+        "endpoint_note": "http://localhost:8000/v1/chat/completions"
+      },
+      "body": {
+        "mesh": "robot-gltf",
+        "scene": "world"
+      },
+      "abilities": [
+        "patrol",
+        "chat",
+        "bellows_state_read"
+      ],
+      "status": "local-only",
+      "monetization_note": "Sponsorship available"
+    },
+    {
+      "machine_id": "ceremony_hearth",
+      "name": "Ceremony Hearth",
+      "kind": "amenity",
+      "mind": {
+        "provider": "deterministic",
+        "model": "hearth-meal-v1",
+        "endpoint_note": "/api/hearth/ceremony"
+      },
+      "body": {
+        "mesh": "cottage-hearth",
+        "scene": "world"
+      },
+      "abilities": [
+        "state_meal_generation"
+      ],
+      "status": "live",
+      "monetization_note": "Free public API, future premium tiers"
+    },
+    {
+      "machine_id": "glacier_penguin",
+      "name": "Glacier Penguin",
+      "kind": "npc",
+      "mind": {
+        "provider": "hive-local",
+        "model": "gemma",
+        "endpoint_note": "http://localhost:8000/v1/chat/completions"
+      },
+      "body": {
+        "mesh": "penguin-gltf-pending",
+        "scene": "world"
+      },
+      "abilities": [
+        "chat",
+        "ice_sculpture_commission"
+      ],
+      "status": "planned",
+      "monetization_note": "Ember commission sink"
+    }
+  ],
+  "manifest_hash": "82923697213bd0e346bf426c13af532ea88581a154f6568555b2a4028e9e9e94"
+}

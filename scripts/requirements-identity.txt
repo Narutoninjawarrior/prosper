@@ -1,0 +1,2 @@
+# Identity mapper — server-side Firestore writes (Phase A+B)
+firebase-admin>=6.5.0

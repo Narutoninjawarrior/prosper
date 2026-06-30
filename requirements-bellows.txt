@@ -1,0 +1,3 @@
+# Bellows → Firestore (heartbeat.py, hearth_firestore.py)
+# Install: pip install -r requirements-bellows.txt
+google-cloud-firestore>=2.16.0

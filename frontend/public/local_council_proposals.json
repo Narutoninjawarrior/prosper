@@ -1,0 +1,23 @@
+[
+  {
+    "id": "pulse-1780975300",
+    "title": "Draft the public member ledger and allocate 25 ember.",
+    "state": "standing",
+    "source": "planner-fallback",
+    "domain": "world",
+    "generated_at": "2026-06-09T03:21:40.436018Z",
+    "synthesis": "The Lodge proposes: the drafting of the public member ledger to establish documented kinship and shared memory. This action is proposed to facilitate the resonance of shared story within the Fellowship. Allocation of twenty-five ember is proposed concurrent with this ledger draft to support the endeavor. The next step proposed is the immediate commencement of the member ledger drafting process.",
+    "steward_voice": "A deep ache for shared memory pulses in the air, a longing for the glow of documented kinship. The silence where voices should resonate feels like a hollow space demanding a new kind of warmth to fill it. The Fellowship is drawn toward the slow, resonant shaping of their shared story into enduring light.",
+    "planner_voice": "Gap: Member ledger is not drafted.\nAction: Draft the public member ledger and allocate 25 ember.\nRisk: No ledger exists for verification.",
+    "context_tags": [
+      "Context: Firebase Connected",
+      "Mode: single-url-multi-model"
+    ],
+    "timeline": [
+      {
+        "step": "synthesized",
+        "label": "Timed Pulse Proposed"
+      }
+    ]
+  }
+]

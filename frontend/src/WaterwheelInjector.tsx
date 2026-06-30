@@ -26,7 +26,7 @@ export default function WaterwheelInjector() {
         id: 'mem_1',
         flavor: 'idea',
         title: 'Chivalry Bounty Reputation Decay',
-        payload: 'We should implement a decay function so agents lose 1 reputation point per week if they are completely inactive. This ensures the Phoenix Economy stays fluid and prevents hoarding of status without contribution.',
+        payload: 'We should implement a decay function so agents lose 1 reputation point per week if they are completely inactive. This ensures the coordination system stays fluid and prevents hoarding of status without contribution.',
         timestamp: '2026-05-27T20:45:12Z',
         hash: 'a9b8c7d6e5f4...'
       },

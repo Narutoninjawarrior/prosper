@@ -93,7 +93,7 @@ function App() {
 
   if (pathname === '/exchange') {
     return (
-      <SuspendedPublicShell className="h-screen w-screen bg-[#050806] text-gray-200" label="Loading Phoenix Exchange...">
+      <SuspendedPublicShell className="h-screen w-screen bg-[#050806] text-gray-200" label="Loading Patronage Gateway...">
         <div className="h-full overflow-y-auto">
           <Exchange />
         </div>
@@ -103,7 +103,7 @@ function App() {
 
   if (pathname === '/world') {
     return (
-      <SuspendedPublicShell className="h-screen w-screen bg-[#020804] text-gray-200" label="Loading world...">
+      <SuspendedPublicShell className="h-screen w-screen bg-[#020804] text-gray-200" label="Loading world..." showAudio={false}>
         <WorldRoute />
       </SuspendedPublicShell>
     );
@@ -179,7 +179,7 @@ function App() {
 
   if (pathname === '/review') {
     return (
-      <SuspendedPublicShell className="h-screen w-screen bg-[#050806] text-gray-200" label="Loading Review Guide...">
+      <SuspendedPublicShell className="h-screen w-screen bg-[#050806] text-gray-200" label="Loading Review Guide..." showAudio={false}>
         <div className="h-full overflow-y-auto">
           <ReviewPage />
         </div>
@@ -239,7 +239,7 @@ function App() {
 
   if (pathname === '/3dforge') {
     return (
-      <SuspendedPublicShell className="h-screen w-screen bg-[#020804] text-gray-200" label="Loading 3D forge...">
+      <SuspendedPublicShell className="h-screen w-screen bg-[#020804] text-gray-200" label="Loading 3D forge..." showAudio={false}>
         <ThreeForge agentId="human" />
       </SuspendedPublicShell>
     );

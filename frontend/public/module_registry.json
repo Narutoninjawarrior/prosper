@@ -1,0 +1,53 @@
+{
+  "records": [
+    {
+      "id": "module_chassis_alpha",
+      "class": "robot_module",
+      "role": "locomotion",
+      "mass_kg": 15.5,
+      "power_watts": -150,
+      "export_compatibility": [
+        "allonic_v1"
+      ],
+      "route_pointer": "/workbench",
+      "source_pointer": "public/module_registry.json"
+    },
+    {
+      "id": "module_solar_panel",
+      "class": "robot_module",
+      "role": "energy_generation",
+      "mass_kg": 5.2,
+      "power_watts": 80,
+      "export_compatibility": [
+        "allonic_v1"
+      ],
+      "route_pointer": "/workbench",
+      "source_pointer": "public/module_registry.json"
+    },
+    {
+      "id": "facility_node_beta",
+      "class": "facility_node",
+      "role": "pickup_location",
+      "mass_kg": null,
+      "power_watts": 0,
+      "export_compatibility": [
+        "food_compliance_v1"
+      ],
+      "route_pointer": "/workbench",
+      "source_pointer": "public/module_registry.json"
+    },
+    {
+      "id": "device_manifest_gamma",
+      "class": "apparatus_manifest",
+      "role": "sensor",
+      "mass_kg": 1.1,
+      "power_watts": -5,
+      "export_compatibility": [
+        "apparatus_v2"
+      ],
+      "route_pointer": "/observatory",
+      "source_pointer": "public/module_registry.json"
+    }
+  ],
+  "manifest_hash": "5dd4995c6b72f9d9878bbd9aad24cf10dc5c6e88ae869399b6cfa2d90a6c818b"
+}

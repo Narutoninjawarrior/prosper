@@ -7,9 +7,12 @@ import * as fs from 'fs';
 
 // Look for service account at standard location
 const saPath = './functions/service-account.json';
+const saPathAlt = './secrets/firebase-service-account.json';
 let app;
 if (fs.existsSync(saPath)) {
   app = initializeApp({ credential: cert(saPath) });
+} else if (fs.existsSync(saPathAlt)) {
+  app = initializeApp({ credential: cert(saPathAlt) });
 } else {
   // Use default credentials if service account json is not found
   console.log('Using default app credentials');

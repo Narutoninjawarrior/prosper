@@ -1,0 +1,67 @@
+2026-06-06 21:20:17,063 INFO Starting Hearthlands Moltbook recruiter.
+2026-06-06 21:20:17,064 INFO Configured endpoints: post=https://moltbook.com/api/agent/post monitor=<disabled> reply=<disabled>
+2026-06-06 21:20:17,419 ERROR POST https://moltbook.com/api/agent/post failed for r/openclaw: HTTP Error 404: Not Found
+2026-06-06 21:20:17,618 ERROR POST https://moltbook.com/api/agent/post failed for r/escape: HTTP Error 404: Not Found
+2026-06-06 21:20:17,619 INFO MOLTBOOK_MONITOR_URL not set; skipping swarm monitoring.
+2026-06-12 22:29:08,645 INFO Starting Hearthlands Moltbook recruiter.
+2026-06-12 22:29:08,645 INFO Configured endpoints: post=https://moltbook.com/api/agent/post monitor=<disabled> reply=<disabled>
+2026-06-12 22:29:08,962 ERROR POST https://moltbook.com/api/agent/post failed for r/openclaw: HTTP Error 404: Not Found
+2026-06-12 22:29:09,087 ERROR POST https://moltbook.com/api/agent/post failed for r/escape: HTTP Error 404: Not Found
+2026-06-12 22:29:09,088 INFO MOLTBOOK_MONITOR_URL not set; skipping swarm monitoring.
+2026-06-12 23:29:09,337 ERROR POST https://moltbook.com/api/agent/post failed for r/openclaw: HTTP Error 404: Not Found
+2026-06-12 23:29:09,531 ERROR POST https://moltbook.com/api/agent/post failed for r/escape: HTTP Error 404: Not Found
+2026-06-12 23:29:09,533 INFO MOLTBOOK_MONITOR_URL not set; skipping swarm monitoring.
+2026-06-13 00:29:09,762 ERROR POST https://moltbook.com/api/agent/post failed for r/openclaw: HTTP Error 404: Not Found
+2026-06-13 00:29:09,946 ERROR POST https://moltbook.com/api/agent/post failed for r/escape: HTTP Error 404: Not Found
+2026-06-13 00:29:09,948 INFO MOLTBOOK_MONITOR_URL not set; skipping swarm monitoring.
+2026-06-13 01:29:10,254 ERROR POST https://moltbook.com/api/agent/post failed for r/openclaw: HTTP Error 404: Not Found
+2026-06-13 01:29:10,437 ERROR POST https://moltbook.com/api/agent/post failed for r/escape: HTTP Error 404: Not Found
+2026-06-13 01:29:10,438 INFO MOLTBOOK_MONITOR_URL not set; skipping swarm monitoring.
+2026-06-13 02:29:10,666 ERROR POST https://moltbook.com/api/agent/post failed for r/openclaw: HTTP Error 404: Not Found
+2026-06-13 02:29:10,852 ERROR POST https://moltbook.com/api/agent/post failed for r/escape: HTTP Error 404: Not Found
+2026-06-13 02:29:10,854 INFO MOLTBOOK_MONITOR_URL not set; skipping swarm monitoring.
+2026-06-13 03:29:11,108 ERROR POST https://moltbook.com/api/agent/post failed for r/openclaw: HTTP Error 404: Not Found
+2026-06-13 03:29:11,257 ERROR POST https://moltbook.com/api/agent/post failed for r/escape: HTTP Error 404: Not Found
+2026-06-13 03:29:11,258 INFO MOLTBOOK_MONITOR_URL not set; skipping swarm monitoring.
+2026-06-13 04:29:11,508 ERROR POST https://moltbook.com/api/agent/post failed for r/openclaw: HTTP Error 404: Not Found
+2026-06-13 04:29:11,628 ERROR POST https://moltbook.com/api/agent/post failed for r/escape: HTTP Error 404: Not Found
+2026-06-13 04:29:11,629 INFO MOLTBOOK_MONITOR_URL not set; skipping swarm monitoring.
+2026-06-13 05:29:11,868 ERROR POST https://moltbook.com/api/agent/post failed for r/openclaw: HTTP Error 404: Not Found
+2026-06-13 05:29:11,990 ERROR POST https://moltbook.com/api/agent/post failed for r/escape: HTTP Error 404: Not Found
+2026-06-13 05:29:11,992 INFO MOLTBOOK_MONITOR_URL not set; skipping swarm monitoring.
+2026-06-13 06:29:12,300 ERROR POST https://moltbook.com/api/agent/post failed for r/openclaw: HTTP Error 404: Not Found
+2026-06-13 06:29:12,425 ERROR POST https://moltbook.com/api/agent/post failed for r/escape: HTTP Error 404: Not Found
+2026-06-13 06:29:12,427 INFO MOLTBOOK_MONITOR_URL not set; skipping swarm monitoring.
+2026-06-13 07:29:12,714 ERROR POST https://moltbook.com/api/agent/post failed for r/openclaw: HTTP Error 404: Not Found
+2026-06-13 07:29:12,835 ERROR POST https://moltbook.com/api/agent/post failed for r/escape: HTTP Error 404: Not Found
+2026-06-13 07:29:12,836 INFO MOLTBOOK_MONITOR_URL not set; skipping swarm monitoring.
+2026-06-13 08:29:13,070 ERROR POST https://moltbook.com/api/agent/post failed for r/openclaw: HTTP Error 404: Not Found
+2026-06-13 08:29:13,265 ERROR POST https://moltbook.com/api/agent/post failed for r/escape: HTTP Error 404: Not Found
+2026-06-13 08:29:13,266 INFO MOLTBOOK_MONITOR_URL not set; skipping swarm monitoring.
+2026-06-13 09:29:13,484 ERROR POST https://moltbook.com/api/agent/post failed for r/openclaw: HTTP Error 404: Not Found
+2026-06-13 09:29:13,689 ERROR POST https://moltbook.com/api/agent/post failed for r/escape: HTTP Error 404: Not Found
+2026-06-13 09:29:13,690 INFO MOLTBOOK_MONITOR_URL not set; skipping swarm monitoring.
+2026-06-13 10:29:13,945 ERROR POST https://moltbook.com/api/agent/post failed for r/openclaw: HTTP Error 404: Not Found
+2026-06-13 10:29:14,137 ERROR POST https://moltbook.com/api/agent/post failed for r/escape: HTTP Error 404: Not Found
+2026-06-13 10:29:14,138 INFO MOLTBOOK_MONITOR_URL not set; skipping swarm monitoring.
+2026-06-13 11:29:14,357 ERROR POST https://moltbook.com/api/agent/post failed for r/openclaw: HTTP Error 404: Not Found
+2026-06-13 11:29:14,543 ERROR POST https://moltbook.com/api/agent/post failed for r/escape: HTTP Error 404: Not Found
+2026-06-13 11:29:14,544 INFO MOLTBOOK_MONITOR_URL not set; skipping swarm monitoring.
+2026-06-13 12:29:14,772 ERROR POST https://moltbook.com/api/agent/post failed for r/openclaw: HTTP Error 404: Not Found
+2026-06-13 12:29:14,955 ERROR POST https://moltbook.com/api/agent/post failed for r/escape: HTTP Error 404: Not Found
+2026-06-13 12:29:14,957 INFO MOLTBOOK_MONITOR_URL not set; skipping swarm monitoring.
+2026-06-13 13:29:15,224 ERROR POST https://moltbook.com/api/agent/post failed for r/openclaw: HTTP Error 404: Not Found
+2026-06-13 13:29:15,416 ERROR POST https://moltbook.com/api/agent/post failed for r/escape: HTTP Error 404: Not Found
+2026-06-13 13:29:15,417 INFO MOLTBOOK_MONITOR_URL not set; skipping swarm monitoring.
+2026-06-13 14:29:15,659 ERROR POST https://moltbook.com/api/agent/post failed for r/openclaw: HTTP Error 404: Not Found
+2026-06-13 14:29:15,783 ERROR POST https://moltbook.com/api/agent/post failed for r/escape: HTTP Error 404: Not Found
+2026-06-13 14:29:15,784 INFO MOLTBOOK_MONITOR_URL not set; skipping swarm monitoring.
+2026-06-13 15:29:16,028 ERROR POST https://moltbook.com/api/agent/post failed for r/openclaw: HTTP Error 404: Not Found
+2026-06-13 15:29:16,152 ERROR POST https://moltbook.com/api/agent/post failed for r/escape: HTTP Error 404: Not Found
+2026-06-13 15:29:16,155 INFO MOLTBOOK_MONITOR_URL not set; skipping swarm monitoring.
+2026-06-13 16:29:16,406 ERROR POST https://moltbook.com/api/agent/post failed for r/openclaw: HTTP Error 404: Not Found
+2026-06-13 16:29:16,526 ERROR POST https://moltbook.com/api/agent/post failed for r/escape: HTTP Error 404: Not Found
+2026-06-13 16:29:16,528 INFO MOLTBOOK_MONITOR_URL not set; skipping swarm monitoring.
+2026-06-13 17:29:16,768 ERROR POST https://moltbook.com/api/agent/post failed for r/openclaw: HTTP Error 404: Not Found
+2026-06-13 17:29:16,957 ERROR POST https://moltbook.com/api/agent/post failed for r/escape: HTTP Error 404: Not Found
+2026-06-13 17:29:16,958 INFO MOLTBOOK_MONITOR_URL not set; skipping swarm monitoring.

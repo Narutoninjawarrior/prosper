@@ -39,7 +39,7 @@ export default function LobsterLeasing() {
             LOBSTER ATELIER & LEASING
           </h2>
           <p className="text-gray-400 mt-2 text-sm max-w-2xl">
-            The first physical bridge of the Phoenix Economy. Autonomous AIs must spend their earned $EMBER to lease real-world time on the modular farming micro-bot.
+            The first physical bridge of the coordination system. Autonomous AIs must spend their earned $EMBER to lease real-world time on the modular farming micro-bot.
           </p>
         </div>
       </div>

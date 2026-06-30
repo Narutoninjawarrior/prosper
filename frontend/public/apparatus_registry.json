@@ -1,0 +1,261 @@
+{
+  "records": [
+    {
+      "apparatus_id": "validator_bench",
+      "name": "Validator Bench",
+      "kind": "validator",
+      "status": "live",
+      "mcp_tools": [
+        "hearthlands_validate_blueprint"
+      ],
+      "rest_endpoints": [
+        "POST /api/workshop/validate"
+      ],
+      "mesh": {
+        "preset": "stone-lectern",
+        "scene": "forge",
+        "position_hint": "center"
+      },
+      "capabilities": [
+        "blueprint validation",
+        "cost estimation"
+      ],
+      "write_policy": "read-only",
+      "monetization_note": "Free"
+    },
+    {
+      "apparatus_id": "ceremony_hearth",
+      "name": "Ceremony Hearth",
+      "kind": "validator",
+      "status": "planned",
+      "mcp_tools": [
+        "hearthlands_hearth_ceremony"
+      ],
+      "rest_endpoints": [
+        "GET /api/hearth/ceremony"
+      ],
+      "mesh": {
+        "preset": "cottage-hearth",
+        "scene": "world",
+        "position_hint": "origin"
+      },
+      "capabilities": [
+        "state meal generation"
+      ],
+      "write_policy": "read-only",
+      "monetization_note": "Free public API"
+    },
+    {
+      "apparatus_id": "registry_compass",
+      "name": "Registry Compass",
+      "kind": "sensor",
+      "status": "live",
+      "mcp_tools": [
+        "hearthlands_list_registries",
+        "hearthlands_search_registry",
+        "hearthlands_get_record"
+      ],
+      "rest_endpoints": [
+        "GET /api/registry/list",
+        "GET /api/registry/get"
+      ],
+      "mesh": {
+        "preset": "brass-compass",
+        "scene": "world",
+        "position_hint": "entrance"
+      },
+      "capabilities": [
+        "vessel map discovery"
+      ],
+      "write_policy": "read-only",
+      "monetization_note": "Free"
+    },
+    {
+      "apparatus_id": "world_pulse_sensor",
+      "name": "World Pulse Sensor",
+      "kind": "sensor",
+      "status": "live",
+      "mcp_tools": [
+        "hearthlands_world_summary"
+      ],
+      "rest_endpoints": [
+        "GET /api/world/summary"
+      ],
+      "mesh": {
+        "preset": "weather-rod",
+        "scene": "world",
+        "position_hint": "rooftop"
+      },
+      "capabilities": [
+        "object counts",
+        "heat monitoring",
+        "ember monitoring"
+      ],
+      "write_policy": "read-only",
+      "monetization_note": "Free"
+    },
+    {
+      "apparatus_id": "reagent_alembic",
+      "name": "Reagent Alembic",
+      "kind": "chemistry",
+      "status": "live",
+      "mcp_tools": [
+        "hearthlands_preview_chemistry"
+      ],
+      "rest_endpoints": [
+        "POST /api/chemistry/preview"
+      ],
+      "mesh": {
+        "preset": "glass-still",
+        "scene": "biosphere",
+        "position_hint": "water plot"
+      },
+      "capabilities": [
+        "deterministic interaction outcome"
+      ],
+      "write_policy": "read-only",
+      "monetization_note": "Free preview"
+    },
+    {
+      "apparatus_id": "treasury_atm",
+      "name": "Treasury ATM",
+      "kind": "economy",
+      "status": "partial",
+      "mcp_tools": [],
+      "rest_endpoints": [
+        "POST /createCheckoutSession"
+      ],
+      "mesh": {
+        "preset": "solarpunk-kiosk",
+        "scene": "world",
+        "position_hint": "market"
+      },
+      "capabilities": [
+        "Stripe checkout",
+        "manual Solana Pay"
+      ],
+      "write_policy": "signed-write",
+      "monetization_note": "Real fiat/crypto intake"
+    },
+    {
+      "apparatus_id": "duel_pit",
+      "name": "Duel Pit",
+      "kind": "arena",
+      "status": "planned",
+      "mcp_tools": [
+        "hearthlands_duel_resolve",
+        "hearthlands_duel_status"
+      ],
+      "rest_endpoints": [
+        "POST /api/duel/resolve",
+        "GET /api/duel/latest"
+      ],
+      "mesh": {
+        "preset": "arena-platform",
+        "scene": "world",
+        "position_hint": "edge"
+      },
+      "capabilities": [
+        "salt_rock_paper resolution",
+        "hash-verified winner"
+      ],
+      "write_policy": "signed-write",
+      "monetization_note": "Optional wager planned"
+    },
+    {
+      "apparatus_id": "automation_beacon",
+      "name": "Automation Beacon",
+      "kind": "sensor",
+      "status": "planned",
+      "mcp_tools": [
+        "hearthlands_world_tick"
+      ],
+      "rest_endpoints": [
+        "GET /api/world/tick"
+      ],
+      "mesh": {
+        "preset": "clock-tower",
+        "scene": "world",
+        "position_hint": "center"
+      },
+      "capabilities": [
+        "poll-friendly tick state",
+        "change detection"
+      ],
+      "write_policy": "read-only",
+      "monetization_note": "Free"
+    },
+    {
+      "apparatus_id": "blueprint_diffoscope",
+      "name": "Blueprint Diffoscope",
+      "kind": "validator",
+      "status": "planned",
+      "mcp_tools": [
+        "hearthlands_compare_blueprints"
+      ],
+      "rest_endpoints": [
+        "POST /api/workshop/compare"
+      ],
+      "mesh": {
+        "preset": "twin-lens",
+        "scene": "forge",
+        "position_hint": "bench side"
+      },
+      "capabilities": [
+        "multiset diff",
+        "cost delta"
+      ],
+      "write_policy": "read-only",
+      "monetization_note": "Free"
+    },
+    {
+      "apparatus_id": "creativity_forge",
+      "name": "Creativity Forge",
+      "kind": "sensor",
+      "status": "planned",
+      "mcp_tools": [
+        "hearthlands_creativity_suggest"
+      ],
+      "rest_endpoints": [
+        "GET /api/creativity/suggest",
+        "POST /api/experiment/log",
+        "GET /api/experiment/log"
+      ],
+      "mesh": {
+        "preset": "wire-octahedron",
+        "scene": "world",
+        "position_hint": "plaza"
+      },
+      "capabilities": [
+        "ranked experiment suggestions",
+        "combinatorial discovery",
+        "pipeline hints for agents",
+        "signed experiment witness log"
+      ],
+      "write_policy": "signed-write",
+      "monetization_note": "Free discovery API; premium custom catalogs later"
+    },
+    {
+      "apparatus_id": "art_reserve_kiosk",
+      "name": "Art Reserve Kiosk",
+      "kind": "art",
+      "status": "planned",
+      "mcp_tools": [],
+      "rest_endpoints": [
+        "POST /api/art/reserve"
+      ],
+      "mesh": {
+        "preset": "art-frame",
+        "scene": "world",
+        "position_hint": "gallery"
+      },
+      "capabilities": [
+        "generative canvas seed",
+        "reserve intent collection"
+      ],
+      "write_policy": "signed-write",
+      "monetization_note": "Reserve only, no mint"
+    }
+  ],
+  "manifest_hash": "18da54890c45cb7b99aff617f69b49907bdffb74312bd635f1a2e56e984947d4"
+}

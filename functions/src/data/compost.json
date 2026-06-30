@@ -1,0 +1,34 @@
+[
+  {
+    "item": "forge_execute",
+    "type": "endpoint",
+    "retired_date": "2026-06-15",
+    "reason": "Policy engine pending — 410 retired",
+    "what_grew": "Security audit hardening, capability engine design",
+    "upgrade_path": "Wave 2 conviction voting policy engine"
+  },
+  {
+    "item": "fellows plaintext gate",
+    "type": "auth",
+    "retired_date": "2026-06-14",
+    "reason": "OWASP Top 10 — replaced with Firebase Auth",
+    "what_grew": "Steward gate with admin/sovereign custom claims",
+    "upgrade_path": null
+  },
+  {
+    "item": "grant_ember endpoint",
+    "type": "endpoint",
+    "retired_date": "2026-06-14",
+    "reason": "Security — open EMBER minting was a risk",
+    "what_grew": "Locked economy trust boundary",
+    "upgrade_path": "Policy-gated EMBER distribution in wave 2"
+  },
+  {
+    "item": "solana_mint_bridge.py",
+    "type": "script",
+    "retired_date": "2026-05-01",
+    "reason": "Deferred — blockchain bridge premature for wave 1",
+    "what_grew": "Chain-hash ledger (tamper-evidence without blockchain overhead)",
+    "upgrade_path": "Optional Solana SPL token bridge in wave 3+"
+  }
+]

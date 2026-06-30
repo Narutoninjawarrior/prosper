@@ -1,0 +1,35 @@
+﻿diff --git a/frontend/src/App.tsx b/frontend/src/App.tsx
+index d5edcba..fcb269b 100644
+--- a/frontend/src/App.tsx
++++ b/frontend/src/App.tsx
+@@ -22,6 +22,7 @@ const GenerativeWorkbench = lazy(() => import('./GenerativeWorkbench'));
+ const ThreeForge = lazy(() => import('./ThreeForge'));
+ const ForgePage = lazy(() => import('./ForgePage'));
+ const CouncilBoard = lazy(() => import('./CouncilBoard'));
++const ObservatoryRoute = lazy(() => import('./ObservatoryRoute'));
+ 
+ const HiveTester = lazy(() => import('./HiveTester'));
+ 
+@@ -59,6 +60,7 @@ function App() {
+ 
+   useEffect(() => {
+     registerAgentTools();
++    void import('./lib/appCheck').then(({ ensureAppCheckInitialized }) => ensureAppCheckInitialized());
+   }, []);
+ 
+   const handleUnlock = () => {
+@@ -100,6 +102,14 @@ function App() {
+     );
+   }
+ 
++  if (pathname === '/observatory') {
++    return (
++      <SuspendedPublicShell className="h-screen w-screen bg-[#020804] text-gray-200" label="Loading observatory...">
++        <ObservatoryRoute />
++      </SuspendedPublicShell>
++    );
++  }
++
+   if (pathname === '/biosphere') {
+     return (
+       <SuspendedPublicShell className="h-screen w-screen bg-[#0A0402] text-gray-200" label="Loading biosphere...">

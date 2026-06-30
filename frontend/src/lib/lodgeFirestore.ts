@@ -251,3 +251,64 @@ export async function fetchLiveMetaPreview(max = 8): Promise<LiveFetchResult<Lod
     return { ok: false, reason: 'failed' };
   }
 }
+
+export type LodgeLiveProposalDoc = {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+  proposer_agent_id: string;
+  proposal_type: string;
+  action: {
+    type: string;
+    ember_cost: number;
+    parameters: any;
+  };
+  total_staked: number;
+  conviction: number;
+  created_at?: string;
+  expires_at?: string;
+  passed_at?: string;
+  executed_at?: string;
+};
+
+export async function fetchLiveProposals(max = 20): Promise<LiveFetchResult<LodgeLiveProposalDoc>> {
+  const db = getFirestoreDb();
+  if (!db) return { ok: false, reason: 'no_db' };
+
+  try {
+    const q = query(collection(db, 'proposals'), limit(max));
+    const snap = await getDocs(q);
+    const rows: LodgeLiveProposalDoc[] = [];
+
+    snap.forEach((docSnap) => {
+      const d = docSnap.data();
+      const action = d.action || {};
+      rows.push({
+        id: docSnap.id,
+        title: typeof d.title === 'string' ? d.title : '',
+        description: typeof d.description === 'string' ? d.description : '',
+        status: typeof d.status === 'string' ? d.status : 'active',
+        proposer_agent_id: typeof d.proposer_agent_id === 'string' ? d.proposer_agent_id : '',
+        proposal_type: typeof d.proposal_type === 'string' ? d.proposal_type : 'governance',
+        action: {
+          type: typeof action.type === 'string' ? action.type : '',
+          ember_cost: typeof action.ember_cost === 'number' ? action.ember_cost : 0,
+          parameters: action.parameters || {}
+        },
+        total_staked: typeof d.total_staked === 'number' ? d.total_staked : 0,
+        conviction: typeof d.conviction === 'number' ? d.conviction : 0,
+        created_at: readTimestampish(d.created_at),
+        expires_at: readTimestampish(d.expires_at),
+        passed_at: readTimestampish(d.passed_at),
+        executed_at: readTimestampish(d.executed_at)
+      });
+    });
+
+    return { ok: true, rows };
+  } catch (error) {
+    console.error('[lodgeFirestore] fetchLiveProposals failed', error);
+    return { ok: false, reason: 'failed' };
+  }
+}
+

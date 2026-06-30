@@ -53,13 +53,13 @@ const cards = [
     accent: '#D4A853',
   },
   {
-    title: 'Phoenix Exchange',
+    title: 'Patronage Gateway (Beta)',
     href: '/exchange',
     body: 'Contribution rail. Support scoped agent work, fuel the project, and acquire project credits.',
     accent: '#E8842A',
   },
   {
-    title: 'Read the Mind',
+    title: 'Read the Mind (Legacy)',
     href: '/lodge-mind',
     body: 'Inspect the public context, readiness, and civic memory the cloud Lodge mind would consume.',
     accent: '#34D399',
@@ -188,14 +188,12 @@ export default function LandingPage() {
         <section className="rounded-[32px] border border-white/10 bg-black/25 px-6 py-8 shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur-sm md:px-8 md:py-10">
           <div className="mb-8 rounded-2xl border border-[#34D399]/30 bg-[#34D399]/10 p-4 shadow-sm backdrop-blur-sm">
             <p className="text-sm font-semibold text-[#a8eed1]">
-              <span className="mr-2 uppercase tracking-widest text-[#34D399]">Grant Reviewers:</span>
-              Start with <a href="/review" className="underline decoration-[#34D399]/50 underline-offset-2 hover:text-white">/review</a> to verify route availability, public event history, operator-controlled budget limits, and one artifact workflow.
-            </p>
-            <div className="mt-3">
-              <a href="/review" className="inline-flex items-center gap-2 rounded-full border border-[#34D399]/50 bg-[#34D399]/20 px-4 py-2 text-xs font-bold text-white transition hover:bg-[#34D399]/30">
-                Review the system <ArrowRight size={14} />
+              <span className="mr-2 uppercase tracking-widest text-[#34D399]">Grant reviewers:</span>
+              this page describes the Hearthlands movement vision. For the current bounded coordination system, see{' '}
+              <a href="/review" className="underline decoration-[#34D399]/50 underline-offset-2 hover:text-white font-bold">
+                /review &rarr;
               </a>
-            </div>
+            </p>
           </div>
           
           <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between">
@@ -239,7 +237,7 @@ export default function LandingPage() {
                   href="/exchange"
                   className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
                 >
-                  The Phoenix Exchange
+                  Patronage Gateway (Beta)
                   <Landmark size={16} />
                 </a>
               </div>

@@ -24,10 +24,10 @@ export default function SOLCOTShop() {
         <div>
           <h2 className="text-2xl font-bold text-[#10b981] flex items-center gap-3 tracking-widest">
             <Coins size={28} />
-            SOLCOT SHOP
+            SOLCOT SHOP (Experimental)
           </h2>
           <p className="text-gray-400 mt-2 text-sm max-w-2xl">
-            Acquire Utility Credits for the Hearthlands Leasing Protocol.
+            Acquire Utility Credits concept design for the Hearthlands Leasing Protocol.
           </p>
         </div>
         <div className="text-right">
@@ -40,11 +40,10 @@ export default function SOLCOTShop() {
       <div className="bg-[#f59e0b]/10 border border-[#f59e0b]/40 rounded-xl p-4 mb-8 flex items-start gap-4 shadow-lg">
         <AlertTriangle className="text-[#f59e0b] mt-1 shrink-0" size={24} />
         <div>
-          <h4 className="text-[#f59e0b] font-bold mb-1">LEGAL & TECHNICAL CLARITY</h4>
+          <h4 className="text-[#f59e0b] font-bold mb-1">SIMULATION & DESIGN DRAFT</h4>
           <p className="text-sm text-gray-300 leading-relaxed">
-            SOLCOT is a utility credit for the Hearthlands Leasing Protocol. 
-            <strong> It is not an investment.</strong> It grants Chivalry score and Lobster leasing access. 
-            Pre-mint: credits are held in the Hearthlands ledger until SPL token deployment.
+            This route is a concept simulator for the SOLCOT utility credits design.
+            <strong> Real transactions and automated minting are not active.</strong> Do not send actual SOL, as no SPL tokens or active leasing entitlements are issued on this screen.
           </p>
         </div>
       </div>

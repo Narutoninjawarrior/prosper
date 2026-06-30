@@ -1,0 +1,24 @@
+{
+  "records": [
+    {
+      "module_id": "module_chassis_alpha",
+      "tab": "allonic",
+      "label": "Local Robot Draft"
+    },
+    {
+      "module_id": "module_solar_panel",
+      "tab": "allonic",
+      "label": "Local Robot Draft"
+    },
+    {
+      "module_id": "facility_node_beta",
+      "tab": "food_compliance",
+      "label": "Local Food Draft"
+    },
+    {
+      "module_id": "device_manifest_gamma",
+      "tab": "allonic",
+      "label": "Local Robot Draft"
+    }
+  ]
+}

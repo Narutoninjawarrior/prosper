@@ -238,9 +238,10 @@ function WorldContent({
   const [builderOpen, setBuilder]   = useState(false)
   const [stewardSignal, setStewardSignal] = useState(0)
   const [compactUi, setCompactUi] = useState(false)
-  const [showPulse, setShowPulse] = useState(true)
+  const [showPulse, setShowPulse] = useState(false)
   const [showPresence, setShowPresence] = useState(false)
   const [showFeed, setShowFeed] = useState(false)
+  const [hudOpen, setHudOpen] = useState(false)
   const playerRef = useRef(new THREE.Vector3(0, 0, 2))
   const movementKeysRef = useRef({
     up: false,
@@ -609,22 +610,61 @@ function WorldContent({
           color: '#FAF6EF',
           zIndex: 10,
         }}>
-          <div style={{ color: '#E8842A', marginBottom: 4 }}>
-            ⬡ {emberBalance?.toLocaleString() ?? 0} $EMBER
-          </div>
-          <div style={{ color: '#7A9E7E', marginBottom: 4 }}>
-            {heat ?? 0} $HEAT
-          </div>
-          {activeZone && (
-            <div style={{ color: '#AA88FF' }}>
-              → {ZONES[activeZone]?.label}
-            </div>
+          {hudOpen ? (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, borderBottom: '0.5px solid #5C3D1E', paddingBottom: 4 }}>
+                <span style={{ color: '#8a7a64', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em' }}>HUD Console</span>
+                <button
+                  type="button"
+                  onClick={() => setHudOpen(false)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#8a7a64',
+                    cursor: 'pointer',
+                    fontSize: 10,
+                    padding: '0 4px',
+                  }}
+                >
+                  [Hide]
+                </button>
+              </div>
+              <div style={{ color: '#E8842A', marginBottom: 4 }}>
+                ⬡ {emberBalance?.toLocaleString() ?? 0} $EMBER
+              </div>
+              <div style={{ color: '#7A9E7E', marginBottom: 4 }}>
+                {heat ?? 0} $HEAT
+              </div>
+              {activeZone && (
+                <div style={{ color: '#AA88FF' }}>
+                  → {ZONES[activeZone]?.label}
+                </div>
+              )}
+              <div style={{ color: '#888', fontSize: 9, marginTop: 6, lineHeight: '1.4' }}>
+                [WASD / Arrows] move<br/>
+                [Click] walk<br/>
+                [B] build · [T] tesseract · [Esc] close
+              </div>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setHudOpen(true)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#FAF6EF',
+                cursor: 'pointer',
+                fontFamily: 'monospace',
+                fontSize: 10,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                padding: '2px 4px',
+              }}
+            >
+              [ + Info HUD ]
+            </button>
           )}
-          <div style={{ color: '#888', fontSize: 9, marginTop: 6, lineHeight: '1.4' }}>
-            [WASD / Arrows] move<br/>
-            [Click] walk<br/>
-            [B] build · [T] tesseract · [Esc] close
-          </div>
         </div>
           </>,
           document.body

@@ -1,0 +1,60 @@
+{
+  "records": [
+    {
+      "id": "pickup-node-beta",
+      "title": "Pickup Node Beta",
+      "kind": "pickup_node",
+      "summary": "Seeded local pickup zone for cottage food handoff planning.",
+      "x": 76,
+      "y": 86,
+      "manifest_kind": "module",
+      "manifest_id": "facility_node_beta",
+      "route_pointer": "/registry?kind=module&id=facility_node_beta"
+    },
+    {
+      "id": "build-node-habitat-alpha",
+      "title": "Build Node Habitat Alpha",
+      "kind": "build_node",
+      "summary": "Printed-earth habitat staging node linked to the local site-plan blueprint.",
+      "x": 146,
+      "y": 58,
+      "manifest_kind": "artifact",
+      "manifest_id": "site-plan-habitat-alpha",
+      "route_pointer": "/artifacts?category=Blueprints"
+    },
+    {
+      "id": "farm-zone-greenhouse",
+      "title": "Farm Zone Greenhouse",
+      "kind": "farm_zone",
+      "summary": "Canonical biosphere growing footprint tied to the Earthship greenhouse blueprint.",
+      "x": 242,
+      "y": 112,
+      "manifest_kind": "artifact",
+      "manifest_id": "earthship-greenhouse-blueprint",
+      "route_pointer": "/artifacts?category=Blueprints"
+    },
+    {
+      "id": "robot-bench-allonic",
+      "title": "Robot Bench Allonic",
+      "kind": "robot_bench",
+      "summary": "Local robotics bench for mixed-module earthworks helper blueprint drafts.",
+      "x": 226,
+      "y": 42,
+      "manifest_kind": "artifact",
+      "manifest_id": "allonic-earthworks-helper",
+      "route_pointer": "/artifacts?category=Blueprints"
+    },
+    {
+      "id": "sensor-cluster-gamma",
+      "title": "Sensor Cluster Gamma",
+      "kind": "sensor_cluster",
+      "summary": "Apparatus/device manifest anchor for observatory-side sensor inspection.",
+      "x": 318,
+      "y": 72,
+      "manifest_kind": "module",
+      "manifest_id": "device_manifest_gamma",
+      "route_pointer": "/registry?kind=module&id=device_manifest_gamma"
+    }
+  ],
+  "manifest_hash": "70251c46fd4d3b2be23355820eb5aa7b14cba29d568ce8286df3220648130dcc"
+}

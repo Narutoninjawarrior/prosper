@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Hearthlands Mutual Credit Clearing Pool",
+  "type": "object",
+  "description": "Draft specification for future resource-based local accounting. This file is a planning artifact only. It is not an active ledger, not a live PMA account system, and not connected to checkout or settlement flows.",
+  "required": [
+    "pool_id",
+    "credit_denomination_unit",
+    "account_balances_matrix"
+  ],
+  "properties": {
+    "pool_id": {
+      "type": "string",
+      "pattern": "^pool_local_[a-z0-9_-]{3,32}$"
+    },
+    "credit_denomination_unit": {
+      "type": "string",
+      "enum": [
+        "MEGAJOULES_THERMAL",
+        "CALORIC_KCAL",
+        "COMPUTE_TOKEN_HOURS"
+      ]
+    },
+    "account_balances_matrix": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "member_id",
+          "current_balance",
+          "maximum_credit_extension_limit"
+        ],
+        "properties": {
+          "member_id": {
+            "type": "string",
+            "description": "Local or imported participant identifier. This schema does not require a live DID system."
+          },
+          "current_balance": {
+            "type": "number",
+            "description": "Current account standing. Intended future invariant: total balances sum to zero."
+          },
+          "maximum_credit_extension_limit": {
+            "type": "number",
+            "minimum": 0
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

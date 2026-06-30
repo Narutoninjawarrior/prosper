@@ -127,6 +127,25 @@ export default function WorldRoute() {
         forgeNodes={forgeNodes}
         agentKey="steward"
       />
+
+      <div
+        style={{
+          position: 'fixed',
+          bottom: 16,
+          right: 16,
+          zIndex: 20,
+          background: 'rgba(10,6,4,0.85)',
+          border: '0.5px solid #3D2B1A',
+          borderRadius: 6,
+          padding: '4px 10px',
+          fontFamily: 'monospace',
+          fontSize: 10,
+          color: '#89a598',
+          pointerEvents: 'none',
+        }}
+      >
+        World artifacts are constrained parametric recipes. Not autonomous creations.
+      </div>
     </div>
   )
 }

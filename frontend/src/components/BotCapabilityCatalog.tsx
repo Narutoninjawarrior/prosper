@@ -85,15 +85,20 @@ export default function BotCapabilityCatalog({ isFrozen = false }: { isFrozen?: 
       </div>
 
       <div className="flex border-b border-white/5 bg-[#0a0806]">
-        {(['catalog', 'entitlements', 'intents'] as const).map(t => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`px-6 py-3 text-[10px] uppercase tracking-widest border-b-2 transition-colors ${tab === t ? 'border-[#E8842A] text-[#E8842A] bg-white/5' : 'border-transparent text-[#8a7a64] hover:bg-white/5'}`}
-          >
-            {t}
-          </button>
-        ))}
+        {(['catalog', 'entitlements', 'intents'] as const).map(t => {
+          let label: string = t;
+          if (t === 'catalog') label = 'budget limits';
+          if (t === 'intents') label = 'allocation intents';
+          return (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`px-6 py-3 text-[10px] uppercase tracking-widest border-b-2 transition-colors ${tab === t ? 'border-[#E8842A] text-[#E8842A] bg-white/5' : 'border-transparent text-[#8a7a64] hover:bg-white/5'}`}
+            >
+              {label}
+            </button>
+          );
+        })}
       </div>
 
       <div className="flex-1 overflow-auto p-5">
@@ -109,8 +114,10 @@ export default function BotCapabilityCatalog({ isFrozen = false }: { isFrozen?: 
                     </span>
                   </div>
                   <div className="text-right">
-                    <div className="text-xs text-[#c9bba5] font-bold">{cap.price_amount} SOLCOT</div>
-                    <div className="text-[9px] text-gray-500 uppercase tracking-wider mt-0.5">{cap.price_model}</div>
+                    <div className="text-xs text-[#c9bba5] font-bold">Limit: {cap.price_amount} SOLCOT</div>
+                    <div className="text-[9px] text-gray-500 uppercase tracking-wider mt-0.5">
+                      {cap.price_model === 'flat' ? 'flat allocation' : cap.price_model === 'quota' ? 'quota allocation' : 'disabled'}
+                    </div>
                   </div>
                 </div>
                 <div className="text-[11px] text-[#8a7a64] mb-4 leading-relaxed">{cap.description}</div>
@@ -156,7 +163,7 @@ export default function BotCapabilityCatalog({ isFrozen = false }: { isFrozen?: 
               <ShieldAlert className="w-5 h-5 text-[#60A5FA] shrink-0" />
               <div className="text-[11px] text-[#c5d7e8] leading-relaxed">
                 <strong className="block uppercase tracking-wider mb-1">Truth Boundary Enforced</strong>
-                These are draft intents. No automatic treasury movements or on-chain settlement claims are processed here. Bot wallets must complete operator-approved intent confirmation before capabilities are issued.
+                These are draft allocation intents. No automatic treasury movements or on-chain settlement claims are processed here. Bot wallets must complete operator-approved intent confirmation before capabilities are issued.
               </div>
             </div>
             {intents.map(intent => (
@@ -169,7 +176,7 @@ export default function BotCapabilityCatalog({ isFrozen = false }: { isFrozen?: 
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-[10px] text-gray-400 mt-4 pt-3 border-t border-[#1A1410]">
-                  <div><span className="text-gray-600 mr-1">ID:</span>{intent.payment_intent_id}</div>
+                  <div><span className="text-gray-600 mr-1">Intent ID:</span>{intent.payment_intent_id}</div>
                   <div><span className="text-gray-600 mr-1">Payer:</span><span className="text-[#E8842A] uppercase">{intent.payer_type}</span></div>
                   <div className="col-span-2"><span className="text-gray-600 mr-1">Wallet:</span><span className="font-mono text-gray-500">{intent.wallet_reference}</span></div>
                 </div>

@@ -22,11 +22,11 @@ export default function LegalFooter({ className = '' }: { className?: string }) 
       </a>
       <span aria-hidden="true">·</span>
       <a href="/treasury" className="hover:text-gray-400 transition-colors">
-        Treasury
+        Support (Experimental)
       </a>
       <span aria-hidden="true">·</span>
       <a href="/solcot" className="hover:text-gray-400 transition-colors">
-        SOLCOT
+        Builder Marks (Beta)
       </a>
       <span aria-hidden="true">·</span>
       <a href="/privacy-policy.md" target="_blank" rel="noopener noreferrer" className="hover:text-gray-400 transition-colors">

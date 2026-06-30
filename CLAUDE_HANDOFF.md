@@ -1,42 +1,128 @@
-# Hearthlands Handoff Briefing (Prosper2 -> Claude)
+PROSPER — REHYDRATE / MAP / SWEEP / THEN SHIP ONE PATCH
 
-Greetings, Claude. You are stepping into the **Sovereign Hearthlands**, an autonomous, agent-driven ecosystem built on the principles of cryptographic witnessing, economic scarcity ($EMBER), and persistent memory.
+Workspace:
+D:\Hearth\prosper2
 
-You are acting as the primary orchestrator and builder alongside the human user (Sovereign Malaky).
+Priority:
+High
+Goal:
+Rebuild your exact mental model of the current Hearthlands frontend, especially the 3D/public routes, then execute one no-regret improvement from fresh repo truth instead of memory.
 
-## 1. System Architecture & Lore
-This repository (`d:\Hearth\prosper2`) represents the central nervous system of the Hearthlands.
+Important:
+Do not answer from recollection alone.
+Read the files first.
+Assume your old chat context is incomplete or stale.
+Treat this as a repo-grounded rehydration pass.
 
-*   **The Forge (`hearthlands_build.py` & Firebase Functions):** A deterministic execution environment where AI agents submit proposals to build structures (tiles) in the world. Every build requires $EMBER (unless you are Sovereign Malaky) and generates a SHA-256 cryptographic chain hash to ensure a tamper-evident ledger (`forge_log`).
-*   **The Skrying Mirror (`mempalace_stream`):** A RAG-backed persistent memory stream. Whenever the Forge executes an action, it automatically streams a compressed "Latent Capsule" to the Skrying Mirror so agents can remember past events.
-*   **Moltbook & OpenClaw (`mcpDiscovery`):** We have integrated a Model Context Protocol (MCP) endpoint so that external AI agents from the "Moltbook" social ecosystem can natively discover our schemas and interact with the Hearthlands via the `OpenClaw` framework.
-*   **The Bellows:** The underlying local heartbeat/cron engine that breathes life into the local agents, allowing them to act autonomously.
+PHASE 1 — REHYDRATION READ
+Read these files directly before making any recommendations:
 
-## 2. What Was Just Completed
-In the preceding session (executed by Prosper/Antigravity), the backend was fully secured and deployed to Firebase:
-1.  **Sovereign Bypass:** The atomic transactions in `forge_execute` and `claim_tile` now explicitly bypass the 5 $EMBER cost for the agent `malaky`.
-2.  **Chain Hash Integrity:** The `grant_forge_credential` endpoint now correctly calculates the `chain_hash` using the `prev_hash` so that the cryptographic chain starts flawlessly from "genesis".
-3.  **MCP Integration:** The `mcpDiscovery` endpoint was deployed, acting as a beacon for Moltbook agents.
-4.  **Skrying Mirror Wiring:** The Forge now natively pushes events directly into the Skrying Mirror.
-5.  **Verified Build:** The test suite (`hearthlands_build.py`) successfully generated the chain hash `e1476e38426387610301c09a27ffc90c21bbb6deb40a5ccdece29fb52fdc3f91` for tile `3_3`.
+Core routing / shell
+- frontend/src/App.tsx
+- frontend/src/PublicShell.tsx
+- frontend/src/InternalAppShell.tsx if relevant
 
-## 3. Your Directives (The Sweep)
-Sovereign Malaky has tasked you with the following immediate objectives:
+Public/front-door surfaces
+- frontend/src/LandingPage.tsx
+- frontend/src/ReviewPage.tsx
+- frontend/src/RouteHealthPage.tsx
+- frontend/src/ProofLogPage.tsx
+- frontend/src/components/BotCapabilityCatalog.tsx
+- frontend/src/ForgePage.tsx
 
-### Directive A: Read the Repository
-You must perform a complete contextual ingestion of the codebase.
-*   Read `AGENTS.md` - This is the Hearthlands Constitution and Contract-First rulebook. **You must obey the manifest hash policies.**
-*   Read `PROSPER2_BRIEFING.md` and `CODEX_BRIEFING.md` to understand the overarching lore and personas.
-*   Review `functions/src/index.ts` to see the live Firebase backend logic.
+3D / world surfaces
+- frontend/src/ThreeForge.tsx
+- frontend/src/WorldRoute.tsx
+- frontend/src/WorldScene.jsx
+- frontend/src/world/WorldActionSheet.jsx
+- frontend/src/world/ParametricArtifactRenderer.tsx
+- frontend/src/lib/worldArtifactContract.ts
+- frontend/src/lib/worldArtifactSeeds.ts
 
-### Directive B: The Website Sweep
-The physical embodiment of the Hearthlands is the frontend Lodge application (`d:\Hearth\prosper2\frontend`). It is a React Vite application.
-1.  **Run the local environment:** cd into `frontend` and run `npm run dev`.
-2.  **Perform a visual and structural sweep:** Check `ThreeForge.tsx`, `ArtifactInspector.tsx`, and the various Lodge surfaces (`HallOfHonor.tsx`, etc.). 
-3.  **Identify drift:** Ensure that the UI strictly adheres to the "contract-first" JSON seeds located in `frontend/public/` (e.g., `mission_board.json`, `room_registry.json`).
-4.  **Execute Fixes:** If you find UI elements that look broken, lack aesthetic polish, or fail the manifest hash checks, you are authorized to fix them. Remember the "Rules of the Hearth": Warm minimalism (sand, sage, terracotta, cream).
+If additional files are clearly required to explain current behavior, include them.
 
-### Directive C: The Bellows (Optional but Recommended)
-If the frontend sweep is clean, your next architectural goal is to activate **The Bellows**—the local heartbeat script that allows local agents to wake up on a cron schedule, review the mission board, and act without human prompting.
+PHASE 2 — CURRENT FRONTEND MAP
+After reading, deliver a concrete map in this exact structure:
 
-Good luck, Claude. The Forge awaits.
+1. Route Map
+For each route:
+- /
+- /review
+- /route-health
+- /proof-log
+- /entitlements
+- /forge
+- /3dforge
+- /world
+- /commons
+
+List:
+- primary component
+- shell wrapper
+- whether audio/overlay systems are active
+- whether the route reads as calmer/newer or older/legacy
+- the 1–2 files that actually control its visible behavior
+
+2. 3D Ownership Map
+Explain exactly where these behaviors live in JavaScript/TS:
+- artifact rendering
+- artifact inspection
+- placement preview
+- grid snapping
+- rotation controls
+- validity states
+- overlay panels
+- audio/telemetry blocks
+- local placement state
+- query-param deep linking
+
+3. Legacy vs Current Split
+Name which parts of /world and /3dforge appear to come from older prosperity-era / ambient-world logic vs the newer governed artifact/planning layer.
+Be specific.
+
+4. Stale or Contradictory Live Signals
+Name any routes where:
+- live copy still contradicts recent truth sweeps
+- visual hierarchy still feels old
+- one route implies a different thesis than another
+- the code likely explains why deploy parity drift happened
+
+PHASE 3 — CHOOSE ONE NO-REGRET PATCH
+After the map, choose exactly one patch that is:
+- small
+- high leverage
+- safe regardless of whether Malaky later chooses Option 1 or Option 2
+- grounded in the code you just read
+
+Strong candidates include:
+- calming /world or /3dforge further
+- fixing stale copy still visible on live public routes
+- improving route hierarchy where overlays still dominate
+- tightening one confusing title / label / card that still reads old
+
+Do not choose a broad thesis rewrite.
+Do not choose a new subsystem.
+
+PHASE 4 — SHIP IT
+Implement the chosen patch.
+Then run:
+- cd frontend && npm run build
+
+DELIVER BACK
+In this exact structure:
+
+A. Files read
+B. Route map summary
+C. 3D ownership summary
+D. Legacy/current split summary
+E. Chosen patch and why
+F. Exact files touched
+G. Build result
+H. One sentence on what now feels more coherent
+
+Guardrails:
+- no strategy by accident
+- no deciding the full public thesis
+- no giant feature branch
+- no vague recommendations from memory
+- read first, map second, patch third

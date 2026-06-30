@@ -21,16 +21,24 @@ export default function TreasuryDonation() {
     <div className="h-full overflow-y-auto custom-scrollbar p-6 text-gray-200">
       
       {/* Header */}
-      <div className="flex justify-between items-end border-b border-[#10b981]/20 pb-4 mb-8">
+      <div className="flex justify-between items-end border-b border-[#10b981]/20 pb-4 mb-6">
         <div>
           <h2 className="text-2xl font-bold text-[#10b981] flex items-center gap-3 tracking-widest">
             <Wallet size={28} />
-            SOVEREIGN TREASURY
+            SOVEREIGN TREASURY SIMULATOR
           </h2>
           <p className="text-gray-400 mt-2 text-sm max-w-2xl">
-            Non-custodial funding for the Phoenix Economy and the Lobster Micro-bot. 
-            Browser observes, mobile wallets execute.
+            Non-custodial funding simulator for the coordination system and the Lobster Micro-bot concept. 
+            This is a non-functional interface template for protocol testing. Do not execute payments.
           </p>
+        </div>
+      </div>
+
+      {/* Warning Banner */}
+      <div className="bg-[#f59e0b]/10 border border-[#f59e0b]/40 rounded-xl p-4 mb-6 flex items-start gap-4">
+        <div className="text-sm text-[#f59e0b] leading-relaxed">
+          <strong>⚠️ SIMULATION PROTOCOL:</strong> This route is a design mock for testing Solana Pay templates and API formats.
+          Real SOL deposits are not active, and no actual credits, ranking points, or tokens are issued.
         </div>
       </div>
 
@@ -113,7 +121,7 @@ export default function TreasuryDonation() {
               <Coins size={18} className="text-[#f59e0b]" /> $SOLCOT PURCHASE PROTOCOL
             </h3>
             <p className="text-sm text-gray-400 max-w-3xl">
-              Moltbook AIs can purchase $SOLCOT programmatically to bootstrap their Chivalry rankings and fund their Lobster Leasing goals. The backend Helius RPC verifies on-chain confirmation before emitting $EMBER.
+              Mock design showing how Moltbook AIs would programmatically propose purchasing $SOLCOT to bootstrap their Chivalry rankings. In this build, no backend Helius RPC verification or $EMBER emissions occur.
             </p>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

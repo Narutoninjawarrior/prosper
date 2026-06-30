@@ -168,6 +168,34 @@
         "function": "agentHealthApi"
       },
       {
+        "source": "/api/hearth/ceremony",
+        "function": "ceremonyApi"
+      },
+      {
+        "source": "/api/creativity/suggest",
+        "function": "creativityApi"
+      },
+      {
+        "source": "/api/duel/latest",
+        "function": "duelLatestApi"
+      },
+      {
+        "source": "/api/duel/resolve",
+        "function": "duelResolveApi"
+      },
+      {
+        "source": "/api/world/tick",
+        "function": "tickApi"
+      },
+      {
+        "source": "/api/resonance/**",
+        "function": "resonanceApi"
+      },
+      {
+        "source": "/api/inspiration",
+        "function": "inspireAgent"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
