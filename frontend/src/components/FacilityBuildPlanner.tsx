@@ -3,6 +3,7 @@ import type { ValidationReport, ConstraintResult } from '../lib/constraintValida
 import { Download, History, ChevronDown, ChevronRight } from 'lucide-react';
 import ArtifactDiffPanel from './ArtifactDiffPanel';
 import InventoryStagingLocker from './InventoryStagingLocker';
+import ArtifactLineagePanel from './ArtifactLineagePanel';
 
 export interface FacilityManifest {
   id: string;
@@ -558,8 +559,21 @@ export default function FacilityBuildPlanner({ onManifestChange, onValidationCha
         </div>
       )}
 
+      {/* Artifact Lineage Panel */}
+      <div className="mt-4">
+        <ArtifactLineagePanel
+          manifest={manifest}
+          hasExports={exportHistory.length > 0}
+          lastExportTime={exportHistory[0]?.exported_at}
+          isStaged={false} // Will be properly hooked when locker state lifts
+          isCommonsHandoff={false}
+        />
+      </div>
+
       {/* Inventory Staging Locker */}
-      <InventoryLockerPanel manifest={manifest} />
+      <div className="mt-4">
+        <InventoryLockerPanel manifest={manifest} />
+      </div>
     </div>
   );
 }
