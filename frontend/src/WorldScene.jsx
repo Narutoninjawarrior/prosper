@@ -267,6 +267,16 @@ function WorldContent({
       }
     } else if (focusId) {
       setIsFocusedEntry(true)
+      // Fallback if session handoff is missing but query param exists
+      setTimeout(() => {
+        setInspectedObject({
+          id: focusId,
+          title: 'Remote Focus Target',
+          purpose: 'Restoring context from query param (Session lost)',
+          source: 'World Handoff',
+          freshness: 'Unknown'
+        })
+      }, 500)
     }
   }, [setInspectedObject])
 

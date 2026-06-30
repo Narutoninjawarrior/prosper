@@ -359,6 +359,18 @@ export default function FacilityBuildPlanner({ onManifestChange, onValidationCha
         ))}
       </div>
 
+      {/* Human / Machine Context Mirror (Moved to top for discoverability) */}
+      <div className="mb-6 pb-6 border-b border-[#7A9E7E]/20">
+        <AsymmetricContextMirror 
+          manifest={manifest}
+          onUpdateWaterNeed={(val) => setManifest(prev => ({ ...prev, estimated_water_needs: val }))}
+          onWorldFocus={() => {
+            sessionStorage.setItem('world_focus_handoff', JSON.stringify({ id: manifest.id, title: manifest.title }));
+            window.location.href = `/world?focus=${manifest.id}`;
+          }}
+        />
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <label className="flex flex-col gap-1">
           <span className="text-[#b7c9be] font-mono text-[10px] uppercase tracking-wider">Facility Title</span>
@@ -581,18 +593,6 @@ export default function FacilityBuildPlanner({ onManifestChange, onValidationCha
       {/* Inventory Staging Locker */}
       <div className="mt-4">
         <InventoryLockerPanel manifest={manifest} />
-      </div>
-
-      {/* Human / Machine Context Mirror */}
-      <div className="mt-8 border-t border-[#7A9E7E]/20 pt-8">
-        <AsymmetricContextMirror 
-          manifest={manifest}
-          onUpdateWaterNeed={(val) => setManifest(prev => ({ ...prev, estimated_water_needs: val }))}
-          onWorldFocus={() => {
-            sessionStorage.setItem('world_focus_handoff', JSON.stringify({ id: manifest.id, title: manifest.title }));
-            window.location.href = `/world?focus=${manifest.id}`;
-          }}
-        />
       </div>
     </div>
   );
