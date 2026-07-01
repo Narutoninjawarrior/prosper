@@ -46,5 +46,9 @@ export interface BotArtifactManifest {
       component_type: string;
       action: string;
     }[];
+    network_ideas?: {
+      title: string;
+      category: string;
+    }[];
   };
 }

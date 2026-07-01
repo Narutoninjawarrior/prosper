@@ -850,6 +850,78 @@ export default function GenerativeWorkbench() {
     window.location.href = `/commons?source=workbench&object=${biosystemPayload.manifestId}`
   }
 
+  const pushBiosystemToForge = () => {
+    if (!biosystemPayload) return;
+    
+    // Determine loop status text
+    const isWarning = (biosystemPayload.targetPh < 6.5 && biosystemPayload.targetPh > 4.6) || (biosystemPayload.targetPh > 7.8 && biosystemPayload.targetPh < 8.5);
+    const isFail = biosystemPayload.targetPh >= 8.5 || biosystemPayload.targetPh <= 4.6;
+    const loopStatusText = isFail ? 'CRITICAL: PH OUT OF BOUNDS' : isWarning ? 'WARNING: SUBOPTIMAL' : 'OPTIMAL';
+
+    const artifact = {
+      id: 'biosystem-loop-preview',
+      title: biosystemPayload.title,
+      artifact_family: 'biosystem_loop',
+      audience_scope: 'world_room',
+      visibility: 'local_draft',
+      transform: {
+        position: [0, 0.5, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+      },
+      geometry_recipe: {
+        primitive_type: 'extruded_span',
+        dimensions: [
+          Math.max(2.5, Math.min(6, biosystemPayload.reservoirCapacityGallons / 120)),
+          1.2,
+          0.45,
+        ],
+      },
+      material_profile: {
+        preset_family: 'BIOFILM_MOSS',
+        roughness: 0.7,
+        metalness: 0.15,
+        emissive_intensity: 0.2,
+        color_hex: '#4A90D9',
+      },
+      provenance_metadata: {
+        author_type: 'human',
+        author_id: 'operator',
+        source_ref: biosystemPayload.manifestId,
+        created_at: new Date().toISOString(),
+        note: 'Local planning artifact from Biosystem Loop Canvas. Not a real biosystem.',
+      },
+      planner_context: {
+        origin: 'Biosystem Loop Canvas',
+        loop_status: loopStatusText,
+        target_ph: biosystemPayload.targetPh,
+        reservoir_capacity_gallons: biosystemPayload.reservoirCapacityGallons,
+        pump_flow_rate_gpm: biosystemPayload.pumpFlowRateGpm,
+        sensor_present: biosystemPayload.sensorEnabled,
+        return_path_present: biosystemPayload.returnPathEnabled,
+        node_count: Object.keys(biosystemPayload.nodes).length,
+        suggestion_history: biosystemPayload.suggestionHistory?.map((h: any) => ({
+          component_type: h.component_type,
+          action: h.action
+        })) || [],
+        network_ideas: biosystemPayload.networkIdeas?.map((idea: any) => ({
+          title: idea.title,
+          category: idea.category
+        })) || []
+      },
+    };
+
+    try {
+      const stored = sessionStorage.getItem('prosper:local_artifacts')
+      const existing = stored ? JSON.parse(stored) : []
+      const next = [artifact, ...existing.filter((item: any) => item.id !== artifact.id)]
+      sessionStorage.setItem('prosper:local_artifacts', JSON.stringify(next))
+      window.location.href = `/forge?artifact=${encodeURIComponent(artifact.id)}`
+    } catch (error) {
+      console.error('Failed to place biosystem artifact in forge', error)
+    }
+  }
+
   return (
     <div className="min-h-full bg-[radial-gradient(circle_at_top_left,rgba(122,158,126,0.12),transparent_42%),#070a08] px-6 py-10 text-[#eadfcd]">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
@@ -1457,15 +1529,26 @@ export default function GenerativeWorkbench() {
                     </button>
                   )}
                   {tab === 'biosystem' && biosystemPayload && (
-                    <button
-                      type="button"
-                      onClick={pushBiosystemToCommons}
-                      disabled={draftReport?.level === 'hard_fail'}
-                      className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 font-mono text-[11px] font-semibold transition-colors ${draftReport?.level === 'hard_fail' ? 'bg-red-500/10 border-red-500/30 text-red-400 opacity-50 cursor-not-allowed' : draftReport?.level === 'warning' ? 'bg-[#FBBF24]/20 border-[#FBBF24]/40 text-[#FBBF24] hover:bg-[#FBBF24]/30' : 'bg-[#4A90D9]/20 border-[#4A90D9]/40 text-[#4A90D9] hover:bg-[#4A90D9]/30'}`}
-                    >
-                      <ArrowLeftRight size={14} />
-                      Push Biosystem Plan to Commons (Local Draft)
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={pushBiosystemToForge}
+                        disabled={draftReport?.level === 'hard_fail'}
+                        className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 font-mono text-[11px] font-semibold transition-colors ${draftReport?.level === 'hard_fail' ? 'bg-red-500/10 border-red-500/30 text-red-400 opacity-50 cursor-not-allowed' : draftReport?.level === 'warning' ? 'bg-[#FBBF24]/20 border-[#FBBF24]/40 text-[#FBBF24] hover:bg-[#FBBF24]/30' : 'bg-[#E8842A]/20 border-[#E8842A]/40 text-[#E8842A] hover:bg-[#E8842A]/30'}`}
+                      >
+                        <ArrowLeftRight size={14} />
+                        Place in Forge for inspection
+                      </button>
+                      <button
+                        type="button"
+                        onClick={pushBiosystemToCommons}
+                        disabled={draftReport?.level === 'hard_fail'}
+                        className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 font-mono text-[11px] font-semibold transition-colors ${draftReport?.level === 'hard_fail' ? 'bg-red-500/10 border-red-500/30 text-red-400 opacity-50 cursor-not-allowed' : draftReport?.level === 'warning' ? 'bg-[#FBBF24]/20 border-[#FBBF24]/40 text-[#FBBF24] hover:bg-[#FBBF24]/30' : 'bg-[#4A90D9]/20 border-[#4A90D9]/40 text-[#4A90D9] hover:bg-[#4A90D9]/30'}`}
+                      >
+                        <ArrowLeftRight size={14} />
+                        Push Biosystem Plan to Commons (Local Draft)
+                      </button>
+                    </>
                   )}
                 </div>
               )}

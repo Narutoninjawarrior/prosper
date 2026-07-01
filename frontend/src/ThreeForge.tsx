@@ -942,6 +942,13 @@ export default function ThreeForge({ agentId }: { agentId?: string }) {
                     });
                   }
 
+                  if (art.planner_context?.network_ideas && art.planner_context.network_ideas.length > 0) {
+                    plannerDetails.push({ label: 'Network Seeds', value: `${art.planner_context.network_ideas.length} ideas` });
+                    art.planner_context.network_ideas.slice(0, 3).forEach((idea: any, i: number) => {
+                      plannerDetails.push({ label: `  ↳ Idea ${i+1}`, value: idea.title });
+                    });
+                  }
+
                   setInspectedObject({
                     id: art.id,
                     title: art.title,
