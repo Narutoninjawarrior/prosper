@@ -188,6 +188,40 @@
       "settlement": "none",
       "status": "available",
       "note": "Full machine surface registry."
+    },
+    {
+      "id": "workshop_validate",
+      "title": "Workshop Validate Blueprint",
+      "kind": "read",
+      "path": "/api/workshop/validate",
+      "method": "POST",
+      "auth_lane": "none",
+      "price_model": "free",
+      "price_amount": 0,
+      "quota_limit": "rate_limited",
+      "cooldown_seconds": 10,
+      "freeze_behavior": "unaffected",
+      "output": "json",
+      "settlement": "none",
+      "status": "available",
+      "note": "Deterministic read-only validation. Returns reproducible hashes, stable rule codes, cost estimates, and world_write: false. Receipts are never witnessed."
+    },
+    {
+      "id": "agent_passport_read",
+      "title": "Agent Passport Read",
+      "kind": "read",
+      "path": "/api/agent/passport",
+      "method": "GET",
+      "auth_lane": "none",
+      "price_model": "free",
+      "price_amount": 0,
+      "quota_limit": "none",
+      "cooldown_seconds": 0,
+      "freeze_behavior": "unaffected",
+      "output": "json",
+      "settlement": "none",
+      "status": "available",
+      "note": "Read-only passport bundle for one agent: imported identity status, recent receipts, recent tasks, recent inspect continuity, and JSON export link."
     }
   ],
   "guarantees": {
