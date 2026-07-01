@@ -139,6 +139,12 @@ export default function AgentAccess() {
   const [webMcpActive, setWebMcpActive] = useState(false)
   const [actionContracts, setActionContracts] = useState<ActionContractRecord[]>([])
   const [swarmTasks, setSwarmTasks] = useState<any[]>([])
+  const [machineData, setMachineData] = useState<any>({
+    capabilities: null,
+    plannerContracts: null,
+    aiDiscovery: null,
+    llmsTxt: null,
+  })
   const { taskEvents, receipts } = useMultiplayerPresence({
     enabled: true,
     agentKey: 'agent-access-observer',
@@ -151,6 +157,20 @@ export default function AgentAccess() {
       if (seed?.records) setActionContracts(seed.records)
     })
     fetch('/swarm_tasks.json').then(r => r.json()).then(setSwarmTasks).catch(console.error)
+    
+    Promise.all([
+      fetch('/capabilities.json').then(r => r.json()).catch(() => null),
+      fetch('/planner_contracts.json').then(r => r.json()).catch(() => null),
+      fetch('/.well-known/ai.json').then(r => r.json()).catch(() => null),
+      fetch('/llms.txt').then(r => r.text()).catch(() => null),
+    ]).then(([caps, planners, ai, llms]) => {
+      setMachineData({
+        capabilities: caps,
+        plannerContracts: planners,
+        aiDiscovery: ai,
+        llmsTxt: llms,
+      })
+    })
   }, [])
 
   const liveSwarmTasks = useMemo(() => {
@@ -248,6 +268,45 @@ export default function AgentAccess() {
             <Pill color="#D4A853">MCP server · beta</Pill>
             <Pill color="#D4A853">Registry data · seeded</Pill>
             <Pill color="#9b8a76">WebMCP · experimental standard</Pill>
+          </div>
+        </section>
+
+        {/* Machine Contract Snapshot */}
+        <section className="rounded-[28px] border border-[#60A5FA]/20 bg-[#60A5FA]/5 px-6 py-8 backdrop-blur-sm md:px-8">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+            <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.32em] text-[#60A5FA] font-bold">
+              <Database size={14} />
+              Machine Contract Snapshot
+            </div>
+            <Pill color="#60A5FA">Live File Bindings</Pill>
+          </div>
+          {machineData.capabilities ? (
+            <div className="grid gap-3 md:grid-cols-2">
+              {machineData.capabilities.capabilities?.map((cap: any) => {
+                const tier = (cap.kind === 'read' || cap.method === 'GET') ? 'TIER 1 // ALWAYS_DO' 
+                           : (cap.kind === 'local' || cap.method === 'UI') ? 'TIER 2 // ASK_FIRST'
+                           : 'TIER 3 // NEVER_DO';
+                const tierColor = tier.includes('TIER 1') ? '#34D399' : tier.includes('TIER 2') ? '#D4A853' : '#EF4444';
+                return (
+                  <details key={cap.id} className="group rounded-xl border border-white/5 bg-[#0A0604] overflow-hidden">
+                    <summary className="flex items-center justify-between p-4 cursor-pointer hover:bg-white/5 transition-colors list-none [&::-webkit-details-marker]:hidden">
+                      <span className="text-[#60A5FA] font-mono text-[11px] font-bold truncate pr-3">{cap.title}</span>
+                      <span className="shrink-0 rounded border px-1.5 py-0.5 text-[9px] font-mono uppercase font-bold" style={{ borderColor: `${tierColor}40`, color: tierColor, backgroundColor: `${tierColor}10` }}>
+                        {tier}
+                      </span>
+                    </summary>
+                    <div className="px-4 pb-4 pt-1 border-t border-white/5 text-[11px] text-[#a08c72] leading-relaxed">
+                      {cap.note}
+                    </div>
+                  </details>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="text-[10px] font-mono text-[#D4A853] uppercase tracking-widest">Loading capabilities.json...</div>
+          )}
+          <div className="mt-6 pt-4 border-t border-white/5 text-[9px] uppercase tracking-widest text-[#8a7a64] font-bold">
+            Public machine-readable references. Read-only discovery layer. Local drafts and operator actions remain separately bounded.
           </div>
         </section>
 
