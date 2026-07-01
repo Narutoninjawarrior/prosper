@@ -77,14 +77,19 @@ export default function ReviewPage() {
             <div>
               <h2 className="text-[#c9bba5] text-sm uppercase tracking-widest font-bold mb-1 flex items-center gap-2">
                 <Hammer className="w-4 h-4 text-[#60A5FA]" />
-                Facility Planner
+                Build Planners
               </h2>
               <p className="text-[11px] text-gray-500 mb-3">
-                Open /workbench and inspect one exported package, diff, or lineage step.
+                Open /workbench and inspect one exported package, diff, or lineage step. For physical-system planning, open the Biosystem Canvas or Facility Build Planner. Opens as a local planning canvas. Commons handoff remains draft-scoped until promoted. Some planning artifacts include a local Decision Trace showing AI proposals and operator choices before promotion.
               </p>
-              <a href="/workbench?tab=facility" target="_blank" rel="noopener noreferrer" className="inline-flex px-4 py-2 border border-[#1A1410] bg-black/20 text-[#60A5FA] text-[10px] uppercase tracking-widest rounded hover:border-[#60A5FA]/40 hover:bg-[#60A5FA]/5 transition-colors">
-                Open Facility Planner
-              </a>
+              <div className="flex gap-2">
+                <a href="/workbench?tab=facility" target="_blank" rel="noopener noreferrer" className="inline-flex px-4 py-2 border border-[#1A1410] bg-black/20 text-[#60A5FA] text-[10px] uppercase tracking-widest rounded hover:border-[#60A5FA]/40 hover:bg-[#60A5FA]/5 transition-colors">
+                  Facility Planner
+                </a>
+                <a href="/workbench?tab=biosystem" target="_blank" rel="noopener noreferrer" className="inline-flex px-4 py-2 border border-[#1A1410] bg-black/20 text-[#4A90D9] text-[10px] uppercase tracking-widest rounded hover:border-[#4A90D9]/40 hover:bg-[#4A90D9]/5 transition-colors">
+                  Biosystem Planner
+                </a>
+              </div>
             </div>
           </div>
 

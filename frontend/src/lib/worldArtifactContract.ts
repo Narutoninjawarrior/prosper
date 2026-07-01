@@ -1,7 +1,7 @@
 export interface BotArtifactManifest {
   id: string; // Globally unique identifier matching UUID formatting standards
   title: string;
-  artifact_family: 'crystal_cluster' | 'ice_spire' | 'bio_tube' | 'solar_bloom' | 'habitat_arch';
+  artifact_family: 'crystal_cluster' | 'ice_spire' | 'bio_tube' | 'solar_bloom' | 'habitat_arch' | 'biosystem_loop';
   audience_scope: 'commons_public' | 'builders_room' | 'world_room';
   visibility: 'local_draft' | 'public_witnessed';
   
@@ -31,5 +31,20 @@ export interface BotArtifactManifest {
     source_ref?: string;
     created_at: string;
     note?: string;
+  };
+
+  planner_context?: {
+    origin: string;
+    loop_status: string;
+    target_ph: number;
+    reservoir_capacity_gallons: number;
+    pump_flow_rate_gpm: number;
+    sensor_present: boolean;
+    return_path_present: boolean;
+    node_count: number;
+    suggestion_history?: {
+      component_type: string;
+      action: string;
+    }[];
   };
 }

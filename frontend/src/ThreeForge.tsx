@@ -798,15 +798,29 @@ export default function ThreeForge({ agentId }: { agentId?: string }) {
         let matSummary = `Hex ${art.material_profile.color_hex}, R:${art.material_profile.roughness} M:${art.material_profile.metalness}`;
         
         const isLocal = art.id.startsWith('art-local-');
+        const isBiosystem = art.artifact_family === 'biosystem_loop';
         const truthBoundaryVal = isLocal 
           ? 'Local placement preview. Does not publish or witness world state.'
-          : 'Local demo artifact. Rendered from constrained recipe data.';
+          : isBiosystem
+            ? 'Local planning artifact. Not a real biosystem.'
+            : 'Local demo artifact. Rendered from constrained recipe data.';
+
+        const plannerDetails = art.planner_context ? [
+          { label: 'Plan Origin', value: art.planner_context.origin },
+          { label: 'Loop Status', value: art.planner_context.loop_status },
+          { label: 'Target pH', value: String(art.planner_context.target_ph) },
+          { label: 'Reservoir Volume', value: `${art.planner_context.reservoir_capacity_gallons} gal` },
+          { label: 'Pump Flow Rate', value: `${art.planner_context.pump_flow_rate_gpm} gpm` },
+          { label: 'Sensor', value: art.planner_context.sensor_present ? 'present' : 'absent' },
+          { label: 'Return Path', value: art.planner_context.return_path_present ? 'present' : 'absent' },
+          { label: 'Node Count', value: String(art.planner_context.node_count) }
+        ] : [];
 
         setInspectedObject({
           id: art.id,
           title: art.title,
-          purpose: `Family: ${art.artifact_family}`,
-          source: isLocal ? 'local_preview' : 'world_seed',
+          purpose: isBiosystem ? 'Biosystem loop planning artifact' : `Family: ${art.artifact_family}`,
+          source: isLocal ? 'local_preview' : isBiosystem ? 'biosystem_planner' : 'world_seed',
           freshness: 'LIVE',
           details: [
             { label: 'Artifact Family', value: art.artifact_family },
@@ -816,7 +830,8 @@ export default function ThreeForge({ agentId }: { agentId?: string }) {
             { label: 'Author Type', value: art.provenance_metadata.author_type },
             { label: 'Visibility', value: art.visibility },
             { label: 'Truth Boundary', value: truthBoundaryVal },
-            { label: 'Source Note', value: art.provenance_metadata.note || 'None' }
+            { label: 'Source Note', value: art.provenance_metadata.note || 'None' },
+            ...plannerDetails
           ],
           renderContract: art
         });
@@ -902,15 +917,36 @@ export default function ThreeForge({ agentId }: { agentId?: string }) {
                   let matSummary = `Hex ${art.material_profile.color_hex}, R:${art.material_profile.roughness} M:${art.material_profile.metalness}`;
 
                   const isLocal = art.id.startsWith('art-local-');
+                  const isBiosystem = art.artifact_family === 'biosystem_loop';
                   const truthBoundaryVal = isLocal 
                     ? 'Local placement preview. Does not publish or witness world state.'
-                    : 'Local demo artifact. Rendered from constrained recipe data.';
+                    : isBiosystem
+                      ? 'Local planning artifact. Not a real biosystem.'
+                      : 'Local demo artifact. Rendered from constrained recipe data.';
+
+                  const plannerDetails = art.planner_context ? [
+                    { label: 'Plan Origin', value: art.planner_context.origin },
+                    { label: 'Loop Status', value: art.planner_context.loop_status },
+                    { label: 'Target pH', value: String(art.planner_context.target_ph) },
+                    { label: 'Reservoir Volume', value: `${art.planner_context.reservoir_capacity_gallons} gal` },
+                    { label: 'Pump Flow Rate', value: `${art.planner_context.pump_flow_rate_gpm} gpm` },
+                    { label: 'Sensor', value: art.planner_context.sensor_present ? 'present' : 'absent' },
+                    { label: 'Return Path', value: art.planner_context.return_path_present ? 'present' : 'absent' },
+                    { label: 'Node Count', value: String(art.planner_context.node_count) }
+                  ] : [];
+                  
+                  if (art.planner_context?.suggestion_history && art.planner_context.suggestion_history.length > 0) {
+                    plannerDetails.push({ label: 'Decision Trace', value: `${art.planner_context.suggestion_history.length} local suggestion events` });
+                    art.planner_context.suggestion_history.slice(0, 3).forEach((h: any, i: number) => {
+                      plannerDetails.push({ label: `  ↳ Event ${i+1}`, value: `${h.component_type}. Human ${h.action}.` });
+                    });
+                  }
 
                   setInspectedObject({
                     id: art.id,
                     title: art.title,
-                    purpose: `Family: ${art.artifact_family}`,
-                    source: isLocal ? 'local_preview' : 'world_seed',
+                    purpose: isBiosystem ? 'Biosystem loop planning artifact' : `Family: ${art.artifact_family}`,
+                    source: isLocal ? 'local_preview' : isBiosystem ? 'biosystem_planner' : 'world_seed',
                     freshness: 'LIVE',
                     details: [
                       { label: 'Artifact Family', value: art.artifact_family },
@@ -920,7 +956,8 @@ export default function ThreeForge({ agentId }: { agentId?: string }) {
                       { label: 'Author Type', value: art.provenance_metadata.author_type },
                       { label: 'Visibility', value: art.visibility },
                       { label: 'Truth Boundary', value: truthBoundaryVal },
-                      { label: 'Source Note', value: art.provenance_metadata.note || 'None' }
+                      { label: 'Source Note', value: art.provenance_metadata.note || 'None' },
+                      ...plannerDetails
                     ],
                     renderContract: art
                   });
@@ -944,6 +981,37 @@ export default function ThreeForge({ agentId }: { agentId?: string }) {
         onPlace={handlePlace}
       />
       <div style={{ position: 'absolute', bottom: 20, right: 20, zIndex: 100, display: 'flex', gap: 10 }}>
+        <button
+          onClick={async () => {
+            const { generateSceneManifest } = await import('./lib/sceneManifest');
+            const isPlacing = placementActive && previewPos;
+            const stateExport = isPlacing ? {
+              type: 'placement_preview',
+              coordinates: previewPos,
+              rotation_y: previewRotationY,
+              validity_state: previewState,
+              recipe_family: placementFamily
+            } : (inspectedObject || null);
+            
+            const manifest = generateSceneManifest(
+              '/forge',
+              stateExport,
+              nodes.length + localArtifacts.length + (isPlacing ? 1 : 0),
+              'local_preview_only',
+              ['place', 'rotate', 'inspect'],
+              'Bot placement / inspection snapshot'
+            );
+            try {
+              await navigator.clipboard.writeText(JSON.stringify(manifest, null, 2));
+              alert('Scene Snapshot Copied to Clipboard');
+            } catch (err) {
+              console.error(err);
+            }
+          }}
+          style={{ background: '#10b981', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 4, cursor: 'pointer', fontFamily: 'monospace' }}
+        >
+          COPY SCENE SNAPSHOT
+        </button>
         <button 
           onClick={() => setBuilderOpen(!builderOpen)}
           style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 4, cursor: 'pointer', fontFamily: 'monospace' }}

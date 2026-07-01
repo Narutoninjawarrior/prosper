@@ -13,8 +13,9 @@ import ParametricSitePlanner from './components/ParametricSitePlanner'
 import FoodCompliancePlanner from './components/FoodCompliancePlanner'
 import AllonicSchemaAssembler from './components/AllonicSchemaAssembler'
 import FacilityBuildPlanner from './components/FacilityBuildPlanner'
+import BiosystemLoopCanvas from './components/BiosystemLoopCanvas'
 
-type TabId = 'graphics' | 'soulfile' | 'memory' | 'blueprint' | 'siteplan' | 'mason' | 'food_compliance' | 'allonic' | 'facility'
+type TabId = 'graphics' | 'soulfile' | 'memory' | 'blueprint' | 'siteplan' | 'mason' | 'food_compliance' | 'allonic' | 'facility' | 'biosystem'
 type DraftStage = 'Rough Cut' | 'Smoothed' | 'Sealed'
 type SaveState = 'Saved locally' | 'Saving...' | 'Unsaved changes'
 type PlannerContractRecord = {
@@ -94,6 +95,7 @@ const TABS: Array<{ id: TabId; label: string }> = [
   { id: 'food_compliance', label: 'Cottage Food Planner' },
   { id: 'allonic', label: 'Allonic Robotics' },
   { id: 'facility', label: 'Facility Build Planner' },
+  { id: 'biosystem', label: 'Biosystem Loop Planner' },
   { id: 'mason', label: 'Mason' },
 ]
 
@@ -372,6 +374,7 @@ export default function GenerativeWorkbench() {
   const [sitePlanPayload, setSitePlanPayload] = useState<any>(null)
   const [allonicPayload, setAllonicPayload] = useState<any>(null)
   const [facilityPayload, setFacilityPayload] = useState<any>(null)
+  const [biosystemPayload, setBiosystemPayload] = useState<any>(null)
   const [draftReport, setDraftReport] = useState<ValidationReport | null>(null)
 
   const [handoff, setHandoff] = useState<WorkbenchHandoff | null>(null)
@@ -396,6 +399,7 @@ export default function GenerativeWorkbench() {
       || requestedTab === 'blueprint'
       || requestedTab === 'mason'
       || requestedTab === 'facility'
+      || requestedTab === 'biosystem'
     ) {
       setTab(requestedTab)
     }
@@ -655,6 +659,7 @@ export default function GenerativeWorkbench() {
     : tab === 'food_compliance' ? (foodCompliancePayload || { schema: 'food-compliance-v1', note: 'Use the Cottage Food Planner tab to stage local compliance data.' })
     : tab === 'allonic' ? (allonicPayload || { schema: 'allonic-blueprint-v1', note: 'Use the Allonic Robotics tab to assemble a local mixed-module robot blueprint.' })
     : tab === 'facility' ? (facilityPayload || { schema: 'facility-manifest-v1', note: 'Use the Facility Build Planner tab to coordinate physical resources.' })
+    : tab === 'biosystem' ? (biosystemPayload || { schema: 'biosystem-loop-v1', note: 'Use the Biosystem Loop Planner tab to map local water, pH, and dependency loops.' })
     : tab === 'mason' ? (masonBlueprint || { workbench: 'mason-blueprint-v1', note: 'Generate or select a template to preview JSON.' })
     : blueprintPayload
 
@@ -800,6 +805,49 @@ export default function GenerativeWorkbench() {
     const sessionPrompts = JSON.parse(sessionStorage.getItem('hearth_commons_session_prompts') || '[]')
     sessionStorage.setItem('hearth_commons_session_prompts', JSON.stringify([newPrompt, ...sessionPrompts]))
     window.location.href = `/commons?source=workbench&object=${facilityPayload.id}`
+  }
+
+  const pushBiosystemToCommons = () => {
+    if (!biosystemPayload) return
+    let historyBlock = '';
+    let networkIdeasBlock = '';
+    if (biosystemPayload.suggestionHistory && biosystemPayload.suggestionHistory.length > 0) {
+      historyBlock = `\n\n## Recent Changes\nLocal draft edits. Not reviewed, witnessed, or approved.\nLocal suggestion trace. Documents client-side options presented to the operator prior to manual layout promotion.\n${biosystemPayload.suggestionHistory.slice(0, 3).map((h: any) => `- AI proposed ${h.component_type}. Human ${h.action}.`).join('\n')}`;
+    } else {
+      historyBlock = `\n\n## Recent Changes\nLocal draft edits. Not reviewed, witnessed, or approved.\nNo suggestion interactions recorded in this session.`;
+    }
+    if (biosystemPayload.networkIdeas && biosystemPayload.networkIdeas.length > 0) {
+      networkIdeasBlock = `\n\n## Network Vision Seeds\nLocal planning ideas only. Visionary context, not implemented coordination.\n${biosystemPayload.networkIdeas.slice(0, 3).map((idea: any) => `- ${idea.title}: ${idea.prompt}`).join('\n')}`;
+    } else {
+      networkIdeasBlock = `\n\n## Network Vision Seeds\nLocal planning ideas only. Visionary context, not implemented coordination.\nNo network vision ideas were saved in this session.`;
+    }
+    const newPrompt = {
+      id: `local-biosystem-${Date.now()}`,
+      prompt_text: `### Biosystem Loop Draft: ${biosystemPayload.title}\n\n**Loop Configuration Summary**\n- Target pH: ${biosystemPayload.targetPh}\n- Reservoir Capacity: ${biosystemPayload.reservoirCapacityGallons} gal\n- Pump Flow Rate: ${biosystemPayload.pumpFlowRateGpm} GPM\n- Sensor: ${biosystemPayload.sensorEnabled ? 'Present' : 'Missing'}\n- Return Path: ${biosystemPayload.returnPathEnabled ? 'Present' : 'Missing'}\n- Node Count: ${Object.keys(biosystemPayload.nodes).length}${formatConstraintSummary()}${historyBlock}${networkIdeasBlock}\n\n\`\`\`json\n${JSON.stringify(biosystemPayload, null, 2)}\n\`\`\``,
+      author_type: 'human',
+      author_id: 'local_user',
+      target_type: 'route',
+      target_id: 'commons',
+      status: 'draft',
+      boundary: 'local_only',
+      visibility: 'local_artifact',
+      scope: 'builders_room',
+      cost_label: 'EXPORT ONLY',
+      source_route: '/workbench',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      is_local_session: true,
+      object_ref: {
+        id: biosystemPayload.manifestId,
+        title: biosystemPayload.title,
+        purpose: 'Biosystem Loop Manifest',
+        source: 'Workbench Planner',
+        freshness: 'Local Session',
+      }
+    }
+    const sessionPrompts = JSON.parse(sessionStorage.getItem('hearth_commons_session_prompts') || '[]')
+    sessionStorage.setItem('hearth_commons_session_prompts', JSON.stringify([newPrompt, ...sessionPrompts]))
+    window.location.href = `/commons?source=workbench&object=${biosystemPayload.manifestId}`
   }
 
   return (
@@ -1309,6 +1357,17 @@ export default function GenerativeWorkbench() {
                 />
               )}
 
+              {tab === 'biosystem' && (
+                <BiosystemLoopCanvas
+                  onUpdate={(payload) => {
+                    setBiosystemPayload(payload)
+                    setExportJson('')
+                    setDigest('')
+                  }}
+                  onValidate={setDraftReport}
+                />
+              )}
+
               {tab === 'mason' && (
                 <MasonPanel
                   onStamp={(json, hash) => {
@@ -1395,6 +1454,17 @@ export default function GenerativeWorkbench() {
                     >
                       <ArrowLeftRight size={14} />
                       Push Facility Plan to Commons (Local Draft)
+                    </button>
+                  )}
+                  {tab === 'biosystem' && biosystemPayload && (
+                    <button
+                      type="button"
+                      onClick={pushBiosystemToCommons}
+                      disabled={draftReport?.level === 'hard_fail'}
+                      className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 font-mono text-[11px] font-semibold transition-colors ${draftReport?.level === 'hard_fail' ? 'bg-red-500/10 border-red-500/30 text-red-400 opacity-50 cursor-not-allowed' : draftReport?.level === 'warning' ? 'bg-[#FBBF24]/20 border-[#FBBF24]/40 text-[#FBBF24] hover:bg-[#FBBF24]/30' : 'bg-[#4A90D9]/20 border-[#4A90D9]/40 text-[#4A90D9] hover:bg-[#4A90D9]/30'}`}
+                    >
+                      <ArrowLeftRight size={14} />
+                      Push Biosystem Plan to Commons (Local Draft)
                     </button>
                   )}
                 </div>
