@@ -15,6 +15,7 @@ import {
   AlertCircle,
   Cpu,
   Database,
+  Globe,
   FileText,
   RefreshCw,
 } from 'lucide-react';
@@ -32,15 +33,37 @@ type ProcessRow =
 
 type WorldState = Record<string, unknown> | null;
 
+type DeployProbe = {
+  path: string;
+  status: number | null;
+  content_type: string | null;
+  has_rate_limit_headers: boolean;
+  looks_like_spa_fallback: boolean;
+  body_preview: string;
+};
+
+type DeployStatus = {
+  checked_at: string;
+  summary: string;
+  local_hardening: Record<string, boolean>;
+  last_live_responding_at?: string | null;
+  live_route_probes: DeployProbe[];
+};
+
 type Snapshot = {
   generated_at: string;
   lm_studio: LmStudio;
   hermes_processes: ProcessRow[];
-  mempalace_stream: { tail: string; parse_status: string };
+  mempalace_stream: {
+    tail: string;
+    parse_status: string;
+    entry_count?: number | null;
+  };
   hearth_world_state: WorldState;
   heartbeat_log_tail: string;
   solis_log_tail: string;
   soul_md_head: string;
+  deploy_status?: DeployStatus;
   file_references: Array<{ label: string; path: string }>;
 };
 
@@ -64,6 +87,10 @@ export default function HermesConsole() {
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const snapshotAgeMinutes = snap
+    ? Math.floor((Date.now() - new Date(snap.generated_at).getTime()) / 60_000)
+    : null;
 
   async function load(): Promise<void> {
     setLoading(true);
@@ -135,6 +162,17 @@ export default function HermesConsole() {
 
         {snap && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {snapshotAgeMinutes !== null && snapshotAgeMinutes > 10 && (
+              <section className="lg:col-span-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100">
+                <div className="font-semibold">Snapshot may be stale</div>
+                <div className="mt-1 text-xs text-amber-200/80 font-mono">
+                  Last generated {snapshotAgeMinutes} minute
+                  {snapshotAgeMinutes === 1 ? '' : 's'} ago. Re-run{' '}
+                  <code>python scripts/hermes_snapshot.py</code> to refresh local truth.
+                </div>
+              </section>
+            )}
+
             <section className="glass-panel p-5 rounded-xl">
               <h2 className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-4 flex items-center gap-2">
                 <Activity size={14} /> Overview
@@ -177,6 +215,81 @@ export default function HermesConsole() {
 
             <section className="glass-panel p-5 rounded-xl">
               <h2 className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-4 flex items-center gap-2">
+                <Globe size={14} /> Deploy Status
+              </h2>
+              {snap.deploy_status ? (
+                <div className="text-xs font-mono space-y-3">
+                  <div className="flex justify-between gap-4">
+                    <span className="text-gray-500">summary</span>
+                    <span
+                      className={
+                        snap.deploy_status.summary === 'production_stale_spa_fallback'
+                          ? 'text-amber-300'
+                          : 'text-[#10b981]'
+                      }
+                    >
+                      {snap.deploy_status.summary}
+                    </span>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <span className="text-gray-500">checked</span>
+                    <span>{fmtTime(snap.deploy_status.checked_at)}</span>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <span className="text-gray-500">last live runtime</span>
+                    <span>
+                      {snap.deploy_status.last_live_responding_at
+                        ? fmtTime(snap.deploy_status.last_live_responding_at)
+                        : 'never recorded'}
+                    </span>
+                  </div>
+                  <div>
+                    <div className="text-gray-500 mb-1">local hardening</div>
+                    <pre className="text-gray-300 bg-black/40 p-3 rounded overflow-x-auto whitespace-pre-wrap break-words">
+                      {JSON.stringify(snap.deploy_status.local_hardening, null, 2)}
+                    </pre>
+                  </div>
+                  <div className="space-y-2">
+                    {snap.deploy_status.live_route_probes.map((probe) => (
+                      <div
+                        key={probe.path}
+                        className="rounded border border-white/10 bg-black/30 p-3"
+                      >
+                        <div className="flex items-center justify-between gap-4">
+                          <span className="text-gray-200">{probe.path}</span>
+                          <span
+                            className={
+                              probe.looks_like_spa_fallback
+                                ? 'text-amber-300'
+                                : probe.status && probe.status < 500
+                                  ? 'text-[#10b981]'
+                                  : 'text-[#ef4444]'
+                            }
+                          >
+                            {probe.status ?? 'error'}
+                          </span>
+                        </div>
+                        <div className="mt-1 text-gray-500">
+                          {probe.content_type || 'unknown content-type'} · rate-limit headers:{' '}
+                          {probe.has_rate_limit_headers ? 'yes' : 'no'} · spa fallback:{' '}
+                          {probe.looks_like_spa_fallback ? 'yes' : 'no'}
+                        </div>
+                        <pre className="mt-2 text-gray-300 whitespace-pre-wrap break-words">
+                          {probe.body_preview || '(empty)'}
+                        </pre>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-xs font-mono text-gray-500">
+                  deploy diagnostics not present in this snapshot
+                </div>
+              )}
+            </section>
+
+            <section className="glass-panel p-5 rounded-xl">
+              <h2 className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-4 flex items-center gap-2">
                 <Cpu size={14} /> Processes
               </h2>
               <ul className="text-xs font-mono space-y-1 max-h-72 overflow-y-auto">
@@ -203,7 +316,15 @@ export default function HermesConsole() {
               </h2>
               <div className="text-xs font-mono space-y-3">
                 <div>
-                  <div className="text-gray-500 mb-1">mempalace tail</div>
+                  <div className="text-gray-500 mb-1">
+                    mempalace tail
+                    <span className="ml-2 text-gray-600">
+                      {snap.mempalace_stream.parse_status}
+                      {typeof snap.mempalace_stream.entry_count === 'number'
+                        ? ` · ${snap.mempalace_stream.entry_count} entries`
+                        : ''}
+                    </span>
+                  </div>
                   <pre className="text-gray-300 bg-black/40 p-3 rounded overflow-x-auto whitespace-pre-wrap break-words max-h-40 overflow-y-auto">
                     {snap.mempalace_stream.tail || '(empty)'}
                   </pre>
