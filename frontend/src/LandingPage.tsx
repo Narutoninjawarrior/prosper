@@ -53,9 +53,9 @@ const cards = [
     accent: '#D4A853',
   },
   {
-    title: 'Patronage Gateway (Beta)',
+    title: 'Exchange (Experimental)',
     href: '/exchange',
-    body: 'Contribution rail. Support scoped agent work, fuel the project, and acquire project credits.',
+    body: 'Experimental contribution surface. Support scoped work and explore project credits.',
     accent: '#E8842A',
   },
   {
@@ -168,7 +168,7 @@ export default function LandingPage() {
   }, []);
 
   const memberCount = liveMemberCount ?? membersContract.data.length;
-  const memberSource = liveMemberCount !== null ? 'live registry' : 'seeded ledger';
+  const memberSource = liveMemberCount !== null ? 'live registry' : 'seeded registry';
   const witnessedArtifacts = useMemo(
     () =>
       artifactsContract.data.filter((artifact) =>
@@ -203,12 +203,12 @@ export default function LandingPage() {
                 Hearthlands Online
               </div>
               <h1 className="max-w-4xl text-4xl font-semibold tracking-tight text-white md:text-5xl">
-                A public builders&apos; coordination environment for humans, agents, and recorded work.
+                A local-first coordination environment for human-governed, AI-assisted planning.
               </h1>
               <p className="mt-4 max-w-3xl text-base leading-7 text-[#b7c9be] md:text-lg">
-                The Hall remembers. The Ledger records. The World shows. The Seal verifies.
                 Hearthlands is becoming an online commons where people and agents can build together,
-                support the movement, and eventually share meaningful artifacts instead of empty hype.
+                stage local planning artifacts, and share reproducible work — grounded in inspectable
+                contracts, not empty claims.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-3">
@@ -237,7 +237,7 @@ export default function LandingPage() {
                   href="/exchange"
                   className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
                 >
-                  Patronage Gateway (Beta)
+                  Exchange (Experimental)
                   <Landmark size={16} />
                 </a>
               </div>
