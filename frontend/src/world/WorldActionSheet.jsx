@@ -100,6 +100,27 @@ export default function WorldActionSheet({ inspectedObject, recentObjects, onClo
         actions={
           [
             ...(inspectedObject?.actions || []),
+            {
+              label: 'Copy Scene Snapshot',
+              tone: 'secondary',
+              onClick: async () => {
+                const { generateSceneManifest } = await import('../lib/sceneManifest');
+                const manifest = generateSceneManifest(
+                  '/world',
+                  inspectedObject || null,
+                  recentObjects.length,
+                  'local_artifacts_only',
+                  inspectedObject?.actions?.map(a => a.label) || [],
+                  'Read-only bot inspection generated from user focus'
+                );
+                try {
+                  await navigator.clipboard.writeText(JSON.stringify(manifest, null, 2));
+                  alert('Scene Snapshot Copied to Clipboard');
+                } catch (err) {
+                  console.error('Failed to copy snapshot', err);
+                }
+              }
+            },
             ...(inspectedObject?.renderContract ? [{
               label: showContract ? 'Hide Render Contract' : 'View Render Contract',
               tone: 'secondary',

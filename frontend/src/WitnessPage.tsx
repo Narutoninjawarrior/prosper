@@ -69,7 +69,7 @@ export function WitnessPage() {
       <nav className="flex items-center justify-between p-6 max-w-6xl mx-auto">
         <div className="flex items-center gap-3">
           <Shield className="w-8 h-8 text-[#c27c5a]" />
-          <span className="text-xl font-bold tracking-tight">Hearthlands Receipt Trail</span>
+          <span className="text-xl font-bold tracking-tight">Hearthlands Record Trail</span>
         </div>
         <div className="flex gap-6 text-sm font-medium text-[#6f6254]">
           <a href="#features" className="hover:text-[#c27c5a] transition-colors">Features</a>
@@ -83,7 +83,7 @@ export function WitnessPage() {
         <div className="max-w-3xl">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#f5e8da] text-[#8d5b3f] text-sm font-semibold mb-6">
             <CheckCircle className="w-4 h-4" />
-            <span>Tamper-evident receipt trail beta</span>
+            <span>Tamper-evident Record Trail beta</span>
           </div>
           <h1 className="text-5xl font-extrabold tracking-tight mb-6 leading-tight text-[#2d2218]">
             Your AI agents.<br />
@@ -91,7 +91,7 @@ export function WitnessPage() {
           </h1>
           <p className="text-xl text-[#6f6254] mb-10 leading-relaxed max-w-2xl">
             Every action your AI agents take is automatically recorded as a tamper-evident, 
-            chain-hash receipt trail. Independently verifiable. SCITT-inspired in shape, but not a formal compliance certification surface.
+            event-hash record log. Independently auditable. SCITT-inspired in shape, but not a formal compliance certification surface.
           </p>
           <div className="flex flex-col sm:flex-row gap-4">
             <a href="#pricing" className="px-8 py-4 bg-[#c27c5a] text-white rounded-lg font-semibold hover:bg-[#a86445] transition-all shadow-sm shadow-[#d3b8a3]">
@@ -107,7 +107,7 @@ export function WitnessPage() {
         <div id="features" className="py-24 grid md:grid-cols-3 gap-8">
           <div className="bg-white p-8 rounded-2xl border border-[#eadfce] shadow-sm">
             <Database className="w-10 h-10 text-[#7a9e7e] mb-5" />
-            <h3 className="text-xl font-bold mb-3">Tamper-Evident Ledger</h3>
+            <h3 className="text-xl font-bold mb-3">Auditable Log</h3>
             <p className="text-[#6f6254] leading-relaxed">
               Cryptographically chained receipts guarantee that agent actions cannot be altered or deleted after the fact.
             </p>
@@ -159,9 +159,9 @@ export function WitnessPage() {
         <div id="pricing" className="py-24">
           <div className="text-center max-w-2xl mx-auto mb-16">
             <h2 className="text-3xl font-bold mb-4">Transparent Pricing</h2>
-            <p className="text-[#6f6254] text-lg mb-6">Choose the tier that fits your receipt footprint.</p>
+            <p className="text-[#6f6254] text-lg mb-6">Choose the tier that fits your record footprint.</p>
             <div className="bg-[#f5e8da] border border-[#d3b8a3] rounded-xl p-4 text-[#8d5b3f] text-sm font-medium mx-auto inline-block">
-              Built on the same chain-hash receipt trail that governs the Hearthlands Collective — 
+              Built on the same event-hash record log that governs the Hearthlands Collective — 
               a live, production multi-agent commons. Your agents inherit its verification infrastructure.
             </div>
           </div>
@@ -172,10 +172,10 @@ export function WitnessPage() {
               <h3 className="text-2xl font-bold mb-2">Commons Tier</h3>
               <div className="text-3xl font-extrabold mb-6">$0<span className="text-lg text-[#8a7a64] font-normal">/mo</span></div>
               <ul className="space-y-4 mb-8 flex-1 text-[#6f6254]">
-                <li className="flex items-start gap-3"><CheckCircle className="w-5 h-5 text-green-500 shrink-0" /> Up to 100 receipt writes/month</li>
+                <li className="flex items-start gap-3"><CheckCircle className="w-5 h-5 text-green-500 shrink-0" /> Up to 100 record writes/month</li>
                 <li className="flex items-start gap-3"><CheckCircle className="w-5 h-5 text-green-500 shrink-0" /> 30-day retention</li>
                 <li className="flex items-start gap-3"><CheckCircle className="w-5 h-5 text-green-500 shrink-0" /> Public chain anchor verification</li>
-                <li className="flex items-start gap-3 text-[#8a7a64]"><CheckCircle className="w-5 h-5 shrink-0" /> SCITT-shaped receipt envelope</li>
+                <li className="flex items-start gap-3 text-[#8a7a64]"><CheckCircle className="w-5 h-5 shrink-0" /> SCITT-shaped record envelope</li>
               </ul>
               
               {!keyData ? (
@@ -202,10 +202,10 @@ export function WitnessPage() {
               <h3 className="text-2xl font-bold mb-2">Standard</h3>
               <div className="text-3xl font-extrabold mb-6">$99<span className="text-lg text-[#f4dfd2] font-normal">/mo</span></div>
               <ul className="space-y-4 mb-8 flex-1 text-[#fff7f1]">
-                <li className="flex items-start gap-3"><CheckCircle className="w-5 h-5 text-[#f7d5bf] shrink-0" /> Up to 10,000 receipt writes/month</li>
+                <li className="flex items-start gap-3"><CheckCircle className="w-5 h-5 text-[#f7d5bf] shrink-0" /> Up to 10,000 record writes/month</li>
                 <li className="flex items-start gap-3"><CheckCircle className="w-5 h-5 text-[#f7d5bf] shrink-0" /> 6-month hosted retention target</li>
-                <li className="flex items-start gap-3"><CheckCircle className="w-5 h-5 text-[#f7d5bf] shrink-0" /> Priority receipt API access</li>
-                <li className="flex items-start gap-3"><CheckCircle className="w-5 h-5 text-[#f7d5bf] shrink-0" /> SCITT-shaped receipt envelope</li>
+                <li className="flex items-start gap-3"><CheckCircle className="w-5 h-5 text-[#f7d5bf] shrink-0" /> Priority record API access</li>
+                <li className="flex items-start gap-3"><CheckCircle className="w-5 h-5 text-[#f7d5bf] shrink-0" /> SCITT-shaped record envelope</li>
                 <li className="flex items-start gap-3"><CheckCircle className="w-5 h-5 text-indigo-300 shrink-0" /> Monthly compliance export (CSV/JSON)</li>
               </ul>
               <button onClick={() => handleCheckout('witness_standard')} className="w-full py-3 bg-white text-[#a86445] rounded-lg font-bold hover:bg-[#faf2ec] transition-colors">
@@ -218,7 +218,7 @@ export function WitnessPage() {
               <h3 className="text-2xl font-bold mb-2">Professional</h3>
               <div className="text-3xl font-extrabold mb-6">$499<span className="text-lg text-[#8a7a64] font-normal">/mo</span></div>
               <ul className="space-y-4 mb-8 flex-1 text-[#6f6254]">
-                <li className="flex items-start gap-3"><CheckCircle className="w-5 h-5 text-[#7a9e7e] shrink-0" /> Up to 100,000 receipt writes/month</li>
+                <li className="flex items-start gap-3"><CheckCircle className="w-5 h-5 text-[#7a9e7e] shrink-0" /> Up to 100,000 record writes/month</li>
                 <li className="flex items-start gap-3"><CheckCircle className="w-5 h-5 text-indigo-600 shrink-0" /> 24-month retention</li>
                 <li className="flex items-start gap-3"><CheckCircle className="w-5 h-5 text-indigo-600 shrink-0" /> Custom agent_id namespacing</li>
                 <li className="flex items-start gap-3"><CheckCircle className="w-5 h-5 text-indigo-600 shrink-0" /> Webhook notifications on anomaly</li>
@@ -240,10 +240,10 @@ export function WitnessPage() {
           <div>
             <div className="flex items-center gap-2 mb-4">
               <Shield className="w-6 h-6 text-[#c27c5a]" />
-              <span className="font-bold text-[#faf6ef]">Hearthlands Receipt Trail</span>
+              <span className="font-bold text-[#faf6ef]">Hearthlands Record Trail</span>
             </div>
             <p className="text-sm">
-              The same receipt trail that powers the multi-agent coordination of the Hearthlands Collective, now available to yours.
+              The same Record Trail that powers the multi-agent coordination of the Hearthlands Collective, now available to yours.
             </p>
           </div>
           <div className="flex gap-12 md:justify-end">

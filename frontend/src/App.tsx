@@ -283,7 +283,7 @@ function App() {
 
   if (pathname === '/witness') {
     return (
-      <Suspense fallback={<LoadingSurface label="Loading Witness..." />}>
+      <Suspense fallback={<LoadingSurface label="Loading Record Trail..." />}>
         <WitnessPage />
       </Suspense>
     );

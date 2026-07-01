@@ -46,7 +46,7 @@ export default function ReviewPage() {
                 Proof Log
               </h2>
               <p className="text-[11px] text-gray-500 mb-3">
-                Open /proof-log and inspect one visible event (check actor, action, proof-hash, and timestamp).
+                Open /proof-log and inspect one visible event (check actor, action, event-hash, and timestamp).
               </p>
               <a href="/proof-log" target="_blank" rel="noopener noreferrer" className="inline-flex px-4 py-2 border border-[#1A1410] bg-black/20 text-[#34D399] text-[10px] uppercase tracking-widest rounded hover:border-[#34D399]/40 hover:bg-[#34D399]/5 transition-colors">
                 Open Proof Log
@@ -87,7 +87,7 @@ export default function ReviewPage() {
                   Facility Planner
                 </a>
                 <a href="/workbench?tab=biosystem" target="_blank" rel="noopener noreferrer" className="inline-flex px-4 py-2 border border-[#1A1410] bg-black/20 text-[#4A90D9] text-[10px] uppercase tracking-widest rounded hover:border-[#4A90D9]/40 hover:bg-[#4A90D9]/5 transition-colors">
-                  Biosystem Planner
+                  Biosystem Canvas
                 </a>
               </div>
             </div>
@@ -108,10 +108,10 @@ export default function ReviewPage() {
           </div>
         </div>
 
-        {/* Example Proof Detail Block */}
+        {/* Example Event Detail Block */}
         <div className="border border-[#1A1410] bg-[#0A0604] rounded-lg p-5 mb-10 shadow-lg">
           <h3 className="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-4 border-b border-[#2A1F16] pb-3 flex items-center justify-between">
-            <span>Example Proof Structure</span>
+            <span>Example Event Structure</span>
             <span className="text-[#E8842A]/70">(For Orientation)</span>
           </h3>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-y-6 gap-x-8 text-[11px]">
@@ -136,7 +136,7 @@ export default function ReviewPage() {
               <span className="text-gray-400">Verified locally</span>
             </div>
             <div className="col-span-2 md:col-span-3">
-              <span className="text-gray-600 uppercase tracking-widest block mb-1 text-[9px]">Proof Hash</span>
+              <span className="text-gray-600 uppercase tracking-widest block mb-1 text-[9px]">Event Hash</span>
               <span className="text-[#E8842A] bg-black/40 px-2 py-1.5 border border-[#2A1F16] rounded inline-block font-mono text-[10px]">
                 3f2b4c8a9e01d7... (simulated)
               </span>
@@ -154,3 +154,4 @@ export default function ReviewPage() {
     </div>
   );
 }
+

@@ -3,6 +3,7 @@ import * as admin from 'firebase-admin';
 import { requireHybridAuth } from './lib/auth';
 import { appendForgeLogEntry } from './lib/forgeLog';
 import { enforceAppCheck } from './lib/appCheckGate';
+import { applyBodyLimit, applyRateLimit } from './lib/edgeGuard';
 
 const db = admin.firestore();
 
@@ -13,6 +14,7 @@ export const budgetApi = functions.https.onRequest(async (req, res) => {
 
   if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
+  if (!applyBodyLimit(req, res, 12 * 1024)) return;
 
   const { applyGlobalFreeze } = await import('./lib/edgeGuard');
   if (!(await applyGlobalFreeze(req, res))) return;
@@ -29,6 +31,7 @@ export const budgetApi = functions.https.onRequest(async (req, res) => {
 
   try {
     if (path === '/reserve') {
+      if (!applyRateLimit(req, res, { bucket: 'budget-reserve', windowMs: 60_000, max: 10 })) return;
       const appCheckPassed = await enforceAppCheck(req, res, 'budgetReserve', authCtx);
       if (!appCheckPassed) return;
 
@@ -103,6 +106,7 @@ export const budgetApi = functions.https.onRequest(async (req, res) => {
     }
 
     if (path === '/commit') {
+      if (!applyRateLimit(req, res, { bucket: 'budget-commit', windowMs: 60_000, max: 18 })) return;
       const { reservation_id, result_hash } = req.body;
       if (!reservation_id) {
         res.status(400).json({ error: 'invalid_request', message: 'reservation_id required' });
@@ -168,6 +172,7 @@ export const budgetApi = functions.https.onRequest(async (req, res) => {
     }
 
     if (path === '/release') {
+      if (!applyRateLimit(req, res, { bucket: 'budget-release', windowMs: 60_000, max: 18 })) return;
       const { reservation_id, reason } = req.body;
       if (!reservation_id) {
         res.status(400).json({ error: 'invalid_request', message: 'reservation_id required' });

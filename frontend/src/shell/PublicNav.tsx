@@ -14,7 +14,7 @@ const LINKS = [
   { href: '/hall', label: 'Hall' },
   { href: '/lodge-mind', label: 'Mind (Legacy)' },
   { href: '/exchange', label: 'Exchange (Experimental)' },
-  { href: '/witness', label: 'Receipt Trail (Beta)' },
+  { href: '/witness', label: 'Record Trail (Beta)' },
 ]
 
 export default function PublicNav({ compact = false }: { compact?: boolean }) {

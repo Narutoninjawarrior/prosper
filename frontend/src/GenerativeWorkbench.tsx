@@ -936,7 +936,7 @@ export default function GenerativeWorkbench() {
               Export JSON + SHA-256 digest only. No Firestore writes, no wallet signing. Copy or download for steward review.<br/>
               <span className="text-[#D4A853]">Hearthlands can now stage local site geometry and work-order manifests for future CAD/GIS/field-tool handoff.</span>
               <br/>
-              <span className="text-[#A78BFA] mt-1 inline-block">Looking for witnessed work? Browse the <a href="/artifacts?category=Blueprints" className="underline hover:text-white transition-colors">Public Blueprints Archive</a>.</span>
+              <span className="text-[#A78BFA] mt-1 inline-block">Looking for published work? Browse the <a href="/artifacts?category=Blueprints" className="underline hover:text-white transition-colors">Public Blueprints Archive</a>.</span>
             </p>
           </div>
 
@@ -1471,7 +1471,7 @@ export default function GenerativeWorkbench() {
                       const hash = await hashPayload(activePayload)
                       setExportJson(json)
                       setDigest(hash)
-                      const blob = new Blob([`${json}\n\nreceipt_hash: ${hash}`], { type: 'application/json' })
+                      const blob = new Blob([`${json}\n\ncontent_hash: ${hash}`], { type: 'application/json' })
                       const url = URL.createObjectURL(blob)
                       const a = document.createElement('a')
                       a.href = url

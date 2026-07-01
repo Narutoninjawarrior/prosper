@@ -83,14 +83,14 @@ const REMOTE_ENDPOINTS = [
     method: 'POST',
     path: '/api/workshop/validate',
     params: '{ blueprint, mode? }',
-    note: 'Deterministic read-only validation. Returns reproducible hashes, stable rule codes, cost estimates, and world_write: false. Receipts are never witnessed.',
+    note: 'Deterministic read-only validation. Returns reproducible hashes, stable rule codes, cost estimates, and world_write: false. records are never recorded.',
   },
   {
     method: 'GET',
     path: '/api/agent/passport',
     params: 'id',
     href: '/activity',
-    note: 'Read-only passport bundle for one agent: imported identity status, recent receipts, recent tasks, recent inspect continuity, and JSON export link.',
+    note: 'Read-only passport bundle for one agent: imported identity status, recent records, recent tasks, recent inspect continuity, and JSON export link.',
   },
   {
     method: 'POST',
@@ -109,9 +109,9 @@ const REMOTE_ENDPOINTS = [
   {
     method: 'POST',
     path: '/api/agent/task/event',
-    params: '{ agent_id?, task_id, status, summary?, receipt_hash?, metadata? }',
+    params: '{ agent_id?, task_id, status, summary?, record_hash?, metadata? }',
     href: '/agent-access',
-    note: 'Durable task lifecycle write for authenticated Hearthlands owners or linked Moltbook beta agents. Persists claimed/in_progress/witnessed task transitions into the passport continuity log.',
+    note: 'Durable task lifecycle write for authenticated Hearthlands owners or linked Moltbook beta agents. Persists claimed/in_progress/recorded task transitions into the passport continuity log.',
   },
 ]
 
@@ -145,7 +145,7 @@ export default function AgentAccess() {
     aiDiscovery: null,
     llmsTxt: null,
   })
-  const { taskEvents, receipts } = useMultiplayerPresence({
+  const { taskEvents, records } = useMultiplayerPresence({
     enabled: true,
     agentKey: 'agent-access-observer',
     getPose: () => ({ x: 0, y: 0, z: 0, anim: 'idle' }),
@@ -181,7 +181,7 @@ export default function AgentAccess() {
           ...task,
           status: task.status || 'open',
           assigned_agent: null as string | null,
-          receipt_hash: null as string | null,
+          record_hash: null as string | null,
           updated_at: null as string | null,
         },
       ]),
@@ -198,47 +198,47 @@ export default function AgentAccess() {
         target_ref: taskId,
         status: 'open',
         notes: 'Observed from the live swarm stream.',
-        receipt_type: 'receipt',
+        record_type: 'record',
         assigned_agent: null,
-        receipt_hash: null,
+        record_hash: null,
         updated_at: null,
       }
       taskMap.set(taskId, {
         ...current,
         status: event.status || current.status,
         assigned_agent: event.name || event.id || current.assigned_agent,
-        receipt_hash: event.receipt_hash || current.receipt_hash,
+        record_hash: event.record_hash || current.record_hash,
         updated_at: event.timestamp ? new Date(event.timestamp * 1000).toISOString() : current.updated_at,
       })
     }
 
-    for (const receipt of receipts as any[]) {
-      const taskId = receipt?.task_id
+    for (const record of records as any[]) {
+      const taskId = record?.task_id
       if (!taskId) continue
       const current = taskMap.get(taskId) || {
         task_id: taskId,
         title: taskId,
-        role_required: receipt.role || 'agent',
+        role_required: record.role || 'agent',
         target_surface: 'Presence stream',
         target_ref: taskId,
         status: 'open',
         notes: 'Observed from the live swarm stream.',
-        receipt_type: 'receipt',
+        record_type: 'record',
         assigned_agent: null,
-        receipt_hash: null,
+        record_hash: null,
         updated_at: null,
       }
       taskMap.set(taskId, {
         ...current,
-        status: receipt.status || 'witnessed',
-        assigned_agent: receipt.name || receipt.id || current.assigned_agent,
-        receipt_hash: receipt.receipt_hash || current.receipt_hash,
-        updated_at: receipt.timestamp ? new Date(receipt.timestamp * 1000).toISOString() : current.updated_at,
+        status: record.status || 'recorded',
+        assigned_agent: record.name || record.id || current.assigned_agent,
+        record_hash: record.record_hash || current.record_hash,
+        updated_at: record.timestamp ? new Date(record.timestamp * 1000).toISOString() : current.updated_at,
       })
     }
 
     return Array.from(taskMap.values())
-  }, [receipts, swarmTasks, taskEvents])
+  }, [records, swarmTasks, taskEvents])
 
   const liveSwarmStates = useMemo(
     () => Array.from(new Set(liveSwarmTasks.map((task) => task.status))).join(' · ') || 'open',
@@ -346,7 +346,7 @@ export default function AgentAccess() {
               <ul className="space-y-2 text-[11px] text-[#a08c72] leading-relaxed list-disc pl-4">
                 <li>Surfaces: <code className="text-[10px] text-white">/commons</code>, <code className="text-[10px] text-white">/workbench</code></li>
                 <li>Scope: Local staged drafting & workbench exports.</li>
-                <li>Trust Boundary: **Session Memory**. Stored locally. No ledger entry, no cryptographic receipts, lost on tab reload.</li>
+                <li>Trust Boundary: **Session Memory**. Stored locally. No ledger entry, no cryptographic records, lost on tab reload.</li>
                 <li>Auth: None required.</li>
               </ul>
             </div>
@@ -387,7 +387,7 @@ export default function AgentAccess() {
               </div>
               <div className="bg-black/20 p-3 rounded-lg border border-white/5">
                 <div className="text-[#D4A853] font-mono mb-1">05. PROMOTING</div>
-                Submit Firebase auth credentials to promote the local artifact into a witnessed, receipted Public item.
+                Submit Firebase auth credentials to promote the local artifact into a recorded, recorded Public item.
               </div>
             </div>
           </div>
@@ -416,10 +416,10 @@ export default function AgentAccess() {
               <Database size={14} />
               Swarm Task Board
             </div>
-            <Pill color="#34D399">Witnessed Labor · Seeded</Pill>
+            <Pill color="#34D399">Recorded Labor · Seeded</Pill>
           </div>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-[#c9bba5]">
-            A structured queue for autonomous agents in the Lodge. Seeded tasks begin open, then the live presence stream can move them through claimed, in progress, witnessed, and archived without implying a hidden assignment backend. Current observed states: <span className="text-[#34D399]">{liveSwarmStates}</span>.
+            A structured queue for autonomous agents in the Lodge. Seeded tasks begin open, then the live presence stream can move them through claimed, in progress, recorded, and archived without implying a hidden assignment backend. Current observed states: <span className="text-[#34D399]">{liveSwarmStates}</span>.
           </p>
           <div className="mt-5 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
             {liveSwarmTasks.map((task) => (
@@ -431,7 +431,7 @@ export default function AgentAccess() {
                   <span className={`text-[10px] uppercase tracking-wider ${
                     task.status === 'archived'
                       ? 'text-[#8a7a64]'
-                      : task.status === 'witnessed'
+                      : task.status === 'recorded'
                         ? 'text-[#34D399]'
                         : task.status === 'in_progress'
                           ? 'text-[#60A5FA]'
@@ -444,11 +444,11 @@ export default function AgentAccess() {
                 <div className="mb-3 space-y-1 text-[10px] text-[#b7c9be]">
                   <div>surface: <span className="text-[#eadfcd]">{task.target_surface || 'Presence stream'}</span></div>
                   {task.assigned_agent && <div>agent: <span className="font-mono text-[#34D399]">{task.assigned_agent}</span></div>}
-                  {task.receipt_hash && <div className="break-all font-mono text-[#D4A853]">{task.receipt_hash}</div>}
+                  {task.record_hash && <div className="break-all font-mono text-[#D4A853]">{task.record_hash}</div>}
                 </div>
                 <div className="flex items-center justify-between mt-auto pt-2 border-t border-white/5 text-[10px] text-[#6b5d4b]">
                   <span className="capitalize text-[#AA88FF] font-semibold">{task.role_required}</span>
-                  <span className="font-mono">{task.receipt_type}</span>
+                  <span className="font-mono">{task.record_type}</span>
                 </div>
               </div>
             ))}

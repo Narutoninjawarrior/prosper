@@ -8,6 +8,7 @@
     "hermes:start": "node scripts/hermes-supervisor.mjs start",
     "hermes:status": "node scripts/hermes-supervisor.mjs status",
     "hermes:stop": "node scripts/hermes-supervisor.mjs stop",
+    "hermes:snapshot-watch": "powershell ./scripts/hermes_snapshot_loop.ps1",
     "verify:port-pack": "node scripts/verify-port-pack.mjs",
     "verify:lodge-interface": "node scripts/verify-lodge-interface.mjs",
     "verify:firebase-branch": "node scripts/verify-firebase-branch.mjs",

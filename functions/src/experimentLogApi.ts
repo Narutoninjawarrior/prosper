@@ -79,6 +79,7 @@ export const experimentLogApi = functions.https.onRequest(async (req, res) => {
     res.status(405).json({ error: 'Method not allowed. Use GET or POST on /api/experiment/log' });
     return;
   }
+  if (!applyRateLimit(req, res, { bucket: 'experiment-log-post', windowMs: 60_000, max: 20 })) return;
   if (!applyBodyLimit(req, res, 16 * 1024)) return;
 
   const { applyGlobalFreeze } = await import('./lib/edgeGuard');
