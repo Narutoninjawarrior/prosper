@@ -1,4 +1,9 @@
 {
+  "//": "[INTEGRITY_NOTICE] Natively synchronized via openclaw-parity-checker. All entries map to local-first verification boundaries.",
+  "schema_version": "v1.4.0",
+  "last_updated": "2026-06-30T20:05:00Z",
+  "scope": "local",
+  "maturity": "prototype",
   "version": "1.0",
   "generated_at": "2026-06-29T19:20:00Z",
   "note": "Machine-readable contract of high-value Hearthlands operations and surfaces. No autonomous treasury movement or on-chain settlement is implied.",

@@ -639,57 +639,107 @@ export default function BiosystemLoopCanvas({ onUpdate, onValidate }: BiosystemL
 
         {/* Floating Controls Overlay */}
         {selectedNode && (
-          <div className="absolute top-4 right-4 w-64 bg-black/90 border border-[#2A1F16] rounded-lg p-4 shadow-xl z-20 backdrop-blur-sm">
-            <div className="flex justify-between items-center mb-4 pb-2 border-b border-[#2A1F16]">
-              <div className="text-[10px] uppercase tracking-widest text-[#FAF6EF] font-bold">{selectedNode} Config</div>
-              <button onClick={() => setSelectedNode(null)} className="text-gray-500 hover:text-white">&times;</button>
-            </div>
-            
-            <div className="flex flex-col gap-4">
-              {selectedNode === 'RESERVOIR' && (
-                <>
-                  <label className="flex flex-col gap-1 text-[10px] uppercase tracking-widest text-gray-400">
-                    Volume (gal)
-                    <input 
-                      type="range" min="50" max="2000" step="50" 
-                      value={reservoirCapacityGallons} 
-                      onChange={e => setReservoirCapacityGallons(Number(e.target.value))} 
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1 text-[10px] uppercase tracking-widest text-gray-400">
-                    Target pH ({targetPh.toFixed(1)})
-                    <input 
-                      type="range" min="4" max="9" step="0.1" 
-                      value={targetPh} 
-                      onChange={e => setTargetPh(Number(e.target.value))} 
-                    />
-                  </label>
-                </>
-              )}
-              {selectedNode === 'PUMP' && (
-                <label className="flex flex-col gap-1 text-[10px] uppercase tracking-widest text-gray-400">
-                  Flow Rate (GPM)
-                  <input 
-                    type="range" min="1" max="100" step="1" 
-                    value={pumpFlowRateGpm} 
-                    onChange={e => setPumpFlowRateGpm(Number(e.target.value))} 
-                  />
-                </label>
-              )}
-              {selectedNode === 'GROW_BED' && (
-                <div className="text-[10px] text-gray-500">
-                  Depends on reservoir pH ({targetPh.toFixed(1)}) and incoming flow ({pumpFlowRateGpm} GPM).
+          <div className={`absolute top-4 right-4 ${selectedNode === 'RESERVOIR' ? 'w-[560px]' : 'w-64'} bg-black/95 border border-[#2A1F16] rounded-xl shadow-2xl z-20 backdrop-blur-md overflow-hidden flex flex-col`}>
+            {selectedNode === 'RESERVOIR' ? (
+              <>
+                <div className="flex bg-[#0A0604] border-b border-[#2A1F16]">
+                  <div className="w-1/2 p-3 text-[10px] uppercase tracking-widest text-[#FAF6EF] font-bold border-r border-[#2A1F16] flex justify-between items-center">
+                    <span>HUMAN BRIEF</span>
+                  </div>
+                  <div className="w-1/2 p-3 text-[10px] uppercase tracking-widest text-[#60A5FA] font-bold flex justify-between items-center">
+                    <span>MACHINE SPEC (JSON-LD)</span>
+                    <button onClick={() => setSelectedNode(null)} className="text-gray-500 hover:text-white transition-colors">&times;</button>
+                  </div>
                 </div>
-              )}
-              
-              {/* Live JSON snippet for the node */}
-              <div className="mt-2 bg-[#050302] border border-[#1A1410] p-2 rounded text-[9px] text-gray-400 font-mono whitespace-pre overflow-x-auto">
-                {selectedNode === 'RESERVOIR' && JSON.stringify(manifest.nodes['reservoir_01'], null, 2)}
-                {selectedNode === 'PUMP' && JSON.stringify(manifest.nodes['pump_01'], null, 2)}
-                {selectedNode === 'GROW_BED' && JSON.stringify(manifest.nodes['grow_bed_01'], null, 2)}
-                {selectedNode === 'SENSOR' && sensorEnabled && JSON.stringify(manifest.nodes['sensor_01'], null, 2)}
+                <div className="flex">
+                  {/* Left Pane */}
+                  <div className="w-1/2 p-5 border-r border-[#2A1F16] flex flex-col gap-6">
+                    <div>
+                      <div className="text-2xl font-bold text-[#34D399] tracking-tight">
+                        {reservoirCapacityGallons.toLocaleString()} <span className="text-[10px] text-[#34D399]/70 uppercase tracking-widest align-middle">Gallons</span>
+                      </div>
+                      <div className="text-[11px] text-[#a08c72] mt-2 leading-relaxed">
+                        Allocated capacity parameter. Adjust the baseline volume constraint to simulate resource flow.
+                      </div>
+                    </div>
+                    
+                    <label className="flex flex-col gap-2 text-[10px] uppercase tracking-widest text-gray-400">
+                      Capacity Slider
+                      <input 
+                        type="range" min="50" max="2000" step="50" 
+                        value={reservoirCapacityGallons} 
+                        onChange={e => setReservoirCapacityGallons(Number(e.target.value))} 
+                        className="accent-[#34D399]"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-2 text-[10px] uppercase tracking-widest text-gray-400">
+                      Target pH ({targetPh.toFixed(1)})
+                      <input 
+                        type="range" min="4" max="9" step="0.1" 
+                        value={targetPh} 
+                        onChange={e => setTargetPh(Number(e.target.value))} 
+                        className="accent-[#34D399]"
+                      />
+                    </label>
+                  </div>
+                  
+                  {/* Right Pane */}
+                  <div className="w-1/2 bg-[#050302] p-0 flex flex-col relative">
+                    <div className="absolute top-3 right-3 flex items-center gap-1.5 bg-[#34D399]/10 text-[#34D399] px-2 py-1 rounded text-[9px] uppercase tracking-widest font-bold border border-[#34D399]/30">
+                      <div className="w-1.5 h-1.5 rounded-full bg-[#34D399] animate-pulse"></div>
+                      VALID
+                    </div>
+                    <div className="p-5 flex-1 overflow-x-auto text-[10px] text-gray-300 font-mono whitespace-pre selection:bg-[#60A5FA]/30 pt-10">
+                      {JSON.stringify(manifest.nodes['reservoir_01'], null, 2)}
+                    </div>
+                  </div>
+                </div>
+                {/* Handshake Handoff Footer */}
+                <div className="bg-[#0A0604] border-t border-[#2A1F16] p-3 text-center">
+                  <button 
+                    onClick={() => {
+                      if (onUpdate) onUpdate(manifest);
+                    }}
+                    className="text-[10px] uppercase tracking-widest text-[#D4A853] hover:text-white font-bold transition-colors"
+                  >
+                    🚀 [PROJECT BLUEPRINT TO SPATIAL MAP]
+                  </button>
+                </div>
+              </>
+            ) : (
+              // Default view for other nodes
+              <div className="p-4">
+                <div className="flex justify-between items-center mb-4 pb-2 border-b border-[#2A1F16]">
+                  <div className="text-[10px] uppercase tracking-widest text-[#FAF6EF] font-bold">{selectedNode} Config</div>
+                  <button onClick={() => setSelectedNode(null)} className="text-gray-500 hover:text-white">&times;</button>
+                </div>
+                
+                <div className="flex flex-col gap-4">
+                  {selectedNode === 'PUMP' && (
+                    <label className="flex flex-col gap-1 text-[10px] uppercase tracking-widest text-gray-400">
+                      Flow Rate (GPM)
+                      <input 
+                        type="range" min="1" max="100" step="1" 
+                        value={pumpFlowRateGpm} 
+                        onChange={e => setPumpFlowRateGpm(Number(e.target.value))} 
+                      />
+                    </label>
+                  )}
+                  {selectedNode === 'GROW_BED' && (
+                    <div className="text-[10px] text-gray-500">
+                      Depends on reservoir pH ({targetPh.toFixed(1)}) and incoming flow ({pumpFlowRateGpm} GPM).
+                    </div>
+                  )}
+                  
+                  {/* Live JSON snippet for the node */}
+                  <div className="mt-2 bg-[#050302] border border-[#1A1410] p-2 rounded text-[9px] text-gray-400 font-mono whitespace-pre overflow-x-auto">
+                    {selectedNode === 'PUMP' && JSON.stringify(manifest.nodes['pump_01'], null, 2)}
+                    {selectedNode === 'GROW_BED' && JSON.stringify(manifest.nodes['grow_bed_01'], null, 2)}
+                    {selectedNode === 'SENSOR' && sensorEnabled && JSON.stringify(manifest.nodes['sensor_01'], null, 2)}
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
       </div>

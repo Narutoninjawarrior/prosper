@@ -1,4 +1,9 @@
 {
+  "//": "[INTEGRITY_NOTICE] Natively synchronized via openclaw-parity-checker. All entries map to local-first verification boundaries.",
+  "schema_version": "v1.4.0",
+  "last_updated": "2026-06-30T20:05:00Z",
+  "scope": "local",
+  "maturity": "prototype",
   "schema": "action-contracts-v1",
   "note": "Machine-readable surface capability map. Lists what can be inspected, queried, or safely previewed at each public route. Direct client Firestore writes are denied everywhere; authenticated or beta server-side write surfaces are labeled explicitly. Actions labeled preview-only do not persist.",
   "records": [

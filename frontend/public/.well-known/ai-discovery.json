@@ -1,4 +1,9 @@
 {
+  "//": "[INTEGRITY_NOTICE] Natively synchronized via openclaw-parity-checker. All entries map to local-first verification boundaries.",
+  "schema_version": "v1.4.0",
+  "last_updated": "2026-06-30T20:05:00Z",
+  "scope": "public",
+  "maturity": "prototype",
   "draft": "draft-aiendpoint-ai-discovery-00",
   "version": "2026-03",
   "service": {
