@@ -30,13 +30,33 @@ def record_outcome(work_card_id, metric_name, metric_unit, observed_value, calcu
             print(f"Error: Work card '{work_card_id}' does not exist.")
             return False
 
-        # 2. Prevent duplicate outcome for the same work card (since relation is One-to-One per our schema)
+        current_status = row[0]
+
+        # 2. Require an approved decision before outcomes can be recorded
+        cursor.execute(
+            "SELECT operator_approved FROM decision_traces WHERE work_card_id = ?",
+            (work_card_id,),
+        )
+        decision_row = cursor.fetchone()
+        if not decision_row:
+            print(f"Error: Work card '{work_card_id}' has no recorded decision yet.")
+            return False
+        if int(decision_row[0]) != 1:
+            print(f"Error: Work card '{work_card_id}' was not approved for execution.")
+            return False
+        if current_status not in {"REVIEWED", "AUTHORIZED"}:
+            print(
+                f"Error: Work card '{work_card_id}' must be REVIEWED or AUTHORIZED before recording an outcome."
+            )
+            return False
+
+        # 3. Prevent duplicate outcome for the same work card (since relation is One-to-One per our schema)
         cursor.execute("SELECT outcome_id FROM outcomes WHERE work_card_id = ?", (work_card_id,))
         if cursor.fetchone():
             print(f"Error: Outcome already recorded for work card '{work_card_id}'.")
             return False
 
-        # 3. Generate new outcome record
+        # 4. Generate new outcome record
         outcome_id = f"out-{datetime.utcnow().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6]}"
         observed_at = datetime.utcnow().isoformat() + 'Z'
 

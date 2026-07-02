@@ -18,11 +18,18 @@
     "sync:firestore": "node scripts/sync-firestore-from-seed.mjs",
     "sync:firestore:dry-run": "node scripts/sync-firestore-from-seed.mjs --dry-run",
     "steward:claim": "node scripts/steward-claim.mjs",
+    "hearth-ops:import-decision": "python ./hearth-ops/import_decision_json.py --refresh-operations",
     "test:passport-continuity": "node scripts/test_passport_continuity.js",
-    "test:passport-continuity:sweep": "node scripts/test_passport_continuity.js --sweep-only"
+    "test:passport-continuity:sweep": "node scripts/test_passport_continuity.js --sweep-only",
+    "test:hearth-ops": "python ./hearth-ops/test_hearth_ops.py",
+    "test:work-pack": "tsx scripts/test-work-pack.ts",
+    "test:stewardship-journal": "tsx scripts/test-stewardship-journal.ts"
   },
   "dependencies": {
     "eventsource": "^4.1.0",
     "firebase-admin": "^13.6.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.7.1"
   }
 }

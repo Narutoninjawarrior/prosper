@@ -18,7 +18,7 @@ def dict_factory(cursor, row):
 def export_journal():
     if not DB_PATH.exists():
         print(f"Database not found at {DB_PATH}.")
-        return
+        return False
 
     print(f"Exporting journal from {DB_PATH} to {OUTPUT_PATH}...")
     conn = sqlite3.connect(DB_PATH)
@@ -71,9 +71,11 @@ def export_journal():
             json.dump(journal_data, f, indent=2)
             
         print(f"Successfully exported {len(assets)} assets and their history to {OUTPUT_PATH}.")
+        return True
 
     except Exception as e:
         print(f"Export failed: {e}")
+        return False
     finally:
         conn.close()
 

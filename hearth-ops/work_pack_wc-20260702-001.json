@@ -45,7 +45,7 @@
   ],
   "approvals": {
     "reviewed_by": "operator-field-manual",
-    "reviewed_at": "2026-07-02T03:11:37.639848Z"
+    "reviewed_at": "2026-07-02T05:42:19.127548Z"
   },
   "status": "REVIEWED",
   "truth_boundary": "REVIEWED local planning draft exported from hearth-ops. Not a live execution command.",

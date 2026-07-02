@@ -14,8 +14,10 @@ import FoodCompliancePlanner from './components/FoodCompliancePlanner'
 import AllonicSchemaAssembler from './components/AllonicSchemaAssembler'
 import FacilityBuildPlanner from './components/FacilityBuildPlanner'
 import BiosystemLoopCanvas from './components/BiosystemLoopCanvas'
+import StewardshipJournalManager from './components/StewardshipJournalManager'
+import PhysicalWorkPackCompiler from './components/PhysicalWorkPackCompiler'
 
-type TabId = 'graphics' | 'soulfile' | 'memory' | 'blueprint' | 'siteplan' | 'mason' | 'food_compliance' | 'allonic' | 'facility' | 'biosystem'
+type TabId = 'graphics' | 'soulfile' | 'memory' | 'blueprint' | 'siteplan' | 'mason' | 'food_compliance' | 'allonic' | 'facility' | 'biosystem' | 'stewardship' | 'workpack'
 type DraftStage = 'Rough Cut' | 'Smoothed' | 'Sealed'
 type SaveState = 'Saved locally' | 'Saving...' | 'Unsaved changes'
 type PlannerContractRecord = {
@@ -96,6 +98,8 @@ const TABS: Array<{ id: TabId; label: string }> = [
   { id: 'allonic', label: 'Allonic Robotics' },
   { id: 'facility', label: 'Facility Build Planner' },
   { id: 'biosystem', label: 'Biosystem Loop Planner' },
+  { id: 'stewardship', label: 'Stewardship Journal' },
+  { id: 'workpack', label: 'Operational Work Card' },
   { id: 'mason', label: 'Mason' },
 ]
 
@@ -400,6 +404,8 @@ export default function GenerativeWorkbench() {
       || requestedTab === 'mason'
       || requestedTab === 'facility'
       || requestedTab === 'biosystem'
+      || requestedTab === 'stewardship'
+      || requestedTab === 'workpack'
     ) {
       setTab(requestedTab)
     }
@@ -1440,6 +1446,17 @@ export default function GenerativeWorkbench() {
                 />
               )}
 
+              {tab === 'stewardship' && (
+                <StewardshipJournalManager />
+              )}
+
+              {tab === 'workpack' && (
+                <PhysicalWorkPackCompiler
+                  facilityPayload={facilityPayload}
+                  biosystemPayload={biosystemPayload}
+                />
+              )}
+
               {tab === 'mason' && (
                 <MasonPanel
                   onStamp={(json, hash) => {
@@ -1454,7 +1471,7 @@ export default function GenerativeWorkbench() {
                 />
               )}
 
-              {tab !== 'mason' && (
+              {tab !== 'mason' && tab !== 'stewardship' && tab !== 'workpack' && (
                 <div className="mt-4 flex flex-wrap gap-2">
                   <button type="button" onClick={stamp} className="inline-flex items-center gap-2 rounded-lg bg-[#E8842A] px-4 py-2 font-mono text-[11px] font-semibold text-[#0A0402]">
                     <Box size={14} />
@@ -1554,7 +1571,7 @@ export default function GenerativeWorkbench() {
               )}
             </section>
 
-            {tab !== 'facility' && (
+            {tab !== 'facility' && tab !== 'stewardship' && tab !== 'workpack' && (
               <section className="rounded-[20px] border border-[#D4A853]/15 bg-[#0a0806]/90 flex flex-col overflow-hidden">
                 <div className="border-b border-[#D4A853]/15 bg-black/40 px-5 py-3 flex items-center justify-between">
                   <div className="text-[10px] uppercase tracking-[0.24em] text-[#8a7a64]">Human / Machine Mirror</div>
@@ -1620,44 +1637,46 @@ export default function GenerativeWorkbench() {
               </section>
             )}
 
-            <section className="rounded-[20px] border border-[#60A5FA]/15 bg-[#08101a]/90 p-5 font-mono">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <div className="text-[10px] uppercase tracking-[0.24em] text-[#93C5FD]">
-                    Specification // Post-Scarcity Ledger
+            {tab !== 'stewardship' && tab !== 'workpack' && (
+              <section className="rounded-[20px] border border-[#60A5FA]/15 bg-[#08101a]/90 p-5 font-mono">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-[0.24em] text-[#93C5FD]">
+                      Specification // Post-Scarcity Ledger
+                    </div>
+                    <p className="mt-2 max-w-3xl text-[11px] leading-5 text-[#c5d7e8]">
+                      Draft schema for future local resource accounting. This is a planning contract only.
+                      It is not a live ledger, not a settlement surface, and not connected to checkout or witness flows.
+                    </p>
                   </div>
-                  <p className="mt-2 max-w-3xl text-[11px] leading-5 text-[#c5d7e8]">
-                    Draft schema for future local resource accounting. This is a planning contract only.
-                    It is not a live ledger, not a settlement surface, and not connected to checkout or witness flows.
-                  </p>
+                  <a
+                    href="/mutual_credit_pool.schema.json"
+                    className="rounded-full border border-[#60A5FA]/25 bg-[#60A5FA]/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#BFDBFE] no-underline hover:bg-[#60A5FA]/20 transition-colors"
+                  >
+                    Open raw schema
+                  </a>
                 </div>
-                <a
-                  href="/mutual_credit_pool.schema.json"
-                  className="rounded-full border border-[#60A5FA]/25 bg-[#60A5FA]/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#BFDBFE] no-underline hover:bg-[#60A5FA]/20 transition-colors"
-                >
-                  Open raw schema
-                </a>
-              </div>
 
-              <div className="mt-4 grid gap-3 md:grid-cols-3 text-[10px] text-[#d7e4ef]">
-                <div className="rounded-lg border border-white/8 bg-black/20 px-3 py-2">
-                  <div className="uppercase tracking-[0.16em] text-[#8fb5d9]">Boundary</div>
-                  <div className="mt-1 text-[#FAF6EF]">Specification only</div>
+                <div className="mt-4 grid gap-3 md:grid-cols-3 text-[10px] text-[#d7e4ef]">
+                  <div className="rounded-lg border border-white/8 bg-black/20 px-3 py-2">
+                    <div className="uppercase tracking-[0.16em] text-[#8fb5d9]">Boundary</div>
+                    <div className="mt-1 text-[#FAF6EF]">Specification only</div>
+                  </div>
+                  <div className="rounded-lg border border-white/8 bg-black/20 px-3 py-2">
+                    <div className="uppercase tracking-[0.16em] text-[#8fb5d9]">Current use</div>
+                    <div className="mt-1 text-[#FAF6EF]">Reviewer and builder reference</div>
+                  </div>
+                  <div className="rounded-lg border border-white/8 bg-black/20 px-3 py-2">
+                    <div className="uppercase tracking-[0.16em] text-[#8fb5d9]">Not included</div>
+                    <div className="mt-1 text-[#FAF6EF]">No balances, no clearing, no payments</div>
+                  </div>
                 </div>
-                <div className="rounded-lg border border-white/8 bg-black/20 px-3 py-2">
-                  <div className="uppercase tracking-[0.16em] text-[#8fb5d9]">Current use</div>
-                  <div className="mt-1 text-[#FAF6EF]">Reviewer and builder reference</div>
-                </div>
-                <div className="rounded-lg border border-white/8 bg-black/20 px-3 py-2">
-                  <div className="uppercase tracking-[0.16em] text-[#8fb5d9]">Not included</div>
-                  <div className="mt-1 text-[#FAF6EF]">No balances, no clearing, no payments</div>
-                </div>
-              </div>
 
-              <pre className="mt-4 overflow-auto rounded-lg border border-white/8 bg-black/30 p-4 text-[11px] leading-relaxed text-[#b7d0e6]">
-                {MUTUAL_CREDIT_SCHEMA_PREVIEW}
-              </pre>
-            </section>
+                <pre className="mt-4 overflow-auto rounded-lg border border-white/8 bg-black/30 p-4 text-[11px] leading-relaxed text-[#b7d0e6]">
+                  {MUTUAL_CREDIT_SCHEMA_PREVIEW}
+                </pre>
+              </section>
+            )}
           </div>
         </div>
       </div>

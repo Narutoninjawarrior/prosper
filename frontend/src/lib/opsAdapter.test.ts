@@ -96,8 +96,28 @@ describe('opsAdapter', () => {
               tools_json: '["hammer"]',
               materials_json: '[]',
               safety_limits_json: '[]',
-              decision_traces: [],
-              outcomes: []
+              decision_traces: [
+                {
+                  decision_id: 'sqlite-dec-1',
+                  work_card_id: 'sqlite-wc-1',
+                  operator_approved: 1,
+                  reasoning: 'Operator inspected the asset.',
+                  reviewed_by: 'steward-1',
+                  reviewed_at: '2026-07-02T00:05:00Z'
+                }
+              ],
+              outcomes: [
+                {
+                  outcome_id: 'sqlite-out-1',
+                  work_card_id: 'sqlite-wc-1',
+                  observed_at: '2026-07-02T00:10:00Z',
+                  metric_name: 'humidity',
+                  observed_value: 52,
+                  metric_unit: '%',
+                  calculated_prediction_error: 2,
+                  notes: 'Recovered.'
+                }
+              ]
             }
           ]
         }
@@ -111,5 +131,8 @@ describe('opsAdapter', () => {
     expect(result.observations.length).toBe(1);
     expect(result.work_cards.length).toBe(1);
     expect(result.work_cards[0].tools).toEqual(['hammer']); // verifying json parsing
+    expect(result.decision_traces).toHaveLength(1);
+    expect(result.decision_traces[0].reviewed_by).toBe('steward-1');
+    expect(result.outcomes).toHaveLength(1);
   });
 });

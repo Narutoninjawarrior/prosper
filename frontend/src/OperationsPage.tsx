@@ -4,6 +4,7 @@ import {
   Database,
   Eye,
   FileCheck,
+  FileUp,
   Info,
   Target,
 } from 'lucide-react';
@@ -50,6 +51,32 @@ export default function OperationsPage() {
   const [data, setData] = useState<OpsViewModel | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sourceLabel, setSourceLabel] = useState('Published local export');
+
+  const loadRawData = (raw: unknown, source: string) => {
+    const result = normalizeOpsData(raw);
+    if ('error' in result) {
+      setData(null);
+      setError(result.error);
+      return;
+    }
+    setData(result);
+    setError(null);
+    setSourceLabel(source);
+  };
+
+  const inspectLocalExport = async (file: File) => {
+    setLoading(true);
+    try {
+      const raw = JSON.parse(await file.text());
+      loadRawData(raw, `Local file: ${file.name}`);
+    } catch (e) {
+      setData(null);
+      setError(e instanceof SyntaxError ? 'INVALID_JSON' : String(e));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     fetch('/journal_export.json', { cache: 'no-store' })
@@ -63,11 +90,7 @@ export default function OperationsPage() {
         return r.json();
       })
       .then((raw: any) => {
-        const result = normalizeOpsData(raw);
-        if ('error' in result) {
-          throw new Error(result.error);
-        }
-        setData(result);
+        loadRawData(raw, 'Published local export');
         setLoading(false);
       })
       .catch((e) => {
@@ -129,6 +152,25 @@ export default function OperationsPage() {
                 Read-only review of local stewardship operations. Assets, observations, work cards,
                 decisions, and outcomes from the hearth-ops prototype.
               </p>
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded border border-[#5f3b20] bg-[#160d07] px-3 py-2 text-[10px] uppercase tracking-widest text-[#E8842A] hover:border-[#E8842A]">
+                  <FileUp className="h-3.5 w-3.5" />
+                  Inspect local export
+                  <input
+                    type="file"
+                    accept="application/json,.json"
+                    className="sr-only"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) void inspectLocalExport(file);
+                      event.currentTarget.value = '';
+                    }}
+                  />
+                </label>
+                <span className="text-[9px] uppercase tracking-widest text-gray-600">
+                  {sourceLabel}
+                </span>
+              </div>
             </div>
             <div className="text-[9px] text-gray-500 uppercase tracking-widest bg-black/40 border border-[#2A1F16] inline-flex px-3 py-1.5 rounded">
               <Info className="w-3 h-3 mr-1" />
@@ -262,6 +304,7 @@ export default function OperationsPage() {
                   <th className="text-left px-4 py-2">Approved</th>
                   <th className="text-left px-4 py-2">Reasoning</th>
                   <th className="text-left px-4 py-2">Reviewer</th>
+                  <th className="text-left px-4 py-2">Reviewed</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#1A1410]">
@@ -274,6 +317,9 @@ export default function OperationsPage() {
                     </td>
                     <td className="px-4 py-2.5 text-gray-300 max-w-md">{d.reasoning}</td>
                     <td className="px-4 py-2.5 text-gray-400">{d.reviewed_by}</td>
+                    <td className="px-4 py-2.5 text-gray-500">
+                      {new Date(d.reviewed_at).toLocaleString()}
+                    </td>
                   </tr>
                 ))}
               </tbody>
