@@ -57,6 +57,7 @@ export default function OperationsPage() {
   const [filterDecision, setFilterDecision] = useState('ALL');
   const [filterOutcome, setFilterOutcome] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortOrder, setSortOrder] = useState('PRIORITY');
 
   const loadRawData = (raw: unknown, source: string) => {
     const result = normalizeOpsData(raw);
@@ -166,6 +167,35 @@ export default function OperationsPage() {
     if (filterOutcome === 'HAS DRIFT' && (!outcome || Math.abs(outcome.calculated_prediction_error || 0) < 0.1)) return false;
 
     return true;
+  });
+
+  const sortedWorkCards = [...filteredWorkCards].sort((a, b) => {
+    const decA = data.decision_traces.find(d => d.work_card_id === a.work_card_id);
+    const decB = data.decision_traces.find(d => d.work_card_id === b.work_card_id);
+    const outA = data.outcomes.find(o => o.work_card_id === a.work_card_id);
+    const outB = data.outcomes.find(o => o.work_card_id === b.work_card_id);
+    
+    const timeA = outA?.observed_at || decA?.reviewed_at || data.observations.find(o => o.observation_id === a.observation_id)?.timestamp || '1970-01-01T00:00:00Z';
+    const timeB = outB?.observed_at || decB?.reviewed_at || data.observations.find(o => o.observation_id === b.observation_id)?.timestamp || '1970-01-01T00:00:00Z';
+    
+    if (sortOrder === 'NEWEST') return new Date(timeB).getTime() - new Date(timeA).getTime();
+    if (sortOrder === 'OLDEST') return new Date(timeA).getTime() - new Date(timeB).getTime();
+    
+    // PRIORITY logic
+    const getPriority = (dec: any, out: any) => {
+      if (dec && !dec.operator_approved) return 5;
+      if (!dec) return 1;
+      if (dec.operator_approved && !out) return 2;
+      if (out && Math.abs(out.calculated_prediction_error || 0) >= 0.1) return 3;
+      return 4;
+    };
+    
+    const prioA = getPriority(decA, outA);
+    const prioB = getPriority(decB, outB);
+    
+    if (prioA !== prioB) return prioA - prioB;
+    
+    return new Date(timeB).getTime() - new Date(timeA).getTime();
   });
 
   return (
@@ -336,15 +366,27 @@ export default function OperationsPage() {
                   <option value="NO OUTCOME">Pending</option>
                 </select>
               </div>
+              <div className="flex items-center gap-1.5 ml-2 border-l border-[#2A1F16] pl-3">
+                <span className="text-gray-600">Sort</span>
+                <select
+                  value={sortOrder}
+                  onChange={(e) => setSortOrder(e.target.value)}
+                  className="bg-[#110D0A] border border-[#2A1F16] rounded px-2 py-1 text-gray-300 focus:outline-none focus:border-[#E8842A]"
+                >
+                  <option value="PRIORITY">Priority</option>
+                  <option value="NEWEST">Newest</option>
+                  <option value="OLDEST">Oldest</option>
+                </select>
+              </div>
             </div>
           </div>
 
           <div className="space-y-4">
-            {filteredWorkCards.length === 0 ? (
+            {sortedWorkCards.length === 0 ? (
               <div className="text-center py-12 text-[11px] text-gray-500 uppercase tracking-widest border border-dashed border-[#1A1410] rounded-lg">
                 No lifecycle records match the current filters.
               </div>
-            ) : filteredWorkCards.map((wc) => {
+            ) : sortedWorkCards.map((wc) => {
               const observation = wc.observation_id 
                 ? data.observations.find(o => o.observation_id === wc.observation_id)
                 : undefined;
