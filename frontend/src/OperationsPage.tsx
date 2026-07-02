@@ -198,6 +198,10 @@ export default function OperationsPage() {
     return new Date(timeB).getTime() - new Date(timeA).getTime();
   });
 
+  const generatedTime = data.meta.generated_at ? new Date(data.meta.generated_at).getTime() : 0;
+  // Threshold: 24 hours
+  const isStale = generatedTime > 0 && (Date.now() - generatedTime) > 24 * 60 * 60 * 1000;
+
   return (
     <div className="min-h-screen bg-[#050806] text-gray-200 p-4 md:p-8 font-mono">
       <div className="max-w-6xl mx-auto">
@@ -228,9 +232,6 @@ export default function OperationsPage() {
                     }}
                   />
                 </label>
-                <span className="text-[9px] uppercase tracking-widest text-gray-600">
-                  {sourceLabel}
-                </span>
               </div>
             </div>
             <div className="text-[9px] text-gray-500 uppercase tracking-widest bg-black/40 border border-[#2A1F16] inline-flex px-3 py-1.5 rounded">
@@ -239,6 +240,35 @@ export default function OperationsPage() {
             </div>
           </div>
         </header>
+
+        {/* Source Metadata Strip */}
+        <div className="mb-8 bg-[#0A0604] border border-[#1A1410] rounded-lg p-4 text-[11px] text-gray-400">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <div className="text-[9px] uppercase tracking-widest text-gray-500 mb-1">Source</div>
+              <div className="text-gray-300">{sourceLabel}</div>
+            </div>
+            <div>
+              <div className="text-[9px] uppercase tracking-widest text-gray-500 mb-1">Generated At</div>
+              <div className="text-gray-300">
+                {data.meta.generated_at ? new Date(data.meta.generated_at).toLocaleString() : 'not provided by export'}
+              </div>
+            </div>
+            <div>
+              <div className="text-[9px] uppercase tracking-widest text-gray-500 mb-1">Assets Count</div>
+              <div className="text-gray-300 font-mono">{data.assets.length}</div>
+            </div>
+            <div>
+              <div className="text-[9px] uppercase tracking-widest text-gray-500 mb-1">Lifecycle Count</div>
+              <div className="text-gray-300 font-mono">{data.work_cards.length}</div>
+            </div>
+          </div>
+          {isStale && (
+            <div className="mt-3 pt-3 border-t border-[#1A1410] text-[10px] text-gray-500 italic">
+              Snapshot may be stale. Re-export local ops journal for newer field state.
+            </div>
+          )}
+        </div>
 
         {/* Assets */}
         <section className="mb-8">
