@@ -149,6 +149,53 @@ export async function resolveLocalCompletedWorkCards(): Promise<WorkPackValidati
 }
 
 /**
+ * Parses a JSON object as a completed card context (journal export format).
+ * Returns WorkPackValidationContext if valid, or an error object.
+ */
+export function parseCompletedWorkCardsFromJson(raw: any, filename: string): WorkPackValidationContext | { error: string } {
+  let ids: string[] = [];
+  let generatedAt: string | undefined = undefined;
+
+  try {
+    if (raw.updated_at) {
+      generatedAt = raw.updated_at;
+    } else if (raw.meta && raw.meta.generated_at) {
+      generatedAt = raw.meta.generated_at;
+    }
+
+    if (raw.entries && Array.isArray(raw.entries)) {
+      raw.entries.forEach((entry: any) => {
+        if (entry.decision && entry.decision.approved_by_human) {
+           if (entry.outcome) {
+             ids.push(`wc-${entry.entry_id}`);
+           }
+        }
+      });
+      return {
+        completed_work_card_ids: ids,
+        source: `Loaded local completion file: ${filename}` as any,
+        generatedAt
+      };
+    } else if (raw.assets && Array.isArray(raw.assets)) {
+      raw.assets.forEach((a: any) => {
+        if (a.work_cards && Array.isArray(a.work_cards)) {
+          a.work_cards.forEach((wc: any) => {
+            if (wc.status === 'COMPLETED') ids.push(wc.work_card_id);
+          });
+        }
+      });
+      return {
+        completed_work_card_ids: ids,
+        source: `Loaded local completion file: ${filename}` as any,
+        generatedAt
+      };
+    }
+  } catch {}
+
+  return { error: 'Completion context load failed: unsupported local journal format.' };
+}
+
+/**
  * Validates a PhysicalWorkPackV1 against strict structural and safety constraints.
  */
 export function validatePhysicalWorkPack(pack: PhysicalWorkPackV1, context?: WorkPackValidationContext): WorkPackValidationError[] {

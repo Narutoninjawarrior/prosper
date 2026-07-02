@@ -7,7 +7,8 @@ import {
   PhysicalWorkPackV1, 
   validatePhysicalWorkPack,
   StopConditionV1,
-  resolveLocalCompletedWorkCards
+  resolveLocalCompletedWorkCards,
+  parseCompletedWorkCardsFromJson
 } from '../frontend/src/lib/physicalWorkPack';
 
 const sampleStopConditions: StopConditionV1[] = [
@@ -337,6 +338,23 @@ console.log('Running Hardened PhysicalWorkPackV1 Validation Tests...\n');
   const ctxEmpty = await resolveLocalCompletedWorkCards();
   assert(ctxEmpty.source === 'No completion context loaded', 'Source should indicate no context when both fail.');
   assert(ctxEmpty.completed_work_card_ids?.length === 0, 'Completed card IDs should be empty when context missing.');
+
+  // Case D: parseCompletedWorkCardsFromJson valid payload
+  const validParsed = parseCompletedWorkCardsFromJson({
+    assets: [
+      { work_cards: [{ work_card_id: 'wc-custom-001', status: 'COMPLETED' }] }
+    ]
+  }, 'my_journal.json');
+  assert('completed_work_card_ids' in validParsed, 'Should parse successfully.');
+  assert(validParsed.completed_work_card_ids?.includes('wc-custom-001') === true, 'Parsed context should contain wc-custom-001.');
+  assert(validParsed.source === 'Loaded local completion file: my_journal.json', 'Source should indicate file load.');
+
+  // Case E: parseCompletedWorkCardsFromJson invalid format
+  const invalidParsed = parseCompletedWorkCardsFromJson({
+    some_random_field: 'unsupported'
+  }, 'bad_file.json');
+  assert('error' in invalidParsed, 'Should return error for invalid payload.');
+  assert((invalidParsed as any).error === 'Completion context load failed: unsupported local journal format.', 'Should return exact error message.');
 
   // Restore global environment
   (global as any).fetch = originalFetch;

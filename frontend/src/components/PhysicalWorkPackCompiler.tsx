@@ -9,7 +9,8 @@ import type {
 import { 
   validatePhysicalWorkPack, 
   compileWorkPackMarkdown,
-  resolveLocalCompletedWorkCards
+  resolveLocalCompletedWorkCards,
+  parseCompletedWorkCardsFromJson
 } from '../lib/physicalWorkPack';
 import { Download, CheckCircle2, AlertTriangle, RefreshCw, Layers, ShieldAlert, Sparkles } from 'lucide-react';
 
@@ -61,6 +62,29 @@ export default function PhysicalWorkPackCompiler({
 
   // Validation Context
   const [validationContext, setValidationContext] = useState<WorkPackValidationContext>({ completed_work_card_ids: [] });
+  const [contextError, setContextError] = useState<string | null>(null);
+
+  const handleLoadContextFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const raw = JSON.parse(event.target?.result as string);
+        const parsed = parseCompletedWorkCardsFromJson(raw, file.name);
+        if ('error' in parsed) {
+          setContextError(parsed.error);
+        } else {
+          setValidationContext(parsed);
+          setContextError(null);
+        }
+      } catch (err) {
+        setContextError('Completion context load failed: unsupported local journal format.');
+      }
+    };
+    reader.readAsText(file);
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -596,10 +620,29 @@ export default function PhysicalWorkPackCompiler({
               </div>
             )}
             {isContextStale && (
-              <div className="text-[10px] text-gray-500 italic mt-1 border-t border-[#7A9E7E]/10 pt-1.5 leading-relaxed">
+              <div className="text-[10px] text-gray-500 italic mt-1 border-t border-[#7A9E7E]/10 pt-1.5 leading-relaxed font-sans">
                 Completion context may be stale. Re-export local ops journal for newer dependency state.
               </div>
             )}
+            
+            {/* Control to load custom context */}
+            <div className="mt-2 pt-2 border-t border-[#7A9E7E]/10 flex flex-col gap-1">
+              <label className="flex items-center gap-2 cursor-pointer text-[#7A9E7E] hover:text-[#88af8c] transition-colors">
+                <Layers className="w-3.5 h-3.5" />
+                <span className="uppercase font-bold tracking-wider">Load local completion context</span>
+                <input 
+                  type="file" 
+                  accept=".json" 
+                  onChange={handleLoadContextFile} 
+                  className="hidden" 
+                />
+              </label>
+              {contextError && (
+                <div className="text-red-400 text-[9px] mt-0.5 font-bold leading-normal font-sans">
+                  {contextError}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Approval Records Panel */}
