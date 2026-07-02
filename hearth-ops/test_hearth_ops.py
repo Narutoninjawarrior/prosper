@@ -250,6 +250,11 @@ class TestHearthOps(unittest.TestCase):
         self.assertEqual(row[0], 75.0)
         self.assertEqual(row[1], 5.0)
         self.assertEqual(row[2], "Test outcome recorded successfully.")
+        
+        cursor.execute("SELECT status FROM work_cards WHERE work_card_id = ?", ("wc-20260702-001",))
+        status_row = cursor.fetchone()
+        self.assertEqual(status_row[0], "COMPLETED")
+        
         conn.close()
 
     def test_record_decision_inserts_and_promotes_reviewed_status(self):
@@ -388,6 +393,7 @@ class TestHearthOps(unittest.TestCase):
         work_card = exported["assets"][0]["work_cards"][0]
         self.assertEqual(len(work_card["outcomes"]), 1)
         self.assertEqual(work_card["outcomes"][0]["observed_value"], 25.5)
+        self.assertEqual(work_card["status"], "COMPLETED")
 
     def test_import_outcome_payload_missing_fields(self):
         import import_outcome_json

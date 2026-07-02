@@ -65,8 +65,10 @@ def record_outcome(work_card_id, metric_name, metric_unit, observed_value, calcu
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, (outcome_id, work_card_id, observed_at, metric_name, observed_value, metric_unit, calculated_prediction_error, notes))
 
+        cursor.execute("UPDATE work_cards SET status = 'COMPLETED' WHERE work_card_id = ?", (work_card_id,))
+
         conn.commit()
-        print(f"Success: Outcome '{outcome_id}' recorded for work card '{work_card_id}'.")
+        print(f"Success: Outcome '{outcome_id}' recorded and work card '{work_card_id}' promoted to COMPLETED.")
         return True
 
     except sqlite3.IntegrityError as e:
