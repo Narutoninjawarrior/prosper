@@ -282,6 +282,11 @@ export default function PhysicalWorkPackCompiler({
         : status === 'REVIEWED'
         ? 'REVIEWED local planning draft. Checked against structure or biosystem constraints. Awaiting final authorized steward handoff before any queue staging.'
         : 'DRAFT/PROPOSED local planning draft only. Not live execution command.',
+      prerequisite_validation_context: {
+        validation_context_source: validationContext.source || 'No completion context loaded',
+        validation_context_completed_card_count: validationContext.completed_work_card_ids?.length || 0,
+        ...(validationContext.generatedAt ? { validation_context_generated_at: validationContext.generatedAt } : {})
+      },
       domain_extensions: {}
     };
 
@@ -314,7 +319,8 @@ export default function PhysicalWorkPackCompiler({
     estimatedLaborHours, safetyLimits, stopConditions, prerequisites, dependencies,
     status, reviewedBy, reviewedAt, authorizedBy, authorizedAt,
     buildingCodeRef, structuralInspection, species, cultivar,
-    healthMetricTarget, commandVocabulary, maxPayloadKg, safeStateMode
+    healthMetricTarget, commandVocabulary, maxPayloadKg, safeStateMode,
+    validationContext
   ]);
 
   // Validation report
@@ -932,6 +938,13 @@ export default function PhysicalWorkPackCompiler({
                 </pre>
               )}
             </div>
+
+            {compiledPack && (
+              <div className="bg-[#0f0e0d] border-t border-white/5 px-4 py-2 text-[10px] text-gray-500 font-mono flex items-center justify-between">
+                <span>Prerequisite validation used local completion context metadata included in this artifact.</span>
+                <span className="text-gray-600 uppercase tracking-widest text-[9px]">Local-First Boundary Verified</span>
+              </div>
+            )}
           </div>
 
         </div>

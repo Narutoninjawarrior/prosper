@@ -356,6 +356,28 @@ console.log('Running Hardened PhysicalWorkPackV1 Validation Tests...\n');
   assert('error' in invalidParsed, 'Should return error for invalid payload.');
   assert((invalidParsed as any).error === 'Completion context load failed: unsupported local journal format.', 'Should return exact error message.');
 
+  // Case F: compileWorkPackMarkdown outputs Prerequisite Validation Context section
+  const { compileWorkPackMarkdown } = require('../frontend/src/lib/physicalWorkPack');
+  const mockPackWithCtx: PhysicalWorkPackV1 = {
+    ...baseConstructionPack,
+    prerequisite_validation_context: {
+      validation_context_source: 'Loaded local completion file: custom.json',
+      validation_context_completed_card_count: 5,
+      validation_context_generated_at: '2026-07-02T11:00:00Z'
+    }
+  };
+  const md = compileWorkPackMarkdown(mockPackWithCtx);
+  assert(md.includes('## 7. Prerequisite Validation Context'), 'Markdown should contain Section 7.');
+  assert(md.includes('Validation Context Source:** Loaded local completion file: custom.json'), 'Markdown should list source.');
+  assert(md.includes('Completed Card Count:** 5'), 'Markdown should list completed card count.');
+  assert(md.includes('Snapshot Generated:** 2026-07-02T11:00:00Z'), 'Markdown should list snapshot generation time.');
+
+  // Case G: prerequisite_validation_context survives JSON serialization
+  const roundtripJson = JSON.parse(JSON.stringify(mockPackWithCtx));
+  assert(roundtripJson.prerequisite_validation_context.validation_context_source === 'Loaded local completion file: custom.json', 'JSON source survives serialization.');
+  assert(roundtripJson.prerequisite_validation_context.validation_context_completed_card_count === 5, 'JSON completed card count survives serialization.');
+  assert(roundtripJson.prerequisite_validation_context.validation_context_generated_at === '2026-07-02T11:00:00Z', 'JSON timestamp survives serialization.');
+
   // Restore global environment
   (global as any).fetch = originalFetch;
   (global as any).window = originalWindow;

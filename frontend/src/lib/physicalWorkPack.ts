@@ -68,6 +68,11 @@ export interface PhysicalWorkPackV1 {
       safe_state_mode?: string;
     };
   };
+  prerequisite_validation_context?: {
+    validation_context_source: string;
+    validation_context_generated_at?: string;
+    validation_context_completed_card_count: number;
+  };
 }
 
 export interface WorkPackValidationError {
@@ -431,6 +436,11 @@ ${pack.dependencies.length > 0 ? pack.dependencies.map(d => `*   ${d}`).join('\n
 ## 6. Approval Records
 *   ${checkSymbol(pack.approvals.reviewed_by)} **Reviewed By:** ${pack.approvals.reviewed_by || 'Pending'} ${pack.approvals.reviewed_at ? `on ${pack.approvals.reviewed_at}` : ''}
 *   ${checkSymbol(pack.approvals.authorized_by)} **Authorized By:** ${pack.approvals.authorized_by || 'Pending'} ${pack.approvals.authorized_at ? `on ${pack.approvals.authorized_at}` : ''}
+
+## 7. Prerequisite Validation Context
+*   **Validation Context Source:** ${pack.prerequisite_validation_context?.validation_context_source || 'No completion context loaded'}
+*   **Completed Card Count:** ${pack.prerequisite_validation_context?.validation_context_completed_card_count ?? 0}
+${pack.prerequisite_validation_context?.validation_context_generated_at ? `*   **Snapshot Generated:** ${pack.prerequisite_validation_context.validation_context_generated_at}\n` : ''}
 
 ---
 **TRUTH BOUNDARY NOTICE:**
