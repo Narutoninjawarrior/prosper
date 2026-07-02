@@ -311,7 +311,7 @@ function App() {
   if (pathname === '/' || pathname === '/explore') {
     return (
       <SuspendedPublicShell className="min-h-screen w-screen bg-[#050806]" label="Loading the Hearthlands...">
-        <div className="h-full overflow-y-auto">
+        <div className="min-h-full overflow-y-auto">
           <LandingPage />
         </div>
       </SuspendedPublicShell>
