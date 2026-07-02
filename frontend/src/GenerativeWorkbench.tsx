@@ -14,6 +14,7 @@ import FoodCompliancePlanner from './components/FoodCompliancePlanner'
 import AllonicSchemaAssembler from './components/AllonicSchemaAssembler'
 import FacilityBuildPlanner from './components/FacilityBuildPlanner'
 import BiosystemLoopCanvas from './components/BiosystemLoopCanvas'
+import { SchemaDropper } from './components/SchemaDropper'
 import StewardshipJournalManager from './components/StewardshipJournalManager'
 import PhysicalWorkPackCompiler from './components/PhysicalWorkPackCompiler'
 
@@ -48,6 +49,7 @@ type PlannerIntake = {
   kind?: string
   summary?: string
   intendedTab?: string
+  hydrationPayload?: any
 }
 
 type WorkbenchHandoff = {
@@ -413,6 +415,7 @@ export default function GenerativeWorkbench() {
   const [draftRecoveryNeeded, setDraftRecoveryNeeded] = useState(false)
   const [saveState, setSaveState] = useState<SaveState>('Saved locally')
   const [exportNotice, setExportNotice] = useState('')
+  const [plannerKey, setPlannerKey] = useState(0)
   const plannerContractsEnvelope = useContract('/planner_contracts.json', normalizePlannerContracts, [])
   const exportTargetsEnvelope = useContract('/export_targets.json', normalizeExportTargets, [])
 
@@ -601,6 +604,20 @@ export default function GenerativeWorkbench() {
     params.delete('summary')
     const next = params.toString()
     window.history.replaceState({}, '', `${window.location.pathname}${next ? `?${next}` : ''}`)
+  }
+
+  const handleHydrate = (payload: any, type: string) => {
+    if (
+      type === 'allonic' ||
+      type === 'facility' ||
+      type === 'biosystem' ||
+      type === 'siteplan' ||
+      type === 'food_compliance'
+    ) {
+      setTab(type as any)
+      setPlannerIntake({ hydrationPayload: payload, source: 'local_file', intendedTab: type })
+      setPlannerKey(k => k + 1)
+    }
   }
 
   const returnToCommons = () => {
@@ -1420,6 +1437,7 @@ export default function GenerativeWorkbench() {
 
               {tab === 'siteplan' && (
                 <ParametricSitePlanner
+                  key={plannerKey}
                   initialIntake={tab === 'siteplan' ? plannerIntake : null}
                   onUpdate={(payload) => {
                     setSitePlanPayload(payload)
@@ -1432,6 +1450,7 @@ export default function GenerativeWorkbench() {
 
               {tab === 'food_compliance' && (
                 <FoodCompliancePlanner
+                  key={plannerKey}
                   initialIntake={tab === 'food_compliance' ? plannerIntake : null}
                   onUpdate={(payload) => {
                     setFoodCompliancePayload(payload)
@@ -1444,6 +1463,7 @@ export default function GenerativeWorkbench() {
 
               {tab === 'allonic' && (
                 <AllonicSchemaAssembler
+                  key={plannerKey}
                   initialIntake={tab === 'allonic' ? plannerIntake : null}
                   onUpdate={(payload) => {
                     setAllonicPayload(payload)
@@ -1456,6 +1476,8 @@ export default function GenerativeWorkbench() {
 
               {tab === 'facility' && (
                 <FacilityBuildPlanner
+                  key={plannerKey}
+                  initialManifest={plannerIntake?.hydrationPayload}
                   onManifestChange={(payload) => {
                     setFacilityPayload(payload)
                     setExportJson('')
@@ -1467,6 +1489,8 @@ export default function GenerativeWorkbench() {
 
               {tab === 'biosystem' && (
                 <BiosystemLoopCanvas
+                  key={plannerKey}
+                  initialManifest={plannerIntake?.hydrationPayload}
                   onUpdate={(payload) => {
                     setBiosystemPayload(payload)
                     setExportJson('')
@@ -1550,11 +1574,23 @@ export default function GenerativeWorkbench() {
                     <button
                       type="button"
                       onClick={async () => {
-                        const json = JSON.stringify(activePayload, null, 2)
                         const hash = await hashPayload(activePayload)
-                        setExportJson(json)
+                        const isSupportedPlanner = tab === 'allonic' || tab === 'facility' || tab === 'biosystem'
+                        let finalExportObj = activePayload
+                        if (isSupportedPlanner) {
+                          finalExportObj = {
+                            schema_version: 'v1',
+                            planner_type: tab,
+                            payload: activePayload,
+                            content_hash: hash
+                          }
+                        }
+                        const json = JSON.stringify(finalExportObj, null, 2)
+                        setExportJson(JSON.stringify(activePayload, null, 2))
                         setDigest(hash)
-                        const blob = new Blob([`${json}\n\ncontent_hash: ${hash}`], { type: 'application/json' })
+                        
+                        const fileContent = isSupportedPlanner ? json : `${JSON.stringify(activePayload, null, 2)}\n\ncontent_hash: ${hash}`
+                        const blob = new Blob([fileContent], { type: 'application/json' })
                         const url = URL.createObjectURL(blob)
                         const a = document.createElement('a')
                         a.href = url
@@ -1698,8 +1734,14 @@ export default function GenerativeWorkbench() {
                     </div>
                   )}
                 </div>
-              )}
-            </section>
+                )}
+
+                {(tab === 'facility' || tab === 'biosystem' || tab === 'allonic' || tab === 'siteplan' || tab === 'food_compliance') && (
+                  <div className="px-5 pb-5 pt-2 border-t border-white/5">
+                    <SchemaDropper onHydrate={handleHydrate} />
+                  </div>
+                )}
+              </section>
 
             {tab !== 'facility' && tab !== 'stewardship' && tab !== 'workpack' && (
               <section className="rounded-[20px] border border-[#D4A853]/15 bg-[#0a0806]/90 flex flex-col overflow-hidden">
