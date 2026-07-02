@@ -1,0 +1,57 @@
+{
+  "id": "wc-20260702-001",
+  "version": "v1.0.0",
+  "facility_reference": {
+    "facility_id": "conservatory-south",
+    "facility_title": "conservatory-south"
+  },
+  "target_assets": [
+    "Lower Cacao Canopy Zone 4"
+  ],
+  "task": {
+    "description": "Activate misting loop for 5 minutes",
+    "task_class": "maintenance"
+  },
+  "proposed_operator": {
+    "type": "human",
+    "required_role_or_qualification": "Conservatory Steward"
+  },
+  "spatial_boundary": {
+    "facility_zone": "Lower Cacao Canopy Zone 4"
+  },
+  "resource_requirements": {
+    "materials": [],
+    "tools": [
+      "humidity probe",
+      "misting control panel"
+    ],
+    "estimated_labor_hours": 0.1
+  },
+  "constraints": {
+    "safety_limits": [
+      "Do not exceed 80% relative humidity"
+    ],
+    "stop_conditions": [
+      {
+        "condition_id": "abort_humidity_high",
+        "description": "Relative humidity exceeds 80%",
+        "required_response": "Stop misting cycle and re-check canopy conditions"
+      }
+    ]
+  },
+  "dependencies": [
+    "Observation ID: obs-20260702-001",
+    "Observed via sensor-stream: relative_humidity=68.0%"
+  ],
+  "approvals": {
+    "reviewed_by": "operator-field-manual",
+    "reviewed_at": "2026-07-02T02:55:34.445430Z"
+  },
+  "status": "REVIEWED",
+  "truth_boundary": "REVIEWED local planning draft exported from hearth-ops. Not a live execution command.",
+  "domain_extensions": {
+    "biological": {
+      "health_metric_target": "relative_humidity"
+    }
+  }
+}
