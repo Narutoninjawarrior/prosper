@@ -1567,6 +1567,63 @@ export default function GenerativeWorkbench() {
                       <Download size={14} />
                       Download JSON
                     </button>
+                    
+                    {(tab === 'allonic' || tab === 'facility' || tab === 'biosystem') && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          let rows: string[] = ['planner_tab,artifact_title,item_type,item_label,quantity,unit,notes']
+                          let title = ''
+                          
+                          if (tab === 'allonic' && allonicPayload) {
+                            title = `hearth-workbench-allonic.csv`
+                            rows.push(`"allonic","${allonicPayload.blueprint.name}","summary","Total Mass","${allonicPayload.summary.total_mass_kg}","kg","Intended use: ${allonicPayload.blueprint.intended_use}"`)
+                            rows.push(`"allonic","${allonicPayload.blueprint.name}","summary","Net Power Draw","${allonicPayload.summary.net_power_draw_watts}","W",""`)
+                            rows.push(`"allonic","${allonicPayload.blueprint.name}","summary","Module Count","${allonicPayload.summary.module_count}","count",""`)
+                          } else if (tab === 'facility' && facilityPayload) {
+                            title = `hearth-workbench-facility.csv`
+                            const fTitle = facilityPayload.title
+                            rows.push(`"facility","${fTitle}","summary","Power Needs","${facilityPayload.estimated_power_needs}","W","Facility Type: ${facilityPayload.facility_type}"`)
+                            rows.push(`"facility","${fTitle}","summary","Water Needs","${facilityPayload.estimated_water_needs}","L",""`)
+                            rows.push(`"facility","${fTitle}","summary","Budget","${facilityPayload.estimated_budget_ember}","EMBER",""`)
+                            
+                            if (Array.isArray(facilityPayload.materials)) {
+                              facilityPayload.materials.forEach((m: any) => {
+                                rows.push(`"facility","${fTitle}","material","${m.item}","${m.quantity}","${m.unit}","Phase: ${m.phase || ''}"`)
+                              })
+                            }
+                          } else if (tab === 'biosystem' && biosystemPayload) {
+                            title = `hearth-workbench-biosystem.csv`
+                            const bTitle = biosystemPayload.title
+                            rows.push(`"biosystem","${bTitle}","summary","Reservoir Capacity","${biosystemPayload.reservoirCapacityGallons}","gal",""`)
+                            rows.push(`"biosystem","${bTitle}","summary","Pump Flow Rate","${biosystemPayload.pumpFlowRateGpm}","GPM",""`)
+                            rows.push(`"biosystem","${bTitle}","summary","Target pH","${biosystemPayload.targetPh}","pH",""`)
+                            
+                            if (biosystemPayload.nodes) {
+                              Object.entries(biosystemPayload.nodes).forEach(([id, node]: [string, any]) => {
+                                rows.push(`"biosystem","${bTitle}","node","${node.type}","1","unit","Node ID: ${id}"`)
+                              })
+                            }
+                          } else {
+                            return
+                          }
+
+                          const csvContent = rows.join('\n')
+                          const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+                          const url = URL.createObjectURL(blob)
+                          const a = document.createElement('a')
+                          a.href = url
+                          a.download = title
+                          a.click()
+                          URL.revokeObjectURL(url)
+                          setExportNotice('Local CSV rollup downloaded for spreadsheet use.')
+                        }}
+                        className="inline-flex items-center gap-2 rounded-lg border border-white/15 px-4 py-2 font-mono text-[11px] text-[#c9bba5]"
+                      >
+                        <FileText size={14} />
+                        Download Operational CSV
+                      </button>
+                    )}
                     {tab === 'siteplan' && sitePlanPayload && (
                       <button
                         type="button"
