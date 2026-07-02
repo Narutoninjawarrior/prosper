@@ -81,6 +81,53 @@ export interface WorkPackValidationContext {
 }
 
 /**
+ * Resolves the completed card context from known local artifacts (like ops journal).
+ * Falls back to legacy sessionStorage if the structured artifact is missing.
+ */
+export async function resolveLocalCompletedWorkCards(): Promise<WorkPackValidationContext> {
+  let ids: string[] = [];
+  try {
+    // Attempt to read from the published local ops journal (normalized truth)
+    const res = await fetch('/journal_export.json', { cache: 'no-store' });
+    if (res.ok) {
+      const raw = await res.json();
+      // Basic inline traversal (avoids circular deps with opsAdapter)
+      if (raw.entries && Array.isArray(raw.entries)) {
+        raw.entries.forEach((entry: any) => {
+          if (entry.decision && entry.decision.approved_by_human) {
+             // In the journal, a completed card would ideally have an outcome or explicit status. 
+             // We'll mark it completed if it has an outcome recorded.
+             if (entry.outcome) {
+               ids.push(`wc-${entry.entry_id}`);
+             }
+          }
+        });
+      } else if (raw.assets && Array.isArray(raw.assets)) {
+        raw.assets.forEach((a: any) => {
+          if (a.work_cards && Array.isArray(a.work_cards)) {
+            a.work_cards.forEach((wc: any) => {
+              if (wc.status === 'COMPLETED') ids.push(wc.work_card_id);
+            });
+          }
+        });
+      }
+    }
+  } catch {
+    // Silently proceed to fallback
+  }
+
+  // Legacy fallback
+  if (ids.length === 0 && typeof window !== 'undefined' && window.sessionStorage) {
+    const legacy = window.sessionStorage.getItem('hearth_workbench_completed_cards');
+    if (legacy) {
+      try { ids = JSON.parse(legacy); } catch {}
+    }
+  }
+
+  return { completed_work_card_ids: ids };
+}
+
+/**
  * Validates a PhysicalWorkPackV1 against strict structural and safety constraints.
  */
 export function validatePhysicalWorkPack(pack: PhysicalWorkPackV1, context?: WorkPackValidationContext): WorkPackValidationError[] {

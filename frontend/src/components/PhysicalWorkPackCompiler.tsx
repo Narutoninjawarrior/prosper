@@ -1,13 +1,15 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import type { 
   PhysicalWorkPackV1, 
   WorkPackStatus, 
   OperatorType,
-  StopConditionV1
+  StopConditionV1,
+  WorkPackValidationContext
 } from '../lib/physicalWorkPack';
 import { 
   validatePhysicalWorkPack, 
-  compileWorkPackMarkdown 
+  compileWorkPackMarkdown,
+  resolveLocalCompletedWorkCards
 } from '../lib/physicalWorkPack';
 import { Download, CheckCircle2, AlertTriangle, RefreshCw, Layers, ShieldAlert, Sparkles } from 'lucide-react';
 
@@ -56,6 +58,17 @@ export default function PhysicalWorkPackCompiler({
   const [commandVocabulary, setCommandVocabulary] = useState('');
   const [maxPayloadKg, setMaxPayloadKg] = useState(0);
   const [safeStateMode, setSafeStateMode] = useState('');
+
+  // Validation Context
+  const [validationContext, setValidationContext] = useState<WorkPackValidationContext>({ completed_work_card_ids: [] });
+
+  useEffect(() => {
+    let mounted = true;
+    resolveLocalCompletedWorkCards().then(ctx => {
+      if (mounted) setValidationContext(ctx);
+    });
+    return () => { mounted = false; };
+  }, []);
 
   // View state
   const [previewTab, setPreviewTab] = useState<'md' | 'json'>('md');
@@ -282,16 +295,8 @@ export default function PhysicalWorkPackCompiler({
 
   // Validation report
   const validationReport = useMemo(() => {
-    // Determine context for checking prerequisites (e.g. from local storage)
-    // For this strict linting, we will consider a card valid if it doesn't have prerequisites,
-    // or if the prerequisites it has are recorded in the local 'completed_work_card_ids' context.
-    const rawLocalContext = sessionStorage.getItem('hearth_workbench_completed_cards');
-    let completed_work_card_ids: string[] = [];
-    if (rawLocalContext) {
-      try { completed_work_card_ids = JSON.parse(rawLocalContext); } catch { /* ignore */ }
-    }
-    return compiledPack ? validatePhysicalWorkPack(compiledPack, { completed_work_card_ids }) : [];
-  }, [compiledPack]);
+    return compiledPack ? validatePhysicalWorkPack(compiledPack, validationContext) : [];
+  }, [compiledPack, validationContext]);
 
   const triggerDownload = (filename: string, content: string, type: string) => {
     const blob = new Blob([content], { type });
