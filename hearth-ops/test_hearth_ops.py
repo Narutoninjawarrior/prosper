@@ -6,7 +6,18 @@ import sqlite3
 import json
 import unittest
 from pathlib import Path
+import time
 
+def safe_unlink(path):
+    if not path.exists():
+        return
+    for _ in range(10):
+        try:
+            path.unlink()
+            return
+        except PermissionError:
+            time.sleep(0.1)
+    path.unlink()
 # Important: ensure we operate on a test database to avoid clobbering the main one during tests
 import init_db
 import seed_sample_data
@@ -32,17 +43,13 @@ class TestHearthOps(unittest.TestCase):
 
     def setUp(self):
         # Clean up before each test
-        if TEST_DB_PATH.exists():
-            TEST_DB_PATH.unlink()
-        if TEST_JSON_PATH.exists():
-            TEST_JSON_PATH.unlink()
+        safe_unlink(TEST_DB_PATH)
+        safe_unlink(TEST_JSON_PATH)
 
     def tearDown(self):
         # Clean up after each test
-        if TEST_DB_PATH.exists():
-            TEST_DB_PATH.unlink()
-        if TEST_JSON_PATH.exists():
-            TEST_JSON_PATH.unlink()
+        safe_unlink(TEST_DB_PATH)
+        safe_unlink(TEST_JSON_PATH)
 
     def test_db_initializes_cleanly(self):
         init_db.init_database()
@@ -142,7 +149,7 @@ class TestHearthOps(unittest.TestCase):
         conn.close()
         
         # Wipe DB
-        TEST_DB_PATH.unlink()
+        safe_unlink(TEST_DB_PATH)
         init_db.init_database()
         
         # Import JSON
