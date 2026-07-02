@@ -342,10 +342,35 @@ export default function OperationsPage() {
         </div>
 
         {compareData && diffSummary && (
-          <div className="mb-8 bg-[#0A0604] border border-[#1A1410] border-l-2 border-l-[#34D399] rounded-lg p-4 text-[11px] text-gray-400">
-            <div className="text-[10px] uppercase tracking-widest text-[#34D399] mb-3 font-bold">
-              Comparison: {compareSourceLabel}
+          <div className="mb-8 bg-[#0A0604] border border-[#1A1410] border-l-2 border-l-[#8a7a64] rounded-lg p-4 text-[11px] text-gray-400">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-[10px] uppercase tracking-widest text-[#c9bba5] font-bold">
+                Comparison: {compareSourceLabel}
+              </div>
+              <button
+                onClick={() => {
+                  const payload = {
+                    primary_source: sourceLabel,
+                    comparison_source: compareSourceLabel,
+                    primary_generated_at: data.meta.generated_at || null,
+                    comparison_generated_at: compareData.meta.generated_at || null,
+                    diff_counts: diffSummary,
+                  };
+                  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = 'operations-comparison-summary.json';
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#110D0A] border border-[#2A1F16] hover:border-[#8a7a64] rounded text-[9px] uppercase tracking-widest text-gray-400 hover:text-gray-200 transition-colors"
+              >
+                <FileUp className="w-3 h-3" />
+                Export Comparison Summary
+              </button>
             </div>
+            
             {diffSummary.newCards === 0 && diffSummary.statusChanges === 0 && diffSummary.newDecisions === 0 && diffSummary.newOutcomes === 0 ? (
               <div className="text-gray-500">No lifecycle differences found between these local snapshots.</div>
             ) : (
@@ -368,7 +393,7 @@ export default function OperationsPage() {
                 </div>
                 <div>
                   <div className="text-[9px] uppercase tracking-widest text-gray-500 mb-1">Now Completed</div>
-                  <div className="text-[#34D399] font-mono font-bold">{diffSummary.newCompleted}</div>
+                  <div className="text-[#c9bba5] font-mono font-bold">{diffSummary.newCompleted}</div>
                 </div>
               </div>
             )}
@@ -599,7 +624,7 @@ export default function OperationsPage() {
                           <span className="text-xs font-bold text-[#c9bba5]">{wc.label}</span>
                           <StatusChip status={wc.status} />
                           {diffHint && (
-                            <span className="text-[9px] text-[#34D399] italic ml-2 border border-[#34D399]/30 bg-[#34D399]/5 px-2 py-0.5 rounded">
+                            <span className="text-[9px] text-[#8a7a64] italic ml-2 border border-[#8a7a64]/30 bg-[#8a7a64]/10 px-2 py-0.5 rounded">
                               {diffHint}
                             </span>
                           )}
