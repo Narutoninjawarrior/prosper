@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 
 DB_PATH = Path(__file__).resolve().parent / 'stewardship.db'
-OUTPUT_PATH = Path(__file__).resolve().parent / 'journal_export.json'
+OUTPUT_PATH = Path(__file__).resolve().parent.parent / 'frontend' / 'public' / 'journal_export.json'
 
 def dict_factory(cursor, row):
     d = {}

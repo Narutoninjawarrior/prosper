@@ -1,0 +1,68 @@
+{
+  "export_version": "1.0",
+  "assets": [
+    {
+      "asset": {
+        "asset_id": "example-cacao-habitat-04",
+        "name": "Lower Cacao Canopy Zone 4",
+        "type": "living_habitat",
+        "status": "active",
+        "facility_id": "conservatory-south",
+        "created_at": "2026-07-02T03:16:37.638848Z"
+      },
+      "observations": [
+        {
+          "observation_id": "obs-20260702-001",
+          "asset_id": "example-cacao-habitat-04",
+          "steward_id": "steward-continuity-1",
+          "timestamp": "2026-07-02T03:06:37.639848Z",
+          "source": "sensor-stream",
+          "metric_name": "relative_humidity",
+          "metric_value": 68.0,
+          "metric_unit": "%"
+        }
+      ],
+      "work_cards": [
+        {
+          "work_card_id": "wc-20260702-001",
+          "asset_id": "example-cacao-habitat-04",
+          "observation_id": "obs-20260702-001",
+          "label": "Misting Cycle (0.1 hrs)",
+          "description": "Activate misting loop for 5 minutes",
+          "estimated_labor_hours": 0.1,
+          "status": "REVIEWED",
+          "operator_type": "human",
+          "qualification": "Conservatory Steward",
+          "task_class": "maintenance",
+          "tools_json": "[\"humidity probe\", \"misting control panel\"]",
+          "materials_json": "[]",
+          "safety_limits_json": "[\"Do not exceed 80% relative humidity\"]",
+          "stop_conditions_json": "[{\"condition_id\": \"abort_humidity_high\", \"description\": \"Relative humidity exceeds 80%\", \"required_response\": \"Stop misting cycle and re-check canopy conditions\"}]",
+          "created_at": "2026-07-02T03:06:37.639848Z",
+          "decision_traces": [
+            {
+              "decision_id": "dec-20260702-001",
+              "work_card_id": "wc-20260702-001",
+              "operator_approved": 1,
+              "reasoning": "Misting is required to recover humidity boundary range (70-80%).",
+              "reviewed_by": "operator-field-manual",
+              "reviewed_at": "2026-07-02T03:11:37.639848Z"
+            }
+          ],
+          "outcomes": [
+            {
+              "outcome_id": "out-20260702-001",
+              "work_card_id": "wc-20260702-001",
+              "observed_at": "2026-07-02T03:16:37.639848Z",
+              "metric_name": "relative_humidity",
+              "observed_value": 72.5,
+              "metric_unit": "%",
+              "calculated_prediction_error": 2.5,
+              "notes": "Humidity recovered successfully. Nominal state active."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
