@@ -217,6 +217,32 @@ function PreviewMesh({ scale, twist, hue }: { scale: number; twist: number; hue:
   )
 }
 
+function ResourceBudgetIndicator({ label, current, limit, unit }: { label: string, current: number, limit: number, unit: string }) {
+  const isOver = current > limit;
+  const remaining = limit - current;
+  return (
+    <div className={`rounded-lg border px-3 py-2 ${isOver ? 'bg-red-500/10 border-red-500/30' : 'bg-[#E8842A]/5 border-[#E8842A]/20'}`}>
+      <div className="flex items-center justify-between">
+        <span className="text-[9px] uppercase tracking-widest text-gray-400 font-bold">{label}</span>
+        {isOver ? (
+          <span className="text-[9px] uppercase tracking-widest text-red-400 font-bold">Exceeds declared limit</span>
+        ) : (
+          <span className="text-[9px] uppercase tracking-widest text-[#34D399] font-bold">Within declared limit</span>
+        )}
+      </div>
+      <div className="mt-1 flex items-baseline gap-2">
+        <span className={`text-sm font-mono ${isOver ? 'text-red-300' : 'text-gray-300'}`}>
+          {typeof current === 'number' ? current.toLocaleString() : current} {unit}
+        </span>
+        <span className="text-[10px] text-gray-500 font-mono">/ {limit.toLocaleString()} {unit}</span>
+      </div>
+      <div className="mt-1 text-[9px] text-gray-500">
+        {isOver ? `Over by ${Math.abs(remaining).toLocaleString()} ${unit}` : `${remaining.toLocaleString()} ${unit} remaining headroom`}
+      </div>
+    </div>
+  );
+}
+
 async function hashPayload(payload: unknown): Promise<string> {
   return sha256Hex(stableStringify(payload))
 }
@@ -928,6 +954,10 @@ export default function GenerativeWorkbench() {
     }
   }
 
+  const allonicOverBudget = allonicPayload ? (allonicPayload.summary.total_mass_kg > 2000 || allonicPayload.summary.net_power_draw_watts > 1000) : false;
+  const facilityOverBudget = facilityPayload ? (facilityPayload.estimated_power_needs > 2000 || facilityPayload.estimated_water_needs > 1000 || facilityPayload.estimated_budget_ember > 100000) : false;
+  const biosystemOverBudget = biosystemPayload ? (biosystemPayload.reservoirCapacityGallons > 500 || biosystemPayload.pumpFlowRateGpm > 20) : false;
+
   return (
     <div className="min-h-full bg-[radial-gradient(circle_at_top_left,rgba(122,158,126,0.12),transparent_42%),#070a08] px-6 py-10 text-[#eadfcd]">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
@@ -1472,100 +1502,143 @@ export default function GenerativeWorkbench() {
               )}
 
               {tab !== 'mason' && tab !== 'stewardship' && tab !== 'workpack' && (
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <button type="button" onClick={stamp} className="inline-flex items-center gap-2 rounded-lg bg-[#E8842A] px-4 py-2 font-mono text-[11px] font-semibold text-[#0A0402]">
-                    <Box size={14} />
-                    Stamp hash
-                  </button>
-                  <button type="button" onClick={copyAll} className="inline-flex items-center gap-2 rounded-lg border border-white/15 px-4 py-2 font-mono text-[11px] text-[#c9bba5]">
-                    <Copy size={14} />
-                    Copy JSON + hash
-                  </button>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const json = JSON.stringify(activePayload, null, 2)
-                      const hash = await hashPayload(activePayload)
-                      setExportJson(json)
-                      setDigest(hash)
-                      const blob = new Blob([`${json}\n\ncontent_hash: ${hash}`], { type: 'application/json' })
-                      const url = URL.createObjectURL(blob)
-                      const a = document.createElement('a')
-                      a.href = url
-                      a.download = `hearth-workbench-${tab}.json`
-                      a.click()
-                      URL.revokeObjectURL(url)
-                    }}
-                    className="inline-flex items-center gap-2 rounded-lg border border-white/15 px-4 py-2 font-mono text-[11px] text-[#c9bba5]"
-                  >
-                    <Download size={14} />
-                    Download JSON
-                  </button>
-                  {tab === 'siteplan' && sitePlanPayload && (
-                    <button
-                      type="button"
-                      onClick={pushSitePlanToCommons}
-                      disabled={draftReport?.level === 'hard_fail'}
-                      className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 font-mono text-[11px] font-semibold transition-colors ${draftReport?.level === 'hard_fail' ? 'bg-red-500/10 border-red-500/30 text-red-400 opacity-50 cursor-not-allowed' : draftReport?.level === 'warning' ? 'bg-[#FBBF24]/20 border-[#FBBF24]/40 text-[#FBBF24] hover:bg-[#FBBF24]/30' : 'bg-[#34D399]/20 border-[#34D399]/40 text-[#34D399] hover:bg-[#34D399]/30'}`}
-                    >
-                      <ArrowLeftRight size={14} />
-                      Push Plan to Commons (Local Draft)
-                    </button>
-                  )}
-                  {tab === 'food_compliance' && foodCompliancePayload && (
-                    <button
-                      type="button"
-                      onClick={pushFoodComplianceToCommons}
-                      disabled={draftReport?.level === 'hard_fail'}
-                      className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 font-mono text-[11px] font-semibold transition-colors ${draftReport?.level === 'hard_fail' ? 'bg-red-500/10 border-red-500/30 text-red-400 opacity-50 cursor-not-allowed' : draftReport?.level === 'warning' ? 'bg-[#FBBF24]/20 border-[#FBBF24]/40 text-[#FBBF24] hover:bg-[#FBBF24]/30' : 'bg-[#F59E0B]/20 border-[#F59E0B]/40 text-[#F59E0B] hover:bg-[#F59E0B]/30'}`}
-                    >
-                      <ArrowLeftRight size={14} />
-                      Push Compliance to Commons (Local Draft)
-                    </button>
-                  )}
+                <div className="mt-4">
                   {tab === 'allonic' && allonicPayload && (
-                    <button
-                      type="button"
-                      onClick={pushAllonicToCommons}
-                      disabled={draftReport?.level === 'hard_fail'}
-                      className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 font-mono text-[11px] font-semibold transition-colors ${draftReport?.level === 'hard_fail' ? 'bg-red-500/10 border-red-500/30 text-red-400 opacity-50 cursor-not-allowed' : draftReport?.level === 'warning' ? 'bg-[#FBBF24]/20 border-[#FBBF24]/40 text-[#FBBF24] hover:bg-[#FBBF24]/30' : 'bg-[#8B5CF6]/20 border-[#8B5CF6]/40 text-[#C4B5FD] hover:bg-[#8B5CF6]/30'}`}
-                    >
-                      <ArrowLeftRight size={14} />
-                      Push Blueprint to Commons (Local Draft)
-                    </button>
+                    <div className="mb-4">
+                      <div className="text-[10px] uppercase tracking-[0.2em] text-[#8a7a64] mb-2 font-bold flex items-center gap-2">
+                        Local Budget Check
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <ResourceBudgetIndicator label="Total Mass" current={allonicPayload.summary.total_mass_kg} limit={2000} unit="kg" />
+                        <ResourceBudgetIndicator label="Net Power" current={allonicPayload.summary.net_power_draw_watts} limit={1000} unit="W" />
+                      </div>
+                    </div>
                   )}
                   {tab === 'facility' && facilityPayload && (
-                    <button
-                      type="button"
-                      onClick={pushFacilityToCommons}
-                      disabled={draftReport?.level === 'hard_fail'}
-                      className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 font-mono text-[11px] font-semibold transition-colors ${draftReport?.level === 'hard_fail' ? 'bg-red-500/10 border-red-500/30 text-red-400 opacity-50 cursor-not-allowed' : draftReport?.level === 'warning' ? 'bg-[#FBBF24]/20 border-[#FBBF24]/40 text-[#FBBF24] hover:bg-[#FBBF24]/30' : 'bg-[#10B981]/20 border-[#10B981]/40 text-[#34D399] hover:bg-[#10B981]/30'}`}
-                    >
-                      <ArrowLeftRight size={14} />
-                      Push Facility Plan to Commons (Local Draft)
-                    </button>
+                    <div className="mb-4">
+                      <div className="text-[10px] uppercase tracking-[0.2em] text-[#8a7a64] mb-2 font-bold flex items-center gap-2">
+                        Local Budget Check
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <ResourceBudgetIndicator label="Power Needs" current={facilityPayload.estimated_power_needs} limit={2000} unit="W" />
+                        <ResourceBudgetIndicator label="Water Needs" current={facilityPayload.estimated_water_needs} limit={1000} unit="L" />
+                        <ResourceBudgetIndicator label="Budget" current={facilityPayload.estimated_budget_ember} limit={100000} unit="EMBER" />
+                      </div>
+                    </div>
                   )}
                   {tab === 'biosystem' && biosystemPayload && (
-                    <>
+                    <div className="mb-4">
+                      <div className="text-[10px] uppercase tracking-[0.2em] text-[#8a7a64] mb-2 font-bold flex items-center gap-2">
+                        Local Budget Check
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <ResourceBudgetIndicator label="Reservoir Capacity" current={biosystemPayload.reservoirCapacityGallons} limit={500} unit="gal" />
+                        <ResourceBudgetIndicator label="Pump Flow Rate" current={biosystemPayload.pumpFlowRateGpm} limit={20} unit="GPM" />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={stamp} className="inline-flex items-center gap-2 rounded-lg bg-[#E8842A] px-4 py-2 font-mono text-[11px] font-semibold text-[#0A0402]">
+                      <Box size={14} />
+                      Stamp hash
+                    </button>
+                    <button type="button" onClick={copyAll} className="inline-flex items-center gap-2 rounded-lg border border-white/15 px-4 py-2 font-mono text-[11px] text-[#c9bba5]">
+                      <Copy size={14} />
+                      Copy JSON + hash
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const json = JSON.stringify(activePayload, null, 2)
+                        const hash = await hashPayload(activePayload)
+                        setExportJson(json)
+                        setDigest(hash)
+                        const blob = new Blob([`${json}\n\ncontent_hash: ${hash}`], { type: 'application/json' })
+                        const url = URL.createObjectURL(blob)
+                        const a = document.createElement('a')
+                        a.href = url
+                        a.download = `hearth-workbench-${tab}.json`
+                        a.click()
+                        URL.revokeObjectURL(url)
+                      }}
+                      className="inline-flex items-center gap-2 rounded-lg border border-white/15 px-4 py-2 font-mono text-[11px] text-[#c9bba5]"
+                    >
+                      <Download size={14} />
+                      Download JSON
+                    </button>
+                    {tab === 'siteplan' && sitePlanPayload && (
                       <button
                         type="button"
-                        onClick={pushBiosystemToForge}
+                        onClick={pushSitePlanToCommons}
                         disabled={draftReport?.level === 'hard_fail'}
-                        className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 font-mono text-[11px] font-semibold transition-colors ${draftReport?.level === 'hard_fail' ? 'bg-red-500/10 border-red-500/30 text-red-400 opacity-50 cursor-not-allowed' : draftReport?.level === 'warning' ? 'bg-[#FBBF24]/20 border-[#FBBF24]/40 text-[#FBBF24] hover:bg-[#FBBF24]/30' : 'bg-[#E8842A]/20 border-[#E8842A]/40 text-[#E8842A] hover:bg-[#E8842A]/30'}`}
+                        className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 font-mono text-[11px] font-semibold transition-colors ${draftReport?.level === 'hard_fail' ? 'bg-red-500/10 border-red-500/30 text-red-400 opacity-50 cursor-not-allowed' : draftReport?.level === 'warning' ? 'bg-[#FBBF24]/20 border-[#FBBF24]/40 text-[#FBBF24] hover:bg-[#FBBF24]/30' : 'bg-[#34D399]/20 border-[#34D399]/40 text-[#34D399] hover:bg-[#34D399]/30'}`}
                       >
                         <ArrowLeftRight size={14} />
-                        Place in Forge for inspection
+                        Push Plan to Commons (Local Draft)
                       </button>
+                    )}
+                    {tab === 'food_compliance' && foodCompliancePayload && (
                       <button
                         type="button"
-                        onClick={pushBiosystemToCommons}
+                        onClick={pushFoodComplianceToCommons}
                         disabled={draftReport?.level === 'hard_fail'}
-                        className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 font-mono text-[11px] font-semibold transition-colors ${draftReport?.level === 'hard_fail' ? 'bg-red-500/10 border-red-500/30 text-red-400 opacity-50 cursor-not-allowed' : draftReport?.level === 'warning' ? 'bg-[#FBBF24]/20 border-[#FBBF24]/40 text-[#FBBF24] hover:bg-[#FBBF24]/30' : 'bg-[#4A90D9]/20 border-[#4A90D9]/40 text-[#4A90D9] hover:bg-[#4A90D9]/30'}`}
+                        className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 font-mono text-[11px] font-semibold transition-colors ${draftReport?.level === 'hard_fail' ? 'bg-red-500/10 border-red-500/30 text-red-400 opacity-50 cursor-not-allowed' : draftReport?.level === 'warning' ? 'bg-[#FBBF24]/20 border-[#FBBF24]/40 text-[#FBBF24] hover:bg-[#FBBF24]/30' : 'bg-[#F59E0B]/20 border-[#F59E0B]/40 text-[#F59E0B] hover:bg-[#F59E0B]/30'}`}
                       >
                         <ArrowLeftRight size={14} />
-                        Push Biosystem Plan to Commons (Local Draft)
+                        Push Compliance to Commons (Local Draft)
                       </button>
-                    </>
+                    )}
+                    {tab === 'allonic' && allonicPayload && (
+                      <button
+                        type="button"
+                        onClick={pushAllonicToCommons}
+                        disabled={draftReport?.level === 'hard_fail' || allonicOverBudget}
+                        className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 font-mono text-[11px] font-semibold transition-colors ${draftReport?.level === 'hard_fail' || allonicOverBudget ? 'bg-red-500/10 border-red-500/30 text-red-400 opacity-50 cursor-not-allowed' : draftReport?.level === 'warning' ? 'bg-[#FBBF24]/20 border-[#FBBF24]/40 text-[#FBBF24] hover:bg-[#FBBF24]/30' : 'bg-[#8B5CF6]/20 border-[#8B5CF6]/40 text-[#C4B5FD] hover:bg-[#8B5CF6]/30'}`}
+                      >
+                        <ArrowLeftRight size={14} />
+                        Push Blueprint to Commons (Local Draft)
+                      </button>
+                    )}
+                    {tab === 'facility' && facilityPayload && (
+                      <button
+                        type="button"
+                        onClick={pushFacilityToCommons}
+                        disabled={draftReport?.level === 'hard_fail' || facilityOverBudget}
+                        className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 font-mono text-[11px] font-semibold transition-colors ${draftReport?.level === 'hard_fail' || facilityOverBudget ? 'bg-red-500/10 border-red-500/30 text-red-400 opacity-50 cursor-not-allowed' : draftReport?.level === 'warning' ? 'bg-[#FBBF24]/20 border-[#FBBF24]/40 text-[#FBBF24] hover:bg-[#FBBF24]/30' : 'bg-[#10B981]/20 border-[#10B981]/40 text-[#34D399] hover:bg-[#10B981]/30'}`}
+                      >
+                        <ArrowLeftRight size={14} />
+                        Push Facility Plan to Commons (Local Draft)
+                      </button>
+                    )}
+                    {tab === 'biosystem' && biosystemPayload && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={pushBiosystemToForge}
+                          disabled={draftReport?.level === 'hard_fail' || biosystemOverBudget}
+                          className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 font-mono text-[11px] font-semibold transition-colors ${draftReport?.level === 'hard_fail' || biosystemOverBudget ? 'bg-red-500/10 border-red-500/30 text-red-400 opacity-50 cursor-not-allowed' : draftReport?.level === 'warning' ? 'bg-[#FBBF24]/20 border-[#FBBF24]/40 text-[#FBBF24] hover:bg-[#FBBF24]/30' : 'bg-[#E8842A]/20 border-[#E8842A]/40 text-[#E8842A] hover:bg-[#E8842A]/30'}`}
+                        >
+                          <ArrowLeftRight size={14} />
+                          Place in Forge for inspection
+                        </button>
+                        <button
+                          type="button"
+                          onClick={pushBiosystemToCommons}
+                          disabled={draftReport?.level === 'hard_fail' || biosystemOverBudget}
+                          className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 font-mono text-[11px] font-semibold transition-colors ${draftReport?.level === 'hard_fail' || biosystemOverBudget ? 'bg-red-500/10 border-red-500/30 text-red-400 opacity-50 cursor-not-allowed' : draftReport?.level === 'warning' ? 'bg-[#FBBF24]/20 border-[#FBBF24]/40 text-[#FBBF24] hover:bg-[#FBBF24]/30' : 'bg-[#4A90D9]/20 border-[#4A90D9]/40 text-[#4A90D9] hover:bg-[#4A90D9]/30'}`}
+                        >
+                          <ArrowLeftRight size={14} />
+                          Push Biosystem Plan to Commons (Local Draft)
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  
+                  {(tab === 'allonic' && allonicOverBudget || tab === 'facility' && facilityOverBudget || tab === 'biosystem' && biosystemOverBudget) && (
+                    <div className="mt-2 rounded bg-red-500/10 border border-red-500/20 px-3 py-2 text-[10px] text-red-400 font-mono">
+                      Export disabled: Exceeds declared limit. Adjust planner constraints.
+                    </div>
                   )}
                 </div>
               )}
