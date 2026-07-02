@@ -3,10 +3,8 @@ import {
   ClipboardList,
   Database,
   Eye,
-  FileCheck,
   FileUp,
   Info,
-  Target,
 } from 'lucide-react';
 import { normalizeOpsData, type OpsViewModel } from './lib/opsAdapter';
 
@@ -245,118 +243,99 @@ export default function OperationsPage() {
           </div>
         </section>
 
-        {/* Work Cards */}
+        {/* Work Card Lifecycles */}
         <section className="mb-8">
-          <SectionHeader icon={<ClipboardList width={14} height={14} />} label="Work Cards" count={data.work_cards.length} />
-          <div className="space-y-3">
-            {data.work_cards.map((wc) => (
-              <div
-                key={wc.work_card_id}
-                className="bg-[#0A0604] border border-[#1A1410] rounded-lg p-4 hover:border-[#2A1F16] transition-colors"
-              >
-                <div className="flex flex-col md:flex-row md:items-start justify-between gap-3 mb-3">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-bold text-[#c9bba5]">{wc.label}</span>
-                      <StatusChip status={wc.status} />
-                    </div>
-                    <div className="text-[10px] text-gray-500 font-mono">{wc.work_card_id}</div>
-                  </div>
-                  <div className="text-[9px] text-gray-500 uppercase tracking-widest">
-                    {wc.estimated_labor_hours} hrs · {wc.operator_type} · {wc.qualification}
-                  </div>
-                </div>
-                <p className="text-[11px] text-gray-400 mb-3">{wc.description}</p>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-[10px]">
-                  <div>
-                    <span className="text-gray-500 uppercase tracking-wider">Tools</span>
-                    <div className="text-gray-300 mt-0.5">
-                      {wc.tools.length > 0 ? wc.tools.join(', ') : '—'}
-                    </div>
-                  </div>
-                  <div>
-                    <span className="text-gray-500 uppercase tracking-wider">Materials</span>
-                    <div className="text-gray-300 mt-0.5">
-                      {wc.materials.length > 0 ? wc.materials.join(', ') : '—'}
-                    </div>
-                  </div>
-                  <div>
-                    <span className="text-gray-500 uppercase tracking-wider">Safety Limits</span>
-                    <div className="text-gray-300 mt-0.5">
-                      {wc.safety_limits.length > 0 ? wc.safety_limits.join(', ') : '—'}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
+          <SectionHeader icon={<ClipboardList width={14} height={14} />} label="Work Card Lifecycles" count={data.work_cards.length} />
+          <div className="space-y-4">
+            {data.work_cards.map((wc) => {
+              const decision = data.decision_traces.find(d => d.work_card_id === wc.work_card_id);
+              const outcome = data.outcomes.find(o => o.work_card_id === wc.work_card_id);
 
-        {/* Decision Traces */}
-        <section className="mb-8">
-          <SectionHeader icon={<FileCheck width={14} height={14} />} label="Decision Traces" count={data.decision_traces.length} />
-          <div className="bg-[#0A0604] border border-[#1A1410] rounded-lg overflow-hidden">
-            <table className="w-full text-[11px]">
-              <thead>
-                <tr className="border-b border-[#1A1410] text-gray-500 uppercase tracking-widest text-[9px]">
-                  <th className="text-left px-4 py-2">Decision</th>
-                  <th className="text-left px-4 py-2">Work Card</th>
-                  <th className="text-left px-4 py-2">Approved</th>
-                  <th className="text-left px-4 py-2">Reasoning</th>
-                  <th className="text-left px-4 py-2">Reviewer</th>
-                  <th className="text-left px-4 py-2">Reviewed</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#1A1410]">
-                {data.decision_traces.map((d) => (
-                  <tr key={d.decision_id} className="hover:bg-[#110D0A]">
-                    <td className="px-4 py-2.5 font-mono text-gray-400">{d.decision_id}</td>
-                    <td className="px-4 py-2.5 font-mono text-gray-400">{d.work_card_id}</td>
-                    <td className="px-4 py-2.5">
-                      <StatusChip status={d.operator_approved ? 'true' : 'false'} />
-                    </td>
-                    <td className="px-4 py-2.5 text-gray-300 max-w-md">{d.reasoning}</td>
-                    <td className="px-4 py-2.5 text-gray-400">{d.reviewed_by}</td>
-                    <td className="px-4 py-2.5 text-gray-500">
-                      {new Date(d.reviewed_at).toLocaleString()}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
+              return (
+                <div
+                  key={wc.work_card_id}
+                  className="bg-[#0A0604] border border-[#1A1410] rounded-lg p-4 hover:border-[#2A1F16] transition-colors flex flex-col gap-3"
+                >
+                  {/* Proposal Block */}
+                  <div>
+                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-3 mb-2">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs font-bold text-[#c9bba5]">{wc.label}</span>
+                          <StatusChip status={wc.status} />
+                        </div>
+                        <div className="text-[10px] text-gray-500 font-mono">{wc.work_card_id}</div>
+                      </div>
+                      <div className="text-[9px] text-gray-500 uppercase tracking-widest text-right">
+                        <div>{wc.estimated_labor_hours} hrs · {wc.operator_type}</div>
+                        <div className="mt-0.5">{wc.qualification}</div>
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-gray-400">{wc.description}</p>
+                  </div>
 
-        {/* Outcomes */}
-        <section className="mb-8">
-          <SectionHeader icon={<Target width={14} height={14} />} label="Outcomes" count={data.outcomes.length} />
-          <div className="bg-[#0A0604] border border-[#1A1410] rounded-lg overflow-hidden">
-            <table className="w-full text-[11px]">
-              <thead>
-                <tr className="border-b border-[#1A1410] text-gray-500 uppercase tracking-widest text-[9px]">
-                  <th className="text-left px-4 py-2">Outcome</th>
-                  <th className="text-left px-4 py-2">Work Card</th>
-                  <th className="text-left px-4 py-2">Observed Value</th>
-                  <th className="text-left px-4 py-2">Error</th>
-                  <th className="text-left px-4 py-2">Notes</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#1A1410]">
-                {data.outcomes.map((o) => (
-                  <tr key={o.outcome_id} className="hover:bg-[#110D0A]">
-                    <td className="px-4 py-2.5 font-mono text-gray-400">{o.outcome_id}</td>
-                    <td className="px-4 py-2.5 font-mono text-gray-400">{o.work_card_id}</td>
-                    <td className="px-4 py-2.5 text-[#c9bba5]">
-                      {o.observed_value} {o.metric_unit}
-                    </td>
-                    <td className="px-4 py-2.5 text-gray-300">
-                      {o.calculated_prediction_error.toFixed(1)}%
-                    </td>
-                    <td className="px-4 py-2.5 text-gray-400">{o.notes}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                  {/* Human Decision Block */}
+                  <div className="border-t border-[#1A1410] pt-3 mt-1">
+                    {decision ? (
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest">
+                          <span className="text-gray-500">Operator Decision:</span>
+                          <StatusChip status={decision.operator_approved ? 'APPROVED' : 'REJECTED'} />
+                          <span className="text-gray-600 font-mono">by {decision.reviewed_by} on {new Date(decision.reviewed_at).toLocaleDateString()}</span>
+                        </div>
+                        <p className="text-[11px] text-gray-300 italic border-l-2 border-[#E8842A]/30 pl-2 ml-1">
+                          "{decision.reasoning}"
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="text-[10px] uppercase tracking-widest text-gray-600 italic">
+                        [ No operator decision recorded yet ]
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Outcome Block */}
+                  <div className="border-t border-[#1A1410] pt-3 mt-1">
+                    {outcome ? (
+                      <div className="flex flex-col gap-1.5 text-[11px]">
+                        <div className="text-[10px] uppercase tracking-widest text-gray-500 mb-0.5">
+                          Field Outcome
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+                          <div className="flex flex-col">
+                            <span className="text-gray-500 font-mono text-[9px] uppercase">Metric</span>
+                            <span className="text-gray-300">{outcome.metric_name}</span>
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-gray-500 font-mono text-[9px] uppercase">Observed Value</span>
+                            <span className="text-[#34D399] font-bold">{outcome.observed_value} {outcome.metric_unit}</span>
+                          </div>
+                          {typeof outcome.calculated_prediction_error === 'number' && (
+                            <div className="flex flex-col">
+                              <span className="text-gray-500 font-mono text-[9px] uppercase">Prediction Drift</span>
+                              <span className="text-[#FBBF24]">{outcome.calculated_prediction_error.toFixed(1)}%</span>
+                            </div>
+                          )}
+                        </div>
+                        {outcome.notes && (
+                          <p className="text-gray-400 mt-1.5">{outcome.notes}</p>
+                        )}
+                        {wc.status === 'COMPLETED' && (
+                          <div className="text-[10px] uppercase tracking-widest text-[#34D399] font-bold mt-2">
+                            [ Lifecycle Completed ]
+                          </div>
+                        )}
+                      </div>
+                    ) : decision ? (
+                      <div className="text-[10px] uppercase tracking-widest text-gray-600 italic">
+                        [ Awaiting field outcome ]
+                      </div>
+                    ) : null}
+                  </div>
+
+                </div>
+              );
+            })}
           </div>
         </section>
 
