@@ -349,6 +349,97 @@ class TestHearthOps(unittest.TestCase):
         )
         self.assertFalse(success)
 
+    def test_import_outcome_payload_valid_and_bom(self):
+        import import_outcome_json
+        init_db.init_database()
+        seed_sample_data.seed_data()
+        
+        # Must have an approved decision first
+        conn = sqlite3.connect(TEST_DB_PATH)
+        conn.execute("DELETE FROM outcomes;")
+        conn.execute("DELETE FROM decision_traces;")
+        conn.commit()
+        conn.close()
+
+        record_decision.record_decision(
+            work_card_id="wc-20260702-001",
+            operator_approved=True,
+            reasoning="Approve for outcome test",
+            reviewed_by="steward"
+        )
+
+        payload = {
+            "work_card_id": "wc-20260702-001",
+            "metric_name": "temp",
+            "metric_unit": "C",
+            "observed_value": 25.5,
+            "calculated_prediction_error": 0.5,
+            "notes": "Test outcome BOM"
+        }
+        with open(TEST_JSON_PATH, "w", encoding="utf-8-sig") as f:
+            json.dump(payload, f)
+
+        success = import_outcome_json.import_outcome_payload(TEST_JSON_PATH, refresh_operations=True)
+        self.assertTrue(success)
+
+        with open(TEST_JSON_PATH, "r", encoding="utf-8") as f:
+            exported = json.load(f)
+
+        work_card = exported["assets"][0]["work_cards"][0]
+        self.assertEqual(len(work_card["outcomes"]), 1)
+        self.assertEqual(work_card["outcomes"][0]["observed_value"], 25.5)
+
+    def test_import_outcome_payload_missing_fields(self):
+        import import_outcome_json
+        init_db.init_database()
+        bad_payload = {
+            "work_card_id": "wc-20260702-001",
+            "metric_name": "temp",
+        }
+        with open(TEST_JSON_PATH, "w", encoding="utf-8") as f:
+            json.dump(bad_payload, f)
+
+        success = import_outcome_json.import_outcome_payload(TEST_JSON_PATH)
+        self.assertFalse(success)
+
+    def test_import_outcome_payload_non_finite(self):
+        import import_outcome_json
+        init_db.init_database()
+        bad_payload = {
+            "work_card_id": "wc-20260702-001",
+            "metric_name": "temp",
+            "metric_unit": "C",
+            "observed_value": float("inf")
+        }
+        with open(TEST_JSON_PATH, "w", encoding="utf-8") as f:
+            json.dump(bad_payload, f)
+
+        success = import_outcome_json.import_outcome_payload(TEST_JSON_PATH)
+        self.assertFalse(success)
+
+    def test_import_outcome_fails_without_approved_decision(self):
+        import import_outcome_json
+        init_db.init_database()
+        seed_sample_data.seed_data()
+        
+        conn = sqlite3.connect(TEST_DB_PATH)
+        conn.execute("DELETE FROM outcomes;")
+        conn.execute("DELETE FROM decision_traces;")
+        conn.commit()
+        conn.close()
+
+        payload = {
+            "work_card_id": "wc-20260702-001",
+            "metric_name": "temp",
+            "metric_unit": "C",
+            "observed_value": 25.5
+        }
+        with open(TEST_JSON_PATH, "w", encoding="utf-8") as f:
+            json.dump(payload, f)
+
+        success = import_outcome_json.import_outcome_payload(TEST_JSON_PATH)
+        self.assertFalse(success)
+
     def test_full_schema_roundtrip(self):
         init_db.init_database()
         seed_sample_data.seed_data()

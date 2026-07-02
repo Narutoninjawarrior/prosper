@@ -1022,13 +1022,53 @@ export default function StewardshipJournalManager() {
                       </div>
                     )}
 
-                    <button
-                      type="button"
-                      onClick={saveActiveOutcome}
-                      className="w-full text-center text-[10px] uppercase tracking-wider text-black bg-[#7A9E7E] hover:bg-[#7A9E7E]/95 py-1.5 rounded font-bold"
-                    >
-                      Record Outcome
-                    </button>
+                    <div className="flex flex-col gap-2 mt-2">
+                      <button
+                        type="button"
+                        onClick={saveActiveOutcome}
+                        className="w-full text-center text-[10px] uppercase tracking-wider text-black bg-[#7A9E7E] hover:bg-[#7A9E7E]/95 py-1.5 rounded font-bold"
+                      >
+                        Record Outcome Locally
+                      </button>
+                      
+                      <div className="pt-3 border-t border-[#7A9E7E]/20 flex flex-col gap-2">
+                        <p className="text-[9px] text-gray-500 uppercase tracking-widest text-center leading-relaxed">
+                          Local outcome report only.<br/>Export or hand off to the local ops runtime after field observation.
+                        </p>
+                        <button
+                          type="button"
+                          disabled={!(hasOutcome && activeEntry?.decision?.approved_by_human && outcomeMetric && outcomeUnit && typeof outcomeValue === 'number' && !isNaN(outcomeValue))}
+                          onClick={() => {
+                            let computedErr: number | null = null;
+                            if (activeEntry.prediction && activeEntry.prediction.metric_name === outcomeMetric && activeEntry.prediction.metric_unit === outcomeUnit) {
+                              computedErr = calculateErrorValue(outcomeValue, activeEntry.prediction);
+                            }
+                            const payload = {
+                              work_card_id: `wc-${activeEntry.entry_id}`,
+                              metric_name: outcomeMetric,
+                              metric_unit: outcomeUnit,
+                              observed_value: outcomeValue,
+                              calculated_prediction_error: computedErr,
+                              notes: outcomeNotes || null
+                            };
+                            const data = JSON.stringify(payload, null, 2);
+                            const blob = new Blob([data], { type: 'application/json' });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `outcome-${activeEntry.entry_id}.json`;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(url);
+                          }}
+                          className="w-full text-center text-[10px] uppercase tracking-wider text-white bg-black border border-[#7A9E7E]/50 hover:bg-[#7A9E7E]/10 py-1.5 rounded font-bold flex justify-center items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          Export Outcome Payload
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
