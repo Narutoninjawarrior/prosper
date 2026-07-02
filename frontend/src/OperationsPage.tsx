@@ -134,7 +134,108 @@ export default function OperationsPage() {
         return r.json();
       })
       .then((raw: any) => {
-        if (!raw || !raw.assets || raw.assets.length === 0) {
+        if (!raw) throw new Error('NO_RECORDS');
+
+        // Tiny explicit adapter for browser-native Stewardship Journal exports
+        if (raw.schema === 'stewardship-journal-envelope-v1') {
+          if (!raw.entries || raw.entries.length === 0) throw new Error('NO_RECORDS');
+          
+          const assetsMap = new Map<string, Asset>();
+          const observations: Observation[] = [];
+          const work_cards: WorkCard[] = [];
+          const decision_traces: DecisionTrace[] = [];
+          const outcomes: Outcome[] = [];
+
+          for (const entry of raw.entries) {
+            if (!assetsMap.has(entry.living_asset_id)) {
+               assetsMap.set(entry.living_asset_id, {
+                 asset_id: entry.living_asset_id,
+                 name: entry.living_asset_id,
+                 type: 'unknown',
+                 status: 'active',
+                 facility_id: 'unknown',
+                 created_at: entry.observation?.timestamp || new Date().toISOString()
+               });
+            }
+
+            if (entry.observation) {
+               for (const m of entry.observation.measurements || []) {
+                 observations.push({
+                   observation_id: entry.observation_id || `obs-${entry.entry_id}`,
+                   asset_id: entry.living_asset_id,
+                   steward_id: entry.steward_continuity_id,
+                   timestamp: entry.observation.timestamp,
+                   source: entry.observation.source,
+                   metric_name: m.metric_name,
+                   metric_value: m.value,
+                   metric_unit: m.unit
+                 });
+               }
+            }
+
+            if (entry.model_proposal && entry.decision) {
+               const wcId = `wc-${entry.entry_id}`;
+               const selectedOpt = entry.model_proposal.care_options?.find((o: any) => o.option_id === entry.decision.selected_option);
+               
+               work_cards.push({
+                 work_card_id: wcId,
+                 asset_id: entry.living_asset_id,
+                 observation_id: entry.observation_id || `obs-${entry.entry_id}`,
+                 label: selectedOpt?.label || (entry.decision.selected_option === 'REFUSE_ALL' ? 'Refused Action' : 'Unknown Action'),
+                 description: selectedOpt?.description || entry.decision.reasoning || 'No specific care option selected',
+                 estimated_labor_hours: selectedOpt?.estimated_labor_hours || 0,
+                 status: entry.decision.approved_by_human ? 'REVIEWED' : 'pending',
+                 operator_type: 'human',
+                 qualification: 'Conservatory Steward',
+                 task_class: 'maintenance',
+                 tools: [],
+                 materials: [],
+                 safety_limits: (selectedOpt?.stop_conditions || []).map((s: any) => s.description)
+               });
+
+               decision_traces.push({
+                 decision_id: `dec-${entry.entry_id}`,
+                 work_card_id: wcId,
+                 operator_approved: entry.decision.approved_by_human,
+                 reasoning: entry.decision.reasoning,
+                 reviewed_by: entry.decision.reviewed_by_steward_id,
+                 reviewed_at: entry.observation?.timestamp || new Date().toISOString()
+               });
+
+               if (entry.outcome) {
+                 outcomes.push({
+                   outcome_id: `out-${entry.entry_id}`,
+                   work_card_id: wcId,
+                   observed_at: entry.outcome.observed_at,
+                   metric_name: entry.outcome.metric_name,
+                   observed_value: entry.outcome.observed_value,
+                   metric_unit: entry.outcome.metric_unit,
+                   calculated_prediction_error: entry.outcome.calculated_prediction_error || 0,
+                   notes: entry.outcome.correction_notes || ''
+                 });
+               }
+            }
+          }
+
+          setData({
+             meta: {
+                schema: 'stewardship-journal-envelope-v1',
+                generated_at: raw.updated_at || new Date().toISOString(),
+                origin: 'Frontend Journal Export',
+                truth_boundary: 'Real exported local operational journal. Read-only.'
+             },
+             assets: Array.from(assetsMap.values()),
+             observations,
+             work_cards,
+             decision_traces,
+             outcomes
+          });
+          setLoading(false);
+          return;
+        }
+
+        // SQLite hearth-ops export fallback
+        if (!raw.assets || raw.assets.length === 0) {
           throw new Error('NO_RECORDS');
         }
 
