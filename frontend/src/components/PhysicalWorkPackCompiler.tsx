@@ -9,8 +9,13 @@ import type {
 import { 
   validatePhysicalWorkPack, 
   compileWorkPackMarkdown,
+  getWorkPackChangeDetails,
+  buildWorkPackRevisionEnvelope,
+  buildWorkPackTruthBoundary,
+  getWorkPackChangedFields,
   resolveLocalCompletedWorkCards,
-  parseCompletedWorkCardsFromJson
+  parseCompletedWorkCardsFromJson,
+  parsePhysicalWorkPackFromJson
 } from '../lib/physicalWorkPack';
 import { Download, CheckCircle2, AlertTriangle, RefreshCw, Layers, ShieldAlert, Sparkles } from 'lucide-react';
 
@@ -63,6 +68,10 @@ export default function PhysicalWorkPackCompiler({
   // Validation Context
   const [validationContext, setValidationContext] = useState<WorkPackValidationContext>({ completed_work_card_ids: [] });
   const [contextError, setContextError] = useState<string | null>(null);
+  const [loadedPackSource, setLoadedPackSource] = useState<string | null>(null);
+  const [loadedPackNote, setLoadedPackNote] = useState<string | null>(null);
+  const [originalImportedPack, setOriginalImportedPack] = useState<PhysicalWorkPackV1 | null>(null);
+  const [packLoadError, setPackLoadError] = useState<string | null>(null);
 
   const handleLoadContextFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -94,6 +103,110 @@ export default function PhysicalWorkPackCompiler({
     return () => { mounted = false; };
   }, []);
 
+  useEffect(() => {
+    const rawHandoff = sessionStorage.getItem('hearth_workpack_import_handoff');
+    if (!rawHandoff) return;
+
+    try {
+      const handoff = JSON.parse(rawHandoff) as {
+        source?: string;
+        note?: string | null;
+        payload?: unknown;
+      };
+      const parsed = parsePhysicalWorkPackFromJson(handoff.payload);
+      if ('error' in parsed) {
+        setPackLoadError(parsed.error);
+        setLoadedPackSource(null);
+        setLoadedPackNote(null);
+      } else {
+        applyImportedPack(parsed, handoff.source || 'Workbench handoff');
+        setLoadedPackNote(handoff.note || null);
+      }
+    } catch {
+      setPackLoadError('Work card load failed: unsupported local work card format.');
+      setLoadedPackSource(null);
+      setLoadedPackNote(null);
+    } finally {
+      sessionStorage.removeItem('hearth_workpack_import_handoff');
+    }
+  }, []);
+
+  const clearImportedPackState = () => {
+    setLoadedPackSource(null);
+    setLoadedPackNote(null);
+    setOriginalImportedPack(null);
+    setPackLoadError(null);
+  };
+
+  const applyImportedPack = (pack: PhysicalWorkPackV1, source: string) => {
+    const stopConditionsText = (pack.constraints?.stop_conditions || [])
+      .map((condition) => `${condition.condition_id} | ${condition.description} | ${condition.required_response}`)
+      .join('\n');
+
+    setId(pack.id || `wcard-${Date.now()}`);
+    setFacilityId(pack.facility_reference?.facility_id || '');
+    setFacilityTitle(pack.facility_reference?.facility_title || '');
+    setTargetAssets((pack.target_assets || []).join(', '));
+    setTaskDescription(pack.task?.description || '');
+    setTaskClass(pack.task?.task_class || 'inspection');
+    setOperatorType(pack.proposed_operator?.type || 'human');
+    setQualification(pack.proposed_operator?.required_role_or_qualification || '');
+    setZone(pack.spatial_boundary?.facility_zone || '');
+    setCoordinates(pack.spatial_boundary?.coordinates || '');
+    setMaterials((pack.resource_requirements?.materials || []).join(', '));
+    setTools((pack.resource_requirements?.tools || []).join(', '));
+    setEstimatedLaborHours(pack.resource_requirements?.estimated_labor_hours ?? 0);
+    setSafetyLimits((pack.constraints?.safety_limits || []).join('\n'));
+    setStopConditions(stopConditionsText);
+    setPrerequisites((pack.prerequisite_work_card_ids || []).join(', '));
+    setDependencies((pack.dependencies || []).join('\n'));
+    setStatus(pack.status || 'DRAFT');
+    setReviewedBy(pack.approvals?.reviewed_by || '');
+    setReviewedAt(pack.approvals?.reviewed_at || '');
+    setAuthorizedBy(pack.approvals?.authorized_by || '');
+    setAuthorizedAt(pack.approvals?.authorized_at || '');
+    setBuildingCodeRef(pack.domain_extensions?.construction?.building_code_reference || '');
+    setStructuralInspection(!!pack.domain_extensions?.construction?.structural_inspection_required);
+    setSpecies(pack.domain_extensions?.biological?.species || '');
+    setCultivar(pack.domain_extensions?.biological?.cultivar || '');
+    setHealthMetricTarget(pack.domain_extensions?.biological?.health_metric_target || '');
+    setCommandVocabulary((pack.domain_extensions?.robotic?.command_vocabulary || []).join(', '));
+    setMaxPayloadKg(pack.domain_extensions?.robotic?.max_payload_kg ?? 0);
+    setSafeStateMode(pack.domain_extensions?.robotic?.safe_state_mode || '');
+    setIsOperatorApproved(true);
+    setPreviewTab('json');
+    setLoadedPackSource(source);
+    setOriginalImportedPack(pack);
+    setPackLoadError(null);
+  };
+
+  const handleLoadWorkCardFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const raw = JSON.parse(event.target?.result as string);
+        const parsed = parsePhysicalWorkPackFromJson(raw);
+        if ('error' in parsed) {
+          setPackLoadError(parsed.error);
+          setLoadedPackSource(null);
+          setLoadedPackNote(null);
+          return;
+        }
+
+        applyImportedPack(parsed, file.name);
+        setLoadedPackNote(null);
+      } catch {
+        setPackLoadError('Work card load failed: unsupported local work card format.');
+        setLoadedPackSource(null);
+        setLoadedPackNote(null);
+      }
+    };
+    reader.readAsText(file);
+  };
+
   // View state
   const [previewTab, setPreviewTab] = useState<'md' | 'json'>('md');
 
@@ -102,6 +215,7 @@ export default function PhysicalWorkPackCompiler({
   const hasActiveBiosystem = !!biosystemPayload;
 
   const loadFromActiveDraft = () => {
+    clearImportedPackState();
     if (facilityPayload) {
       setFacilityId(facilityPayload.id || `facility-${Date.now()}`);
       setFacilityTitle(facilityPayload.title || 'Example Facility Draft');
@@ -146,6 +260,7 @@ export default function PhysicalWorkPackCompiler({
 
   // Preset Loaders
   const loadConstructionPreset = () => {
+    clearImportedPackState();
     setId(`wcard-construction-${Date.now()}`);
     setFacilityId('facility-example-cottage');
     setFacilityTitle('Example Cottage Plan');
@@ -183,6 +298,7 @@ export default function PhysicalWorkPackCompiler({
   };
 
   const loadRoboticPreset = () => {
+    clearImportedPackState();
     setId(`wcard-robotic-${Date.now()}`);
     setFacilityId('facility-example-biosphere');
     setFacilityTitle('Example Biosphere Chamber');
@@ -277,11 +393,7 @@ export default function PhysicalWorkPackCompiler({
         ...(authorizedBy ? { authorized_by: authorizedBy, authorized_at: authorizedAt } : {})
       },
       status,
-      truth_boundary: status === 'AUTHORIZED' 
-        ? 'AUTHORIZED local planning draft. Bounded to safe zones and approved for defined downstream handoff. Not an engineering certification, and does not authorize automated real-world execution without direct operator control.'
-        : status === 'REVIEWED'
-        ? 'REVIEWED local planning draft. Checked against structure or biosystem constraints. Awaiting final authorized steward handoff before any queue staging.'
-        : 'DRAFT/PROPOSED local planning draft only. Not live execution command.',
+      truth_boundary: buildWorkPackTruthBoundary(status),
       prerequisite_validation_context: {
         validation_context_source: validationContext.source || 'No completion context loaded',
         validation_context_completed_card_count: validationContext.completed_work_card_ids?.length || 0,
@@ -335,6 +447,16 @@ export default function PhysicalWorkPackCompiler({
     return (Date.now() - time) > 24 * 60 * 60 * 1000;
   }, [validationContext.generatedAt]);
 
+  const changedFields = useMemo(() => {
+    if (!compiledPack || !originalImportedPack) return [];
+    return getWorkPackChangedFields(originalImportedPack, compiledPack);
+  }, [compiledPack, originalImportedPack]);
+
+  const changeDetails = useMemo(() => {
+    if (!compiledPack || !originalImportedPack) return [];
+    return getWorkPackChangeDetails(originalImportedPack, compiledPack);
+  }, [compiledPack, originalImportedPack]);
+
   const triggerDownload = (filename: string, content: string, type: string) => {
     const blob = new Blob([content], { type });
     const url = URL.createObjectURL(blob);
@@ -357,6 +479,17 @@ export default function PhysicalWorkPackCompiler({
     if (!compiledPack || validationReport.length > 0 || !isOperatorApproved) return;
     const md = compileWorkPackMarkdown(compiledPack);
     triggerDownload(`${id}-brief.md`, md, 'text/markdown');
+  };
+
+  const downloadRevisionEnvelope = async () => {
+    if (!compiledPack || !originalImportedPack || validationReport.length > 0 || !isOperatorApproved || !loadedPackSource) return;
+    const revision = await buildWorkPackRevisionEnvelope(
+      originalImportedPack,
+      compiledPack,
+      loadedPackSource,
+      loadedPackNote
+    );
+    triggerDownload(`${id}-revision-envelope.json`, JSON.stringify(revision, null, 2), 'application/json');
   };
 
   return (
@@ -395,7 +528,105 @@ export default function PhysicalWorkPackCompiler({
               <RefreshCw className="w-3 h-3" /> Load Active Planner Draft ({hasActiveFacility ? 'Facility' : 'Biosystem'})
             </button>
           )}
+          <label className="text-[10px] uppercase tracking-wider text-[#c9bba5] hover:text-white border border-[#c9bba5]/30 px-3 py-1.5 rounded bg-black/20 hover:bg-[#c9bba5]/10 transition-all cursor-pointer">
+            Load Local Work Card
+            <input
+              type="file"
+              accept=".json,application/json"
+              onChange={handleLoadWorkCardFile}
+              className="hidden"
+            />
+          </label>
         </div>
+        {loadedPackSource && (
+          <div className="rounded border border-[#60A5FA]/20 bg-[#60A5FA]/10 px-3 py-2 text-[10px] text-[#bfdbfe] font-mono">
+            Loaded local work card artifact: {loadedPackSource}
+          </div>
+        )}
+        {loadedPackNote && (
+          <div className="rounded border border-[#D4A853]/20 bg-[#D4A853]/10 px-3 py-2 text-[10px] text-[#e7d7b3] font-mono">
+            {loadedPackNote}
+          </div>
+        )}
+        {packLoadError && (
+          <div className="rounded border border-red-500/20 bg-red-500/10 px-3 py-2 text-[10px] text-red-400 font-mono">
+            {packLoadError}
+          </div>
+        )}
+        {loadedPackSource && status === 'COMPLETED' && (
+          <div className="rounded border border-[#D4A853]/20 bg-[#D4A853]/10 px-3 py-2 text-[10px] text-[#e7d7b3] font-mono">
+            Imported terminal state only. Outcome history belongs to the local operations journal, not this compiler.
+          </div>
+        )}
+        {loadedPackSource && originalImportedPack && compiledPack && (
+          <div className="rounded border border-[#8a7a64]/25 bg-[#8a7a64]/10 px-3 py-3 text-[10px] font-mono text-[#d3c4af]">
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div className="flex flex-col gap-1">
+                <span className="uppercase tracking-widest text-[#8a7a64]">Local Revision Summary</span>
+                <span className="text-[#b7c9be]">
+                  {changedFields.length > 0
+                    ? `${changedFields.length} changed section${changedFields.length === 1 ? '' : 's'} from imported baseline.`
+                    : 'No local changes from imported baseline yet.'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={downloadRevisionEnvelope}
+                disabled={changedFields.length === 0 || validationReport.length > 0 || !isOperatorApproved}
+                className={`inline-flex items-center gap-1.5 rounded border px-2.5 py-1 text-[9px] uppercase tracking-widest transition-colors ${
+                  changedFields.length === 0 || validationReport.length > 0 || !isOperatorApproved
+                    ? 'cursor-not-allowed border-gray-700 text-gray-500 opacity-40'
+                    : 'border-[#8a7a64]/40 bg-[#8a7a64]/10 text-[#d3c4af] hover:border-[#c9bba5] hover:text-white'
+                }`}
+              >
+                <Download className="w-3 h-3" />
+                Export Revision Envelope
+              </button>
+            </div>
+            {changedFields.length > 0 && (
+              <div className="mt-2 space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  {changedFields.map((field) => (
+                    <span
+                      key={field}
+                      className="rounded border border-[#8a7a64]/30 bg-black/20 px-2 py-0.5 text-[9px] uppercase tracking-wider text-[#c9bba5]"
+                    >
+                      {field}
+                    </span>
+                  ))}
+                </div>
+                <div className="grid gap-2">
+                  {changeDetails.map((detail) => (
+                    <div key={detail.field} className="rounded border border-[#8a7a64]/20 bg-black/20 px-3 py-2">
+                      <div className="mb-2 flex items-center justify-between">
+                        <div className="text-[9px] uppercase tracking-[0.2em] text-[#8a7a64]">
+                          {detail.field}
+                        </div>
+                        <div className="text-[8px] uppercase tracking-widest text-[#5a4a3a] font-mono">
+                          Structured field diff
+                        </div>
+                      </div>
+                      <div className="grid gap-2 md:grid-cols-2">
+                        <div className="rounded border border-white/5 bg-black/20 px-2 py-2">
+                          <div className="mb-1 text-[9px] uppercase tracking-[0.18em] text-gray-500">Before</div>
+                          <div className="break-words whitespace-pre-wrap text-[10px] text-gray-300">
+                            {detail.before}
+                          </div>
+                        </div>
+                        <div className="rounded border border-[#8a7a64]/20 bg-[#8a7a64]/5 px-2 py-2">
+                          <div className="mb-1 text-[9px] uppercase tracking-[0.18em] text-[#c9bba5]">After</div>
+                          <div className="break-words whitespace-pre-wrap text-[10px] text-[#f5ead7]">
+                            {detail.after}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -426,6 +657,7 @@ export default function PhysicalWorkPackCompiler({
                 <option value="DRAFT">DRAFT (Proposed)</option>
                 <option value="REVIEWED">REVIEWED (Checked)</option>
                 <option value="AUTHORIZED">AUTHORIZED (Approved)</option>
+                <option value="COMPLETED" disabled>COMPLETED (Imported terminal state)</option>
               </select>
             </label>
           </div>

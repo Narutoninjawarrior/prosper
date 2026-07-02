@@ -4,11 +4,16 @@
  */
 
 import { 
+  buildWorkPackRevisionEnvelope,
+  buildWorkPackTruthBoundary,
+  getWorkPackChangeDetails,
+  getWorkPackChangedFields,
   PhysicalWorkPackV1, 
-  validatePhysicalWorkPack,
   StopConditionV1,
+  parseCompletedWorkCardsFromJson,
+  parsePhysicalWorkPackFromJson,
   resolveLocalCompletedWorkCards,
-  parseCompletedWorkCardsFromJson
+  validatePhysicalWorkPack
 } from '../frontend/src/lib/physicalWorkPack';
 
 const sampleStopConditions: StopConditionV1[] = [
@@ -377,6 +382,98 @@ console.log('Running Hardened PhysicalWorkPackV1 Validation Tests...\n');
   assert(roundtripJson.prerequisite_validation_context.validation_context_source === 'Loaded local completion file: custom.json', 'JSON source survives serialization.');
   assert(roundtripJson.prerequisite_validation_context.validation_context_completed_card_count === 5, 'JSON completed card count survives serialization.');
   assert(roundtripJson.prerequisite_validation_context.validation_context_generated_at === '2026-07-02T11:00:00Z', 'JSON timestamp survives serialization.');
+
+  // Case H: parsePhysicalWorkPackFromJson accepts raw schema payload
+  const rawPackParsed = parsePhysicalWorkPackFromJson(baseRoboticPack);
+  assert(!('error' in rawPackParsed), 'Should parse a raw PhysicalWorkPackV1 payload.');
+  assert(!('error' in rawPackParsed) && rawPackParsed.status === 'AUTHORIZED', 'Raw parsed work pack should retain status.');
+
+  // Case I: parsePhysicalWorkPackFromJson accepts explicit envelope payload
+  const envelopedPackParsed = parsePhysicalWorkPackFromJson({
+    schema_version: 'v1',
+    planner_type: 'workpack',
+    payload: {
+      ...baseRoboticPack,
+      status: 'COMPLETED' as const
+    },
+    content_hash: 'sha256-test'
+  });
+  assert(!('error' in envelopedPackParsed), 'Should parse an enveloped work card payload.');
+  assert(!('error' in envelopedPackParsed) && envelopedPackParsed.status === 'COMPLETED', 'Enveloped parsed work pack should retain COMPLETED status.');
+
+  // Case J: parsePhysicalWorkPackFromJson rejects unrelated payloads
+  const invalidWorkPack = parsePhysicalWorkPackFromJson({ planner_type: 'biosystem', payload: {} });
+  assert('error' in invalidWorkPack, 'Should reject unsupported local work card payloads.');
+  assert(('error' in invalidWorkPack) && invalidWorkPack.error === 'Work card load failed: unsupported local work card format.', 'Should return exact work card parse error.');
+
+  // Case K: COMPLETED truth boundary remains distinct from draft state
+  const completedBoundary = buildWorkPackTruthBoundary('COMPLETED');
+  assert(completedBoundary.includes('COMPLETED local work record.'), 'COMPLETED truth boundary should identify terminal lifecycle state.');
+  assert(!completedBoundary.includes('DRAFT/PROPOSED'), 'COMPLETED truth boundary should not fall back to draft wording.');
+
+  // Case L: revision diff surfaces changed sections only
+  const revisedPack: PhysicalWorkPackV1 = {
+    ...baseRoboticPack,
+    task: {
+      ...baseRoboticPack.task,
+      description: 'Inspect cacao tree humidity sensor and recalibrate fogging threshold'
+    },
+    resource_requirements: {
+      ...baseRoboticPack.resource_requirements,
+      tools: ['Swarm Drone Model A', 'Calibration Wand']
+    }
+  };
+  const changedFields = getWorkPackChangedFields(baseRoboticPack, revisedPack);
+  assert(changedFields.includes('task'), 'Revision diff should include task section.');
+  assert(changedFields.includes('resource_requirements'), 'Revision diff should include resource requirements section.');
+  assert(!changedFields.includes('constraints'), 'Revision diff should not include unchanged constraints section.');
+
+  // Case M: revision detail includes before/after values for changed sections (pretty-printed)
+  const changeDetails = getWorkPackChangeDetails(baseRoboticPack, revisedPack);
+  const taskDetail = changeDetails.find((detail) => detail.field === 'task');
+  const resourceDetail = changeDetails.find((detail) => detail.field === 'resource_requirements');
+  assert(!!taskDetail, 'Revision detail should include task section.');
+  assert(!!resourceDetail, 'Revision detail should include resource requirements section.');
+  // Pretty-printed format: "Description: ..." prefix expected
+  assert(taskDetail?.before.includes('Description: '), 'Task before should use pretty-printed format with Description label.');
+  assert(taskDetail?.before.includes('Inspect cacao tree humidity sensor'), 'Task detail should preserve the original description.');
+  assert(taskDetail?.after.includes('recalibrate fogging threshold'), 'Task detail should preserve the revised description.');
+  // Pretty-printed format: "Tools: ..." prefix expected
+  assert(resourceDetail?.before.includes('Tools: '), 'Resource before should use pretty-printed format with Tools label.');
+  assert(resourceDetail?.before.includes('Swarm Drone Model A'), 'Resource detail should preserve original tools.');
+  assert(resourceDetail?.after.includes('Calibration Wand'), 'Resource detail should preserve revised tools.');
+  // No raw JSON blob: should not contain raw {"description": ... format
+  assert(!taskDetail?.before.startsWith('{'), 'Task diff before should not be a raw JSON blob.');
+  assert(!taskDetail?.after.startsWith('{'), 'Task diff after should not be a raw JSON blob.');
+
+  // Case O: formatWorkPackDiffValue produces operator-readable output for named sections
+  const { getWorkPackChangeDetails: gcd2 } = require('../frontend/src/lib/physicalWorkPack');
+  const facilityChangePack: PhysicalWorkPackV1 = {
+    ...baseConstructionPack,
+    facility_reference: { facility_id: 'facility-new-001', facility_title: 'Revised Facility' }
+  };
+  const facilityDetails = gcd2(baseConstructionPack, facilityChangePack);
+  const facDetail = facilityDetails.find((d: any) => d.field === 'facility_reference');
+  assert(!!facDetail, 'Should detect facility_reference change.');
+  assert(facDetail.before.includes('Facility ID: facility-example-cottage'), 'Facility diff before should label Facility ID.');
+  assert(facDetail.before.includes('Title: Example Cottage Plan'), 'Facility diff before should label Title.');
+  assert(facDetail.after.includes('Facility ID: facility-new-001'), 'Facility diff after should show new ID.');
+  assert(!facDetail.before.includes('"facility_id"'), 'Facility diff should not be a raw JSON blob.');
+
+  // Case N: revision envelope records hashes and changed fields
+  const revisionEnvelope = await buildWorkPackRevisionEnvelope(
+    baseRoboticPack,
+    revisedPack,
+    'Operations snapshot: Published local export',
+    'Authorization metadata is not preserved in the operations snapshot. Reopened as REVIEWED for local revision.'
+  );
+  assert(revisionEnvelope.planner_type === 'workpack_revision', 'Revision envelope should identify workpack_revision planner type.');
+  assert(revisionEnvelope.work_card_id === revisedPack.id, 'Revision envelope should keep the revised work card id.');
+  assert(revisionEnvelope.changed_fields.includes('task'), 'Revision envelope should carry changed task field.');
+  assert(revisionEnvelope.changed_fields.includes('resource_requirements'), 'Revision envelope should carry changed resource requirements field.');
+  assert(revisionEnvelope.change_details.some((detail) => detail.field === 'task'), 'Revision envelope should carry detailed task diff.');
+  assert(revisionEnvelope.change_details.some((detail) => detail.after.includes('Calibration Wand')), 'Revision envelope should carry detailed revised values.');
+  assert(revisionEnvelope.baseline_content_hash !== revisionEnvelope.revised_content_hash, 'Revision envelope should record distinct baseline and revised hashes when content changes.');
 
   // Restore global environment
   (global as any).fetch = originalFetch;
