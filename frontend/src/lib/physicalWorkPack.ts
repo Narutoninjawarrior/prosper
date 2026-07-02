@@ -42,6 +42,7 @@ export interface PhysicalWorkPackV1 {
     safety_limits: string[];
     stop_conditions: StopConditionV1[];
   };
+  prerequisite_work_card_ids: string[];
   dependencies: string[];
   approvals: {
     reviewed_by?: string;
@@ -75,10 +76,14 @@ export interface WorkPackValidationError {
   level: 'error' | 'warning';
 }
 
+export interface WorkPackValidationContext {
+  completed_work_card_ids?: string[];
+}
+
 /**
  * Validates a PhysicalWorkPackV1 against strict structural and safety constraints.
  */
-export function validatePhysicalWorkPack(pack: PhysicalWorkPackV1): WorkPackValidationError[] {
+export function validatePhysicalWorkPack(pack: PhysicalWorkPackV1, context?: WorkPackValidationContext): WorkPackValidationError[] {
   const errors: WorkPackValidationError[] = [];
 
   // 1. Basic properties & Identification
@@ -248,6 +253,24 @@ export function validatePhysicalWorkPack(pack: PhysicalWorkPackV1): WorkPackVali
     }
   }
 
+  // 5. Dependency / Prerequisite checks
+  if (pack.prerequisite_work_card_ids && pack.prerequisite_work_card_ids.length > 0) {
+    pack.prerequisite_work_card_ids.forEach((reqId, idx) => {
+      if (!reqId || !reqId.trim()) {
+        errors.push({ field: `prerequisite_work_card_ids[${idx}]`, message: 'Prerequisite work card ID cannot be empty.', level: 'error' });
+      } else {
+        const isCompleted = context && context.completed_work_card_ids && context.completed_work_card_ids.includes(reqId);
+        if (!isCompleted) {
+          errors.push({
+            field: `prerequisite_work_card_ids[${idx}]`,
+            message: `Dependency unresolved: prerequisite work card not completed (${reqId}).`,
+            level: 'error'
+          });
+        }
+      }
+    });
+  }
+
   return errors;
 }
 
@@ -287,7 +310,8 @@ ${pack.constraints.safety_limits.length > 0 ? pack.constraints.safety_limits.map
 ${pack.constraints.stop_conditions.length > 0 ? pack.constraints.stop_conditions.map(c => `    - **[${c.condition_id}]** ${c.description} (Response: ${c.required_response})`).join('\n') : '    - None'}
 
 ## 5. Pre-Requisites & Dependencies
-${pack.dependencies.length > 0 ? pack.dependencies.map(d => `*   ${d}`).join('\n') : '*   None'}
+${pack.prerequisite_work_card_ids && pack.prerequisite_work_card_ids.length > 0 ? pack.prerequisite_work_card_ids.map(id => `*   [REQUIRED PRIOR CARD] ${id}`).join('\n') : ''}
+${pack.dependencies.length > 0 ? pack.dependencies.map(d => `*   ${d}`).join('\n') : (pack.prerequisite_work_card_ids && pack.prerequisite_work_card_ids.length > 0 ? '' : '*   None')}
 
 ## 6. Approval Records
 *   ${checkSymbol(pack.approvals.reviewed_by)} **Reviewed By:** ${pack.approvals.reviewed_by || 'Pending'} ${pack.approvals.reviewed_at ? `on ${pack.approvals.reviewed_at}` : ''}
