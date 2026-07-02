@@ -145,7 +145,7 @@ export default function AgentAccess() {
     aiDiscovery: null,
     llmsTxt: null,
   })
-  const { taskEvents, records } = useMultiplayerPresence({
+  const { taskEvents, receipts } = useMultiplayerPresence({
     enabled: true,
     agentKey: 'agent-access-observer',
     getPose: () => ({ x: 0, y: 0, z: 0, anim: 'idle' }),
@@ -187,7 +187,7 @@ export default function AgentAccess() {
       ]),
     )
 
-    for (const event of taskEvents as any[]) {
+    for (const event of (taskEvents || []) as any[]) {
       const taskId = event?.task_id
       if (!taskId) continue
       const current = taskMap.get(taskId) || {
@@ -212,7 +212,7 @@ export default function AgentAccess() {
       })
     }
 
-    for (const record of records as any[]) {
+    for (const record of (receipts || []) as any[]) {
       const taskId = record?.task_id
       if (!taskId) continue
       const current = taskMap.get(taskId) || {
@@ -238,7 +238,7 @@ export default function AgentAccess() {
     }
 
     return Array.from(taskMap.values())
-  }, [records, swarmTasks, taskEvents])
+  }, [receipts, swarmTasks, taskEvents])
 
   const liveSwarmStates = useMemo(
     () => Array.from(new Set(liveSwarmTasks.map((task) => task.status))).join(' · ') || 'open',
