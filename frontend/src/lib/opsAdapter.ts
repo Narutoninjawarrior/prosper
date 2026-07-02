@@ -39,6 +39,7 @@ export interface WorkCard {
   tools: string[];
   materials: string[];
   safety_limits: string[];
+  prerequisite_work_card_ids?: string[];
 }
 
 export interface DecisionTrace {
@@ -126,7 +127,8 @@ export function normalizeOpsData(raw: any): OpsViewModel | { error: string } {
             task_class: 'maintenance',
             tools: [],
             materials: [],
-            safety_limits: (selectedOpt?.stop_conditions || []).map((s: any) => s.description)
+            safety_limits: (selectedOpt?.stop_conditions || []).map((s: any) => s.description),
+            prerequisite_work_card_ids: selectedOpt?.prerequisite_work_card_ids || []
           });
 
           decision_traces.push({
@@ -194,6 +196,7 @@ export function normalizeOpsData(raw: any): OpsViewModel | { error: string } {
               tools: safeParse(wcCore.tools_json),
               materials: safeParse(wcCore.materials_json),
               safety_limits: safeParse(wcCore.safety_limits_json),
+              prerequisite_work_card_ids: safeParse(wcCore.prerequisite_work_card_ids_json || wcCore.prerequisite_work_card_ids),
           };
           work_cards.push(parsedWc);
           if (dt) decision_traces.push(...dt);

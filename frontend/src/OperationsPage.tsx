@@ -637,6 +637,43 @@ export default function OperationsPage() {
                       </div>
                     </div>
                     <p className="text-[11px] text-gray-400">{wc.description}</p>
+
+                    {/* Dependency Section */}
+                    <div className="mt-2.5 pt-2 border-t border-[#1A1410]/40 text-[10px] font-mono">
+                      {wc.prerequisite_work_card_ids && wc.prerequisite_work_card_ids.length > 0 ? (
+                        <div className="flex flex-col gap-1">
+                          <span className="uppercase text-gray-500 tracking-wider">Prerequisites:</span>
+                          <div className="flex flex-wrap gap-2 mt-0.5">
+                            {wc.prerequisite_work_card_ids.map(reqId => {
+                              const prereqCard = data.work_cards.find(c => c.work_card_id === reqId);
+                              const hasOutcome = data.outcomes.some(o => o.work_card_id === reqId);
+                              const isCompleted = prereqCard ? (prereqCard.status === 'COMPLETED' || hasOutcome) : false;
+                              return (
+                                <span key={reqId} className={`px-1.5 py-0.5 rounded border ${isCompleted ? 'border-[#7A9E7E]/30 bg-[#7A9E7E]/5 text-gray-300' : 'border-red-900/30 bg-red-950/10 text-red-400'}`}>
+                                  {reqId} ({isCompleted ? 'Completed' : 'Unresolved'})
+                                </span>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="italic text-gray-600">No prerequisites declared</span>
+                      )}
+
+                      {(() => {
+                        const downstream = data.work_cards.filter(c => 
+                          c.prerequisite_work_card_ids && c.prerequisite_work_card_ids.includes(wc.work_card_id)
+                        ).map(c => c.work_card_id);
+                        if (downstream.length > 0) {
+                          return (
+                            <div className="mt-2 text-gray-500 text-[9px] uppercase tracking-wider">
+                              Referenced by downstream work cards: <span className="text-gray-300 font-bold lowercase font-mono text-[10px]">{downstream.join(', ')}</span>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
+                    </div>
                   </div>
 
                   {/* Human Decision Block */}
