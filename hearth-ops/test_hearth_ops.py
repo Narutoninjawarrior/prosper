@@ -126,5 +126,42 @@ class TestHearthOps(unittest.TestCase):
         self.assertEqual(row[2], "Test outcome recorded successfully.")
         conn.close()
 
+    def test_full_schema_roundtrip(self):
+        init_db.init_database()
+        seed_sample_data.seed_data()
+        
+        export_journal_json.export_journal()
+        self.assertTrue(TEST_JSON_PATH.exists())
+
+        conn = sqlite3.connect(TEST_DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM work_cards")
+        pre_export_wc = cursor.fetchall()
+        cursor.execute("SELECT * FROM outcomes")
+        pre_export_outcomes = cursor.fetchall()
+        conn.close()
+        
+        # Wipe DB
+        TEST_DB_PATH.unlink()
+        init_db.init_database()
+        
+        # Import JSON
+        success = import_journal_json.import_journal(TEST_JSON_PATH)
+        self.assertTrue(success)
+
+        # Verify
+        conn = sqlite3.connect(TEST_DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM work_cards")
+        post_import_wc = cursor.fetchall()
+        cursor.execute("SELECT * FROM outcomes")
+        post_import_outcomes = cursor.fetchall()
+        conn.close()
+
+        self.assertEqual(len(pre_export_wc), len(post_import_wc))
+        self.assertEqual(len(pre_export_outcomes), len(post_import_outcomes))
+        self.assertEqual(pre_export_wc, post_import_wc)
+        self.assertEqual(pre_export_outcomes, post_import_outcomes)
+
 if __name__ == '__main__':
     unittest.main()

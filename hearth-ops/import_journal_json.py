@@ -66,9 +66,9 @@ def import_journal(input_file=INPUT_PATH):
             for wc in asset_block.get("work_cards", []):
                 try:
                     cursor.execute("""
-                        INSERT OR IGNORE INTO work_cards (work_card_id, asset_id, observation_id, label, description, estimated_labor_hours, status, created_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (wc.get('work_card_id'), wc.get('asset_id'), wc.get('observation_id'), wc.get('label'), wc.get('description'), wc.get('estimated_labor_hours'), wc.get('status'), wc.get('created_at')))
+                        INSERT OR IGNORE INTO work_cards (work_card_id, asset_id, observation_id, label, description, estimated_labor_hours, status, operator_type, qualification, task_class, tools_json, materials_json, safety_limits_json, stop_conditions_json, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (wc.get('work_card_id'), wc.get('asset_id'), wc.get('observation_id'), wc.get('label'), wc.get('description'), wc.get('estimated_labor_hours'), wc.get('status'), wc.get('operator_type'), wc.get('qualification'), wc.get('task_class'), wc.get('tools_json'), wc.get('materials_json'), wc.get('safety_limits_json'), wc.get('stop_conditions_json'), wc.get('created_at')))
                     if cursor.rowcount > 0: stats['work_cards'] += 1
                 except sqlite3.IntegrityError as e:
                     print(f"Skipping malformed work_card {wc.get('work_card_id')}: {e}")
@@ -82,17 +82,17 @@ def import_journal(input_file=INPUT_PATH):
                         """, (dt.get('decision_id'), dt.get('work_card_id'), dt.get('operator_approved'), dt.get('reasoning'), dt.get('reviewed_by'), dt.get('reviewed_at')))
                         if cursor.rowcount > 0: stats['decision_traces'] += 1
                     except sqlite3.IntegrityError as e:
-                        pass
+                        print(f"Skipping malformed decision_trace {dt.get('decision_id')}: {e}")
 
                 for out in wc.get("outcomes", []):
                     try:
                         cursor.execute("""
-                            INSERT OR IGNORE INTO outcomes (outcome_id, work_card_id, observed_at, metric_name, observed_value, calculated_prediction_error, notes)
-                            VALUES (?, ?, ?, ?, ?, ?, ?)
-                        """, (out.get('outcome_id'), out.get('work_card_id'), out.get('observed_at'), out.get('metric_name'), out.get('observed_value'), out.get('calculated_prediction_error'), out.get('notes')))
+                            INSERT OR IGNORE INTO outcomes (outcome_id, work_card_id, observed_at, metric_name, observed_value, metric_unit, calculated_prediction_error, notes)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (out.get('outcome_id'), out.get('work_card_id'), out.get('observed_at'), out.get('metric_name'), out.get('observed_value'), out.get('metric_unit'), out.get('calculated_prediction_error'), out.get('notes')))
                         if cursor.rowcount > 0: stats['outcomes'] += 1
                     except sqlite3.IntegrityError as e:
-                        pass
+                        print(f"Skipping malformed outcome {out.get('outcome_id')}: {e}")
 
         conn.commit()
         print(f"Import complete. New rows inserted: {stats}")
