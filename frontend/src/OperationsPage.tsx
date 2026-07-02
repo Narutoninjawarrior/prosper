@@ -59,6 +59,9 @@ export default function OperationsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState('PRIORITY');
 
+  const [compareData, setCompareData] = useState<OpsViewModel | null>(null);
+  const [compareSourceLabel, setCompareSourceLabel] = useState<string | null>(null);
+
   const loadRawData = (raw: unknown, source: string) => {
     const result = normalizeOpsData(raw);
     if ('error' in result) {
@@ -69,6 +72,8 @@ export default function OperationsPage() {
     setData(result);
     setError(null);
     setSourceLabel(source);
+    setCompareData(null);
+    setCompareSourceLabel(null);
   };
 
   const inspectLocalExport = async (file: File) => {
@@ -81,6 +86,19 @@ export default function OperationsPage() {
       setError(e instanceof SyntaxError ? 'INVALID_JSON' : String(e));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const inspectCompareExport = async (file: File) => {
+    try {
+      const raw = JSON.parse(await file.text());
+      const result = normalizeOpsData(raw);
+      if (!('error' in result)) {
+        setCompareData(result);
+        setCompareSourceLabel(`Comparison: ${file.name}`);
+      }
+    } catch (e) {
+      // quiet error
     }
   };
 
@@ -202,6 +220,45 @@ export default function OperationsPage() {
   // Threshold: 24 hours
   const isStale = generatedTime > 0 && (Date.now() - generatedTime) > 24 * 60 * 60 * 1000;
 
+  let diffSummary: {
+    newCards: number;
+    statusChanges: number;
+    newDecisions: number;
+    newOutcomes: number;
+    newCompleted: number;
+  } | null = null;
+  
+  if (compareData) {
+    const sum = {
+      newCards: 0,
+      statusChanges: 0,
+      newDecisions: 0,
+      newOutcomes: 0,
+      newCompleted: 0
+    };
+
+    data.work_cards.forEach(wc => {
+      const compWc = compareData.work_cards.find(c => c.work_card_id === wc.work_card_id);
+      if (!compWc) {
+        sum.newCards++;
+        if (wc.status === 'COMPLETED') sum.newCompleted++;
+      } else {
+        if (wc.status !== compWc.status) sum.statusChanges++;
+        if (wc.status === 'COMPLETED' && compWc.status !== 'COMPLETED') sum.newCompleted++;
+      }
+
+      const dec = data.decision_traces.find(d => d.work_card_id === wc.work_card_id);
+      const compDec = compareData.decision_traces.find(d => d.work_card_id === wc.work_card_id);
+      if (dec && !compDec) sum.newDecisions++;
+
+      const out = data.outcomes.find(o => o.work_card_id === wc.work_card_id);
+      const compOut = compareData.outcomes.find(o => o.work_card_id === wc.work_card_id);
+      if (out && !compOut) sum.newOutcomes++;
+    });
+    
+    diffSummary = sum;
+  }
+
   return (
     <div className="min-h-screen bg-[#050806] text-gray-200 p-4 md:p-8 font-mono">
       <div className="max-w-6xl mx-auto">
@@ -228,6 +285,20 @@ export default function OperationsPage() {
                     onChange={(event) => {
                       const file = event.target.files?.[0];
                       if (file) void inspectLocalExport(file);
+                      event.currentTarget.value = '';
+                    }}
+                  />
+                </label>
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded border border-[#2A1F16] bg-[#0A0604] px-3 py-2 text-[10px] uppercase tracking-widest text-gray-500 hover:text-gray-300 hover:border-gray-600 transition-colors">
+                  <FileUp className="h-3.5 w-3.5" />
+                  Compare against local export
+                  <input
+                    type="file"
+                    accept="application/json,.json"
+                    className="sr-only"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) void inspectCompareExport(file);
                       event.currentTarget.value = '';
                     }}
                   />
@@ -269,6 +340,40 @@ export default function OperationsPage() {
             </div>
           )}
         </div>
+
+        {compareData && diffSummary && (
+          <div className="mb-8 bg-[#0A0604] border border-[#1A1410] border-l-2 border-l-[#34D399] rounded-lg p-4 text-[11px] text-gray-400">
+            <div className="text-[10px] uppercase tracking-widest text-[#34D399] mb-3 font-bold">
+              Comparison: {compareSourceLabel}
+            </div>
+            {diffSummary.newCards === 0 && diffSummary.statusChanges === 0 && diffSummary.newDecisions === 0 && diffSummary.newOutcomes === 0 ? (
+              <div className="text-gray-500">No lifecycle differences found between these local snapshots.</div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div>
+                  <div className="text-[9px] uppercase tracking-widest text-gray-500 mb-1">New Cards</div>
+                  <div className="text-gray-300 font-mono">{diffSummary.newCards}</div>
+                </div>
+                <div>
+                  <div className="text-[9px] uppercase tracking-widest text-gray-500 mb-1">Status Changes</div>
+                  <div className="text-gray-300 font-mono">{diffSummary.statusChanges}</div>
+                </div>
+                <div>
+                  <div className="text-[9px] uppercase tracking-widest text-gray-500 mb-1">New Decisions</div>
+                  <div className="text-gray-300 font-mono">{diffSummary.newDecisions}</div>
+                </div>
+                <div>
+                  <div className="text-[9px] uppercase tracking-widest text-gray-500 mb-1">New Outcomes</div>
+                  <div className="text-gray-300 font-mono">{diffSummary.newOutcomes}</div>
+                </div>
+                <div>
+                  <div className="text-[9px] uppercase tracking-widest text-gray-500 mb-1">Now Completed</div>
+                  <div className="text-[#34D399] font-mono font-bold">{diffSummary.newCompleted}</div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Assets */}
         <section className="mb-8">
@@ -423,6 +528,23 @@ export default function OperationsPage() {
               const decision = data.decision_traces.find(d => d.work_card_id === wc.work_card_id);
               const outcome = data.outcomes.find(o => o.work_card_id === wc.work_card_id);
 
+              let diffHint = null;
+              if (compareData) {
+                const compWc = compareData.work_cards.find(c => c.work_card_id === wc.work_card_id);
+                const compDec = compareData.decision_traces.find(d => d.work_card_id === wc.work_card_id);
+                const compOut = compareData.outcomes.find(o => o.work_card_id === wc.work_card_id);
+                
+                if (!compWc) {
+                  diffHint = 'New in current snapshot';
+                } else if (compWc.status !== wc.status) {
+                  diffHint = 'Status changed since comparison';
+                } else if (outcome && !compOut) {
+                  diffHint = 'Outcome added since comparison';
+                } else if (decision && !compDec) {
+                  diffHint = 'Decision added since comparison';
+                }
+              }
+
               return (
                 <div
                   key={wc.work_card_id}
@@ -473,9 +595,14 @@ export default function OperationsPage() {
                   <div>
                     <div className="flex flex-col md:flex-row md:items-start justify-between gap-3 mb-2">
                       <div>
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <span className="text-xs font-bold text-[#c9bba5]">{wc.label}</span>
                           <StatusChip status={wc.status} />
+                          {diffHint && (
+                            <span className="text-[9px] text-[#34D399] italic ml-2 border border-[#34D399]/30 bg-[#34D399]/5 px-2 py-0.5 rounded">
+                              {diffHint}
+                            </span>
+                          )}
                         </div>
                         <div className="text-[10px] text-gray-500 font-mono">{wc.work_card_id}</div>
                       </div>
