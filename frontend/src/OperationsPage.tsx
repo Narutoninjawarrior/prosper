@@ -248,6 +248,9 @@ export default function OperationsPage() {
           <SectionHeader icon={<ClipboardList width={14} height={14} />} label="Work Card Lifecycles" count={data.work_cards.length} />
           <div className="space-y-4">
             {data.work_cards.map((wc) => {
+              const observation = wc.observation_id 
+                ? data.observations.find(o => o.observation_id === wc.observation_id)
+                : undefined;
               const decision = data.decision_traces.find(d => d.work_card_id === wc.work_card_id);
               const outcome = data.outcomes.find(o => o.work_card_id === wc.work_card_id);
 
@@ -256,6 +259,47 @@ export default function OperationsPage() {
                   key={wc.work_card_id}
                   className="bg-[#0A0604] border border-[#1A1410] rounded-lg p-4 hover:border-[#2A1F16] transition-colors flex flex-col gap-3"
                 >
+                  {/* Observation Block */}
+                  <div className="border-b border-[#1A1410] pb-3 mb-1">
+                    {observation ? (
+                      <div className="flex flex-col gap-1.5 text-[11px]">
+                        <div className="text-[10px] uppercase tracking-widest text-gray-500 mb-0.5">
+                          Originating Observation
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+                          <div className="flex flex-col">
+                            <span className="text-gray-500 font-mono text-[9px] uppercase">ID</span>
+                            <span className="font-mono text-gray-400">{observation.observation_id}</span>
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-gray-500 font-mono text-[9px] uppercase">Asset</span>
+                            <span className="font-mono text-gray-400">{observation.asset_id}</span>
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-gray-500 font-mono text-[9px] uppercase">Metric</span>
+                            <span className="text-[#c9bba5]">{observation.metric_name}</span>
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-gray-500 font-mono text-[9px] uppercase">Value</span>
+                            <span className="text-gray-300">{observation.metric_value} {observation.metric_unit}</span>
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-gray-500 font-mono text-[9px] uppercase">Source</span>
+                            <span className="text-gray-400">{observation.source}</span>
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-gray-500 font-mono text-[9px] uppercase">Time</span>
+                            <span className="text-gray-500">{new Date(observation.timestamp).toLocaleString()}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-[10px] uppercase tracking-widest text-gray-600 italic">
+                        [ No originating observation linked ]
+                      </div>
+                    )}
+                  </div>
+
                   {/* Proposal Block */}
                   <div>
                     <div className="flex flex-col md:flex-row md:items-start justify-between gap-3 mb-2">
