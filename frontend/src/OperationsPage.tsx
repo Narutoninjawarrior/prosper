@@ -5,6 +5,8 @@ import {
   Eye,
   FileUp,
   Info,
+  Search,
+  Filter,
 } from 'lucide-react';
 import { normalizeOpsData, type OpsViewModel } from './lib/opsAdapter';
 
@@ -50,6 +52,11 @@ export default function OperationsPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [sourceLabel, setSourceLabel] = useState('Published local export');
+
+  const [filterStatus, setFilterStatus] = useState('ALL');
+  const [filterDecision, setFilterDecision] = useState('ALL');
+  const [filterOutcome, setFilterOutcome] = useState('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const loadRawData = (raw: unknown, source: string) => {
     const result = normalizeOpsData(raw);
@@ -134,6 +141,32 @@ export default function OperationsPage() {
   }
 
   if (!data) return null;
+
+  const filteredWorkCards = data.work_cards.filter((wc) => {
+    if (searchQuery.trim()) {
+      const sq = searchQuery.toLowerCase();
+      const matchLabel = wc.label.toLowerCase().includes(sq);
+      const matchId = wc.work_card_id.toLowerCase().includes(sq);
+      const matchAsset = wc.asset_id.toLowerCase().includes(sq);
+      const obs = wc.observation_id ? data.observations.find(o => o.observation_id === wc.observation_id) : null;
+      const matchMetric = obs?.metric_name.toLowerCase().includes(sq) || false;
+      if (!matchLabel && !matchId && !matchAsset && !matchMetric) return false;
+    }
+
+    if (filterStatus !== 'ALL' && wc.status !== filterStatus) return false;
+
+    const decision = data.decision_traces.find(d => d.work_card_id === wc.work_card_id);
+    if (filterDecision === 'NO DECISION' && decision) return false;
+    if (filterDecision === 'APPROVED' && (!decision || !decision.operator_approved)) return false;
+    if (filterDecision === 'REJECTED' && (!decision || decision.operator_approved)) return false;
+
+    const outcome = data.outcomes.find(o => o.work_card_id === wc.work_card_id);
+    if (filterOutcome === 'NO OUTCOME' && outcome) return false;
+    if (filterOutcome === 'HAS OUTCOME' && !outcome) return false;
+    if (filterOutcome === 'HAS DRIFT' && (!outcome || Math.abs(outcome.calculated_prediction_error || 0) < 0.1)) return false;
+
+    return true;
+  });
 
   return (
     <div className="min-h-screen bg-[#050806] text-gray-200 p-4 md:p-8 font-mono">
@@ -245,9 +278,73 @@ export default function OperationsPage() {
 
         {/* Work Card Lifecycles */}
         <section className="mb-8">
-          <SectionHeader icon={<ClipboardList width={14} height={14} />} label="Work Card Lifecycles" count={data.work_cards.length} />
+          <SectionHeader icon={<ClipboardList width={14} height={14} />} label="Work Card Lifecycles" count={filteredWorkCards.length} />
+          
+          <div className="bg-[#0A0604] border border-[#1A1410] rounded-lg p-3 mb-4 flex flex-col md:flex-row gap-4 items-start md:items-center text-[10px] uppercase tracking-widest text-gray-400">
+            <div className="flex items-center gap-2 flex-1 w-full relative">
+              <Search className="w-3.5 h-3.5 absolute left-2 text-gray-500" />
+              <input
+                type="text"
+                placeholder="Search ID, Label, Asset..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-[#110D0A] border border-[#2A1F16] rounded pl-8 pr-3 py-1.5 focus:outline-none focus:border-[#E8842A] text-gray-300 placeholder-gray-600 transition-colors"
+              />
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-1.5">
+                <Filter className="w-3 h-3 text-gray-500" />
+                <span className="text-gray-600">Status</span>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="bg-[#110D0A] border border-[#2A1F16] rounded px-2 py-1 text-gray-300 focus:outline-none focus:border-[#E8842A]"
+                >
+                  <option value="ALL">All</option>
+                  <option value="DRAFT">Draft</option>
+                  <option value="REVIEWED">Reviewed</option>
+                  <option value="AUTHORIZED">Authorized</option>
+                  <option value="COMPLETED">Completed</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <span className="text-gray-600">Decision</span>
+                <select
+                  value={filterDecision}
+                  onChange={(e) => setFilterDecision(e.target.value)}
+                  className="bg-[#110D0A] border border-[#2A1F16] rounded px-2 py-1 text-gray-300 focus:outline-none focus:border-[#E8842A]"
+                >
+                  <option value="ALL">All</option>
+                  <option value="APPROVED">Approved</option>
+                  <option value="REJECTED">Rejected</option>
+                  <option value="NO DECISION">Pending</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <span className="text-gray-600">Outcome</span>
+                <select
+                  value={filterOutcome}
+                  onChange={(e) => setFilterOutcome(e.target.value)}
+                  className="bg-[#110D0A] border border-[#2A1F16] rounded px-2 py-1 text-gray-300 focus:outline-none focus:border-[#E8842A]"
+                >
+                  <option value="ALL">All</option>
+                  <option value="HAS OUTCOME">Has Outcome</option>
+                  <option value="HAS DRIFT">Has Drift</option>
+                  <option value="NO OUTCOME">Pending</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
           <div className="space-y-4">
-            {data.work_cards.map((wc) => {
+            {filteredWorkCards.length === 0 ? (
+              <div className="text-center py-12 text-[11px] text-gray-500 uppercase tracking-widest border border-dashed border-[#1A1410] rounded-lg">
+                No lifecycle records match the current filters.
+              </div>
+            ) : filteredWorkCards.map((wc) => {
               const observation = wc.observation_id 
                 ? data.observations.find(o => o.observation_id === wc.observation_id)
                 : undefined;
