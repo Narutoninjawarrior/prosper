@@ -50,6 +50,8 @@ export async function fetchExperimentLogRows(max = 40): Promise<ActivityRow[]> {
   try {
     const res = await fetch(`/api/experiment/log?limit=${max}`, { cache: 'no-store' });
     if (!res.ok) return [];
+    const contentType = res.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) return [];
     const data = (await res.json()) as { records?: Array<Record<string, unknown>> };
     return (data.records ?? []).map((row, index) => ({
       id: `exp-${String(row.experiment_id ?? index)}`,

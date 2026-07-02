@@ -156,12 +156,12 @@ export default function AgentAccess() {
     fetchActionContracts().then((seed) => {
       if (seed?.records) setActionContracts(seed.records)
     })
-    fetch('/swarm_tasks.json').then(r => r.json()).then(setSwarmTasks).catch(console.error)
+    fetch('/swarm_tasks.json').then(r => r.ok && r.headers.get('content-type')?.includes('application/json') ? r.json() : []).then(setSwarmTasks).catch(console.error)
     
     Promise.all([
-      fetch('/capabilities.json').then(r => r.json()).catch(() => null),
-      fetch('/planner_contracts.json').then(r => r.json()).catch(() => null),
-      fetch('/.well-known/ai.json').then(r => r.json()).catch(() => null),
+      fetch('/capabilities.json').then(r => r.ok && r.headers.get('content-type')?.includes('application/json') ? r.json() : null).catch(() => null),
+      fetch('/planner_contracts.json').then(r => r.ok && r.headers.get('content-type')?.includes('application/json') ? r.json() : null).catch(() => null),
+      fetch('/.well-known/ai.json').then(r => r.ok && r.headers.get('content-type')?.includes('application/json') ? r.json() : null).catch(() => null),
       fetch('/llms.txt').then(r => r.text()).catch(() => null),
     ]).then(([caps, planners, ai, llms]) => {
       setMachineData({

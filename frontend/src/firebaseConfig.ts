@@ -66,6 +66,8 @@ export async function ensureFirebaseConfigured(): Promise<boolean> {
     runtimeFirebaseConfigPromise = fetch(FIREBASE_INIT_URL, { cache: 'no-store' })
       .then(async (response) => {
         if (!response.ok) return null;
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) return null;
         return readRuntimeConfig(await response.json());
       })
       .catch((error) => {
