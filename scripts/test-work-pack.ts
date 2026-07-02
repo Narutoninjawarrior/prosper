@@ -6,7 +6,8 @@
 import { 
   PhysicalWorkPackV1, 
   validatePhysicalWorkPack,
-  StopConditionV1
+  StopConditionV1,
+  resolveLocalCompletedWorkCards
 } from '../frontend/src/lib/physicalWorkPack';
 
 const sampleStopConditions: StopConditionV1[] = [
@@ -274,16 +275,73 @@ console.log('Running Hardened PhysicalWorkPackV1 Validation Tests...\n');
 
   // Case 1: No context provided -> should fail
   const errors1 = validatePhysicalWorkPack(packWithReqs);
-  assert(errors1.some(e => e.message.includes('not completed (wcard-001)')), 'Should fail when context missing and prerequisites unresolved.');
+  assert(errors1.some(e => e.message === 'Dependency unresolved: prerequisite work card not completed.' && e.field === 'prerequisite_work_card_ids[0]'), 'Should fail with exact message for wcard-001.');
+  assert(errors1.some(e => e.message === 'Dependency unresolved: prerequisite work card not completed.' && e.field === 'prerequisite_work_card_ids[1]'), 'Should fail with exact message for wcard-002.');
 
   // Case 2: Context provided but missing some -> should fail
   const errors2 = validatePhysicalWorkPack(packWithReqs, { completed_work_card_ids: ['wcard-001'] });
-  assert(errors2.some(e => e.message.includes('not completed (wcard-002)')), 'Should fail when card references missing prerequisite.');
+  assert(errors2.some(e => e.message === 'Dependency unresolved: prerequisite work card not completed.' && e.field === 'prerequisite_work_card_ids[1]'), 'Should fail when second card references missing prerequisite.');
 
   // Case 3: Context provided and all satisfied -> should pass
   const errors3 = validatePhysicalWorkPack(packWithReqs, { completed_work_card_ids: ['wcard-001', 'wcard-002', 'wcard-003'] });
   assert(errors3.length === 0, 'Should pass when all prerequisites are satisfied in local context.');
 }
 
-console.log(`\nTests completed. Exit code: ${exitCode}`);
-process.exit(exitCode);
+// 11. Test resolveLocalCompletedWorkCards and context metadata
+(async () => {
+  console.log('Test 11: resolveLocalCompletedWorkCards and context metadata');
+
+  const originalFetch = (global as any).fetch;
+  const originalWindow = (global as any).window;
+
+  // Helper to set mock fetch
+  const mockFetch = (ok: boolean, payload: any) => {
+    (global as any).fetch = () => Promise.resolve({
+      ok,
+      json: () => Promise.resolve(payload)
+    });
+  };
+
+  // Case A: Successful journal_export load
+  mockFetch(true, {
+    updated_at: new Date().toISOString(),
+    entries: [
+      { entry_id: '123', decision: { approved_by_human: true }, outcome: {} }
+    ]
+  });
+
+  const ctx = await resolveLocalCompletedWorkCards();
+  assert(ctx.source === 'Published local journal export', 'Source should be journal export when fetch is successful.');
+  assert(ctx.completed_work_card_ids?.includes('wc-123') === true, 'Resolved completed cards should include wc-123.');
+  assert(!!ctx.generatedAt, 'generatedAt timestamp should be populated.');
+
+  // Case B: Fetch fails but legacy fallback exists in sessionStorage
+  mockFetch(false, null);
+  (global as any).window = {
+    sessionStorage: {
+      getItem: (key: string) => {
+        if (key === 'hearth_workbench_completed_cards') {
+          return JSON.stringify(['wcard-legacy-001']);
+        }
+        return null;
+      }
+    }
+  };
+
+  const ctxFallback = await resolveLocalCompletedWorkCards();
+  assert(ctxFallback.source === 'Legacy local fallback', 'Source should fall back to legacy local fallback.');
+  assert(ctxFallback.completed_work_card_ids?.includes('wcard-legacy-001') === true, 'Legacy fallback should load correct IDs.');
+
+  // Case C: Neither exists
+  (global as any).window = undefined;
+  const ctxEmpty = await resolveLocalCompletedWorkCards();
+  assert(ctxEmpty.source === 'No completion context loaded', 'Source should indicate no context when both fail.');
+  assert(ctxEmpty.completed_work_card_ids?.length === 0, 'Completed card IDs should be empty when context missing.');
+
+  // Restore global environment
+  (global as any).fetch = originalFetch;
+  (global as any).window = originalWindow;
+
+  console.log(`\nTests completed. Exit code: ${exitCode}`);
+  process.exit(exitCode);
+})();

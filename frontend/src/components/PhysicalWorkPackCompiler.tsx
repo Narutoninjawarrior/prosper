@@ -298,6 +298,13 @@ export default function PhysicalWorkPackCompiler({
     return compiledPack ? validatePhysicalWorkPack(compiledPack, validationContext) : [];
   }, [compiledPack, validationContext]);
 
+  const isContextStale = useMemo(() => {
+    if (!validationContext.generatedAt) return false;
+    const time = new Date(validationContext.generatedAt).getTime();
+    if (isNaN(time)) return false;
+    return (Date.now() - time) > 24 * 60 * 60 * 1000;
+  }, [validationContext.generatedAt]);
+
   const triggerDownload = (filename: string, content: string, type: string) => {
     const blob = new Blob([content], { type });
     const url = URL.createObjectURL(blob);
@@ -572,6 +579,29 @@ export default function PhysicalWorkPackCompiler({
             />
           </label>
 
+          {/* Completion Context Metadata Strip */}
+          <div className="bg-black/30 border border-[#7A9E7E]/10 rounded p-3 flex flex-col gap-1.5 font-mono text-[10px] text-gray-400">
+            <div className="flex justify-between">
+              <span className="uppercase text-gray-500 tracking-wider">Completion Context Source:</span>
+              <span className="text-gray-300 font-bold">{validationContext.source || 'No completion context loaded'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="uppercase text-gray-500 tracking-wider">Completed Cards:</span>
+              <span className="text-gray-300 font-bold">{validationContext.completed_work_card_ids?.length || 0}</span>
+            </div>
+            {validationContext.generatedAt && (
+              <div className="flex justify-between">
+                <span className="uppercase text-gray-500 tracking-wider">Snapshot Generated:</span>
+                <span className="text-gray-300">{new Date(validationContext.generatedAt).toLocaleString()}</span>
+              </div>
+            )}
+            {isContextStale && (
+              <div className="text-[10px] text-gray-500 italic mt-1 border-t border-[#7A9E7E]/10 pt-1.5 leading-relaxed">
+                Completion context may be stale. Re-export local ops journal for newer dependency state.
+              </div>
+            )}
+          </div>
+
           {/* Approval Records Panel */}
           <h4 className="text-white font-mono text-xs uppercase tracking-widest font-bold border-b border-white/5 pb-2 mt-2">
             Approval Records
@@ -746,14 +776,25 @@ export default function PhysicalWorkPackCompiler({
             </div>
             {validationReport.length > 0 ? (
               <ul className="mt-3 space-y-2 border-t border-red-900/20 pt-3">
-                {validationReport.map((err, idx) => (
-                  <li key={idx} className="text-xs text-red-300 flex items-start gap-2 font-mono">
-                    <ShieldAlert className="w-3.5 h-3.5 mt-0.5 shrink-0 text-red-500" />
-                    <span>
-                      <strong>{err.field}</strong>: {err.message}
-                    </span>
-                  </li>
-                ))}
+                {validationReport.map((err, idx) => {
+                  const match = err.field.match(/prerequisite_work_card_ids\[(\d+)\]/);
+                  const unresolvedId = match && compiledPack?.prerequisite_work_card_ids?.[parseInt(match[1])];
+                  return (
+                    <li key={idx} className="text-xs text-red-300 flex flex-col gap-0.5 font-mono">
+                      <div className="flex items-start gap-2">
+                        <ShieldAlert className="w-3.5 h-3.5 mt-0.5 shrink-0 text-red-500" />
+                        <span>
+                          <strong>{err.field}</strong>: {err.message}
+                        </span>
+                      </div>
+                      {unresolvedId && (
+                        <div className="text-[10px] text-red-400 pl-[22px] font-mono">
+                          Unresolved Prerequisite ID: {unresolvedId}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             ) : (
               <p className="mt-2 text-xs text-[#86efac] font-mono leading-relaxed">

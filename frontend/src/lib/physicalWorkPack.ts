@@ -78,6 +78,8 @@ export interface WorkPackValidationError {
 
 export interface WorkPackValidationContext {
   completed_work_card_ids?: string[];
+  source?: 'Published local journal export' | 'Legacy local fallback' | 'No completion context loaded';
+  generatedAt?: string;
 }
 
 /**
@@ -86,11 +88,21 @@ export interface WorkPackValidationContext {
  */
 export async function resolveLocalCompletedWorkCards(): Promise<WorkPackValidationContext> {
   let ids: string[] = [];
+  let source: 'Published local journal export' | 'Legacy local fallback' | 'No completion context loaded' = 'No completion context loaded';
+  let generatedAt: string | undefined = undefined;
+
   try {
     // Attempt to read from the published local ops journal (normalized truth)
     const res = await fetch('/journal_export.json', { cache: 'no-store' });
     if (res.ok) {
       const raw = await res.json();
+      
+      if (raw.updated_at) {
+        generatedAt = raw.updated_at;
+      } else if (raw.meta && raw.meta.generated_at) {
+        generatedAt = raw.meta.generated_at;
+      }
+
       // Basic inline traversal (avoids circular deps with opsAdapter)
       if (raw.entries && Array.isArray(raw.entries)) {
         raw.entries.forEach((entry: any) => {
@@ -102,6 +114,7 @@ export async function resolveLocalCompletedWorkCards(): Promise<WorkPackValidati
              }
           }
         });
+        source = 'Published local journal export';
       } else if (raw.assets && Array.isArray(raw.assets)) {
         raw.assets.forEach((a: any) => {
           if (a.work_cards && Array.isArray(a.work_cards)) {
@@ -110,6 +123,7 @@ export async function resolveLocalCompletedWorkCards(): Promise<WorkPackValidati
             });
           }
         });
+        source = 'Published local journal export';
       }
     }
   } catch {
@@ -120,11 +134,18 @@ export async function resolveLocalCompletedWorkCards(): Promise<WorkPackValidati
   if (ids.length === 0 && typeof window !== 'undefined' && window.sessionStorage) {
     const legacy = window.sessionStorage.getItem('hearth_workbench_completed_cards');
     if (legacy) {
-      try { ids = JSON.parse(legacy); } catch {}
+      try { 
+        ids = JSON.parse(legacy);
+        source = 'Legacy local fallback';
+      } catch {}
     }
   }
 
-  return { completed_work_card_ids: ids };
+  return { 
+    completed_work_card_ids: ids,
+    source,
+    generatedAt
+  };
 }
 
 /**
@@ -310,7 +331,7 @@ export function validatePhysicalWorkPack(pack: PhysicalWorkPackV1, context?: Wor
         if (!isCompleted) {
           errors.push({
             field: `prerequisite_work_card_ids[${idx}]`,
-            message: `Dependency unresolved: prerequisite work card not completed (${reqId}).`,
+            message: `Dependency unresolved: prerequisite work card not completed.`,
             level: 'error'
           });
         }
