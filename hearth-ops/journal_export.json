@@ -8,14 +8,14 @@
         "type": "living_habitat",
         "status": "active",
         "facility_id": "conservatory-south",
-        "created_at": "2026-07-02T03:01:21.791386Z"
+        "created_at": "2026-07-02T03:05:24.947298Z"
       },
       "observations": [
         {
           "observation_id": "obs-20260702-001",
           "asset_id": "example-cacao-habitat-04",
           "steward_id": "steward-continuity-1",
-          "timestamp": "2026-07-02T02:51:21.791895Z",
+          "timestamp": "2026-07-02T02:55:24.947298Z",
           "source": "sensor-stream",
           "metric_name": "relative_humidity",
           "metric_value": 68.0,
@@ -38,7 +38,7 @@
           "materials_json": "[]",
           "safety_limits_json": "[\"Do not exceed 80% relative humidity\"]",
           "stop_conditions_json": "[{\"condition_id\": \"abort_humidity_high\", \"description\": \"Relative humidity exceeds 80%\", \"required_response\": \"Stop misting cycle and re-check canopy conditions\"}]",
-          "created_at": "2026-07-02T02:51:21.791895Z",
+          "created_at": "2026-07-02T02:55:24.947298Z",
           "decision_traces": [
             {
               "decision_id": "dec-20260702-001",
@@ -46,19 +46,19 @@
               "operator_approved": 1,
               "reasoning": "Misting is required to recover humidity boundary range (70-80%).",
               "reviewed_by": "operator-field-manual",
-              "reviewed_at": "2026-07-02T02:56:21.792425Z"
+              "reviewed_at": "2026-07-02T03:00:24.948297Z"
             }
           ],
           "outcomes": [
             {
-              "outcome_id": "out-20260702-001",
+              "outcome_id": "out-20260702-6cc89f",
               "work_card_id": "wc-20260702-001",
-              "observed_at": "2026-07-02T03:01:21.792425Z",
+              "observed_at": "2026-07-02T03:05:31.634252Z",
               "metric_name": "relative_humidity",
-              "observed_value": 72.5,
+              "observed_value": 73.0,
               "metric_unit": "%",
-              "calculated_prediction_error": 2.5,
-              "notes": "Humidity recovered successfully. Nominal state active."
+              "calculated_prediction_error": 2.0,
+              "notes": "Recorded via CLI"
             }
           ]
         }
