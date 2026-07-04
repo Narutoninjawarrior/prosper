@@ -17,8 +17,15 @@ import BiosystemLoopCanvas from './components/BiosystemLoopCanvas'
 import { SchemaDropper } from './components/SchemaDropper'
 import StewardshipJournalManager from './components/StewardshipJournalManager'
 import PhysicalWorkPackCompiler from './components/PhysicalWorkPackCompiler'
+import { SensorTrendDashboard } from './components/SensorTrendDashboard'
+import { AuditDashboard } from './components/AuditDashboard'
+import { ActuatorControlPanel } from './components/ActuatorControlPanel'
+import { OrganicConversionDashboard } from './components/OrganicConversionDashboard'
+import { NonConformanceDashboard } from './components/NonConformanceDashboard'
+import { ICSDocumentManager } from './components/ICSDocumentManager'
+import { ComplianceReportDashboard } from './components/ComplianceReport'
 
-type TabId = 'graphics' | 'soulfile' | 'memory' | 'blueprint' | 'siteplan' | 'mason' | 'food_compliance' | 'allonic' | 'facility' | 'biosystem' | 'stewardship' | 'workpack'
+type TabId = 'graphics' | 'soulfile' | 'memory' | 'blueprint' | 'siteplan' | 'mason' | 'food_compliance' | 'allonic' | 'facility' | 'biosystem' | 'stewardship' | 'workpack' | 'analytics' | 'audit' | 'actuator' | 'conversion' | 'non_conformance' | 'ics' | 'compliance_report'
 type DraftStage = 'Rough Cut' | 'Smoothed' | 'Sealed'
 type SaveState = 'Saved locally' | 'Saving...' | 'Unsaved changes'
 type PlannerContractRecord = {
@@ -102,6 +109,13 @@ const TABS: Array<{ id: TabId; label: string }> = [
   { id: 'biosystem', label: 'Biosystem Loop Planner' },
   { id: 'stewardship', label: 'Stewardship Journal' },
   { id: 'workpack', label: 'Operational Work Card' },
+  { id: 'analytics', label: 'Analytics Dashboard' },
+  { id: 'audit', label: 'Merkle Audit Dashboard' },
+  { id: 'actuator', label: 'Actuator Control' },
+  { id: 'conversion', label: 'Organic Conversion' },
+  { id: 'non_conformance', label: 'Non-Conformance Log' },
+  { id: 'ics', label: 'ICS Documents' },
+  { id: 'compliance_report', label: 'Compliance Report' },
   { id: 'mason', label: 'Mason' },
 ]
 
@@ -435,8 +449,15 @@ export default function GenerativeWorkbench() {
       || requestedTab === 'biosystem'
       || requestedTab === 'stewardship'
       || requestedTab === 'workpack'
+      || requestedTab === 'analytics'
+      || requestedTab === 'audit'
+      || requestedTab === 'actuator'
+      || requestedTab === 'conversion'
+      || requestedTab === 'non_conformance'
+      || requestedTab === 'ics'
+      || requestedTab === 'compliance_report'
     ) {
-      setTab(requestedTab)
+      setTab(requestedTab as TabId)
     }
 
     const source = params.get('source') || undefined
@@ -1477,7 +1498,6 @@ export default function GenerativeWorkbench() {
               {tab === 'facility' && (
                 <FacilityBuildPlanner
                   key={plannerKey}
-                  initialManifest={plannerIntake?.hydrationPayload}
                   onManifestChange={(payload) => {
                     setFacilityPayload(payload)
                     setExportJson('')
@@ -1490,7 +1510,6 @@ export default function GenerativeWorkbench() {
               {tab === 'biosystem' && (
                 <BiosystemLoopCanvas
                   key={plannerKey}
-                  initialManifest={plannerIntake?.hydrationPayload}
                   onUpdate={(payload) => {
                     setBiosystemPayload(payload)
                     setExportJson('')
@@ -1511,6 +1530,34 @@ export default function GenerativeWorkbench() {
                 />
               )}
 
+              {tab === 'analytics' && (
+                <SensorTrendDashboard />
+              )}
+
+              {tab === 'audit' && (
+                <AuditDashboard />
+              )}
+              
+              {tab === 'actuator' && (
+                <ActuatorControlPanel />
+              )}
+
+              {tab === 'conversion' && (
+                <OrganicConversionDashboard />
+              )}
+
+              {tab === 'non_conformance' && (
+                <NonConformanceDashboard />
+              )}
+
+              {tab === 'ics' && (
+                <ICSDocumentManager />
+              )}
+
+              {tab === 'compliance_report' && (
+                <ComplianceReportDashboard />
+              )}
+
               {tab === 'mason' && (
                 <MasonPanel
                   onStamp={(json, hash) => {
@@ -1525,7 +1572,7 @@ export default function GenerativeWorkbench() {
                 />
               )}
 
-              {tab !== 'mason' && tab !== 'stewardship' && tab !== 'workpack' && (
+              {tab !== 'mason' && tab !== 'stewardship' && tab !== 'workpack' && tab !== 'analytics' && tab !== 'audit' && tab !== 'conversion' && tab !== 'non_conformance' && tab !== 'ics' && tab !== 'compliance_report' && (
                 <div className="mt-4">
                   {tab === 'allonic' && allonicPayload && (
                     <div className="mb-4">
@@ -1743,7 +1790,7 @@ export default function GenerativeWorkbench() {
                 )}
               </section>
 
-            {tab !== 'facility' && tab !== 'stewardship' && tab !== 'workpack' && (
+            {tab !== 'facility' && tab !== 'stewardship' && tab !== 'workpack' && tab !== 'analytics' && tab !== 'audit' && tab !== 'conversion' && tab !== 'non_conformance' && tab !== 'ics' && tab !== 'compliance_report' && (
               <section className="rounded-[20px] border border-[#D4A853]/15 bg-[#0a0806]/90 flex flex-col overflow-hidden">
                 <div className="border-b border-[#D4A853]/15 bg-black/40 px-5 py-3 flex items-center justify-between">
                   <div className="text-[10px] uppercase tracking-[0.24em] text-[#8a7a64]">Human / Machine Mirror</div>
@@ -1809,7 +1856,7 @@ export default function GenerativeWorkbench() {
               </section>
             )}
 
-            {tab !== 'stewardship' && tab !== 'workpack' && (
+            {tab !== 'stewardship' && tab !== 'workpack' && tab !== 'analytics' && tab !== 'audit' && tab !== 'conversion' && tab !== 'non_conformance' && tab !== 'ics' && tab !== 'compliance_report' && (
               <section className="rounded-[20px] border border-[#60A5FA]/15 bg-[#08101a]/90 p-5 font-mono">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
