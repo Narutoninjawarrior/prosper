@@ -303,6 +303,22 @@ export default function RoboticAssetPassport() {
   const reachEnvelopePoints = showReachEnvelope ? generateReachEnvelope() : [];
   const envelopePerimeterCheck = showReachEnvelope ? checkPerimeterViolation(reachEnvelopePoints, zoneWidth, zoneLength) : { valid: true };
   const envelopeClipped = showReachEnvelope && !envelopePerimeterCheck.valid;
+  const activeBoundaryPoints = showReachEnvelope && reachEnvelopePoints.length > 0 ? reachEnvelopePoints : reachPoints;
+  const requiredZoneWidth = passport
+    ? Math.max(
+        passport.footprint_width_m,
+        pathWidth + passport.maximum_reach_m * 2,
+        activeBoundaryPoints.length > 0 ? Math.max(...activeBoundaryPoints.map(point => Math.abs(point[0]))) * 2 : 0
+      ) + 0.2
+    : zoneWidth;
+  const requiredZoneLength = passport
+    ? Math.max(
+        passport.footprint_length_m,
+        pathLength,
+        turnRadius * 2,
+        activeBoundaryPoints.length > 0 ? Math.max(...activeBoundaryPoints.map(point => Math.abs(point[2]))) * 2 : 0
+      ) + 0.2
+    : zoneLength;
 
   // Generate tendon path coordinates
   const getFullTendonPath = (): [number, number, number][] => {
@@ -339,6 +355,66 @@ export default function RoboticAssetPassport() {
   };
 
   const tendonPathPoints = getFullTendonPath();
+
+  const handleFitZoneToConstraints = () => {
+    if (!passport) return;
+    setZoneWidth(parseFloat(requiredZoneWidth.toFixed(1)));
+    setZoneLength(parseFloat(requiredZoneLength.toFixed(1)));
+  };
+
+  const getConstraintGuidance = () => {
+    if (!passport) return null;
+
+    if (isBoundaryViolation) {
+      return {
+        tone: 'warning',
+        title: 'Current reach envelope is outside the configured zone.',
+        body: `Increase the zone boundary or reduce the active reach envelope before fabrication exports unlock. A fitted zone of ${requiredZoneLength.toFixed(1)}m x ${requiredZoneWidth.toFixed(1)}m clears the current geometry.`
+      };
+    }
+
+    if (!validatorStatus?.valid) {
+      if (validatorStatus?.message.includes('Footprint exceeds zone boundary')) {
+        return {
+          tone: 'warning',
+          title: 'Current footprint is larger than the configured zone.',
+          body: `Increase the zone to at least ${requiredZoneLength.toFixed(1)}m x ${requiredZoneWidth.toFixed(1)}m or reduce the morphology footprint before continuing.`
+        };
+      }
+
+      if (validatorStatus?.message.includes('Task path width exceeds zone width')) {
+        return {
+          tone: 'warning',
+          title: 'Task path dimensions exceed the current zone.',
+          body: `Shorten the path or widen the zone. A fitted zone of ${requiredZoneLength.toFixed(1)}m x ${requiredZoneWidth.toFixed(1)}m satisfies the current path settings.`
+        };
+      }
+
+      if (validatorStatus?.message.includes('Turn radius exceeds available zone depth')) {
+        return {
+          tone: 'warning',
+          title: 'Turn radius is too large for the current zone.',
+          body: `Reduce the turn radius or expand the zone depth. A fitted zone of ${requiredZoneLength.toFixed(1)}m x ${requiredZoneWidth.toFixed(1)}m supports the current turn.`
+        };
+      }
+
+      if (validatorStatus?.message.includes('Robot reach exceeds path-safe boundary')) {
+        return {
+          tone: 'warning',
+          title: 'Reach and path width exceed the safe working boundary.',
+          body: `Widen the zone or tighten the task path before fabrication handoff. A fitted zone of ${requiredZoneLength.toFixed(1)}m x ${requiredZoneWidth.toFixed(1)}m clears the current reach margin.`
+        };
+      }
+    }
+
+    return {
+      tone: 'ready',
+      title: 'Geometry passes the current local checks.',
+      body: 'The morphology is eligible for registration, print review, and fabrication-facing exports.'
+    };
+  };
+
+  const constraintGuidance = getConstraintGuidance();
 
   const handleRegister = () => {
     if (!passport) return;
@@ -674,6 +750,30 @@ export default function RoboticAssetPassport() {
 
       {passport ? (
         <>
+        {constraintGuidance && (
+          <div className={`border rounded-xl overflow-hidden ${constraintGuidance.tone === 'ready' ? 'border-emerald-900/50 bg-emerald-950/20' : 'border-amber-900/50 bg-amber-950/20'}`}>
+            <div className="p-4 font-mono text-xs flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-start gap-3">
+                {constraintGuidance.tone === 'ready' ? <Check size={16} className="mt-0.5 text-emerald-400" /> : <AlertCircle size={16} className="mt-0.5 text-amber-400" />}
+                <div className="flex flex-col gap-1">
+                  <span className={`font-bold uppercase tracking-widest ${constraintGuidance.tone === 'ready' ? 'text-emerald-300' : 'text-amber-300'}`}>Operator Guidance</span>
+                  <span className={`${constraintGuidance.tone === 'ready' ? 'text-emerald-100' : 'text-amber-100'}`}>{constraintGuidance.title}</span>
+                  <span className={`${constraintGuidance.tone === 'ready' ? 'text-emerald-200/80' : 'text-amber-200/80'}`}>{constraintGuidance.body}</span>
+                </div>
+              </div>
+
+              {(isBoundaryViolation || !validatorStatus?.valid) && (
+                <button
+                  onClick={handleFitZoneToConstraints}
+                  className="px-3 py-2 rounded border border-amber-800/60 bg-amber-900/30 text-amber-200 font-bold tracking-wider hover:bg-amber-900/45 transition-colors"
+                >
+                  Fit Zone To Current Constraints
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           
           <div className="border border-slate-900 bg-slate-950/60 rounded-xl overflow-hidden flex flex-col">
