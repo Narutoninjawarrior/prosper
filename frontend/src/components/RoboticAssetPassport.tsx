@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Box } from '@react-three/drei';
 import { UploadCloud, Download, Check, AlertCircle } from 'lucide-react';
@@ -127,6 +127,7 @@ export default function RoboticAssetPassport() {
   const [error, setError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [selectedPreset, setSelectedPreset] = useState<string>('');
+  const [activePrintSheet, setActivePrintSheet] = useState<'review' | 'assembly' | 'checklist' | 'build-packet' | null>(null);
   
   // Perimeter limits
   const [zoneLength, setZoneLength] = useState<number>(5.0);
@@ -416,6 +417,27 @@ export default function RoboticAssetPassport() {
 
   const constraintGuidance = getConstraintGuidance();
 
+  useEffect(() => {
+    if (!activePrintSheet) return;
+
+    const handleAfterPrint = () => setActivePrintSheet(null);
+    window.addEventListener('afterprint', handleAfterPrint);
+
+    const timeoutId = window.setTimeout(() => {
+      window.print();
+    }, 80);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      window.removeEventListener('afterprint', handleAfterPrint);
+    };
+  }, [activePrintSheet]);
+
+  const handlePrintSheet = (sheet: 'review' | 'assembly' | 'checklist' | 'build-packet') => {
+    if (!validatorStatus?.valid || isBoundaryViolation) return;
+    setActivePrintSheet(sheet);
+  };
+
   const handleRegister = () => {
     if (!passport) return;
     
@@ -699,6 +721,109 @@ export default function RoboticAssetPassport() {
       ? 'FRAME -> JOINTS -> GUIDES/PULLEYS -> TENDON ROUTING -> TOOL MOUNT'
       : 'FRAME -> JOINTS -> GUIDES -> TENDON ROUTING -> TOOL MOUNT');
 
+  const isGeometryValid = validatorStatus?.valid ?? false;
+  const isPerimeterValid = !isBoundaryViolation;
+  const hasMorphology = passport !== null;
+  const hasTendonNotes = fabricationNotes.toLowerCase().includes('tendon') || fabricationNotes.toLowerCase().includes('routing') || cableRoutingNotes.trim().length > 0;
+  const hasAssumptionsNotes = frameMaterialNotes.trim().length > 0 || assemblyNotes.trim().length > 0;
+  
+  const preflightStatus = {
+    geometry: {
+      status: isGeometryValid ? 'PASS' : 'BLOCKED',
+      message: isGeometryValid ? 'Geometry clears current zone constraints.' : 'Geometry validation failed. Adjust dimensions.',
+    },
+    perimeter: {
+      status: isPerimeterValid ? 'PASS' : 'BLOCKED',
+      message: isPerimeterValid ? 'No perimeter violations detected.' : 'Current geometry violates the defined zone.',
+    },
+    morphology: {
+      status: hasMorphology ? 'PASS' : 'BLOCKED',
+      message: hasMorphology ? 'Morphology identity loaded.' : 'No morphology data available.',
+    },
+    tendonRouting: {
+      status: !hasMorphology ? 'BLOCKED' : (hasTendonNotes ? 'PASS' : 'OPTIONAL'),
+      message: hasTendonNotes ? 'Tendon routing notes recorded.' : 'No tendon routing notes recorded. Add them if this build needs pulley, wrap, or tension guidance.',
+    },
+    fabricationAssumptions: {
+      status: !hasMorphology ? 'BLOCKED' : (hasAssumptionsNotes ? 'PASS' : 'OPTIONAL'),
+      message: hasAssumptionsNotes ? 'Fabrication assumptions recorded.' : 'Operator notes are empty. Add assumptions if this handoff needs material or assembly context.',
+    },
+    isReady: isGeometryValid && isPerimeterValid && hasMorphology
+  };
+
+  const handleExportCombinedFabricationPacket = () => {
+    if (!passport || !preflightStatus.isReady) return;
+
+    const payload = {
+      generated_at: new Date().toISOString(),
+      local_truth_boundary: 'Browser schematic only. Dimensions, clearances, routing, and fit require physical verification before fabrication or actuation.',
+      asset_id: passport.asset_id,
+      preset_template: selectedPreset || 'CUSTOM',
+      preflight: preflightStatus,
+      morphology_record: passport,
+      validation_summary: {
+        task_path_validation: validatorStatus?.message,
+        perimeter_validation: perimeterCheck.message,
+        reach_envelope_status: !envelopeClipped ? 'PASS' : 'CLIPPED',
+        tendon_path_length_m: tendonPathLength,
+        shoulder_torque_nm: shoulderTorque,
+        elbow_torque_nm: elbowTorque,
+        summary: (validatorStatus?.valid && !isBoundaryViolation) ? 'Current morphology passes local geometry checks for fabrication handoff.' : 'Current morphology is blocked from fabrication handoff until geometry constraints are resolved.'
+      },
+      routing_summary: {
+        configuration_source: selectedPreset || 'CUSTOM',
+        guide_point_count: !passport?.tendon_count ? 0 : (tendonConfig?.guides?.length || 0),
+        wrap_object_count: !passport?.tendon_count ? 0 : (tendonConfig?.wrap?.length || 0),
+        guide_links_used: !passport?.tendon_count ? 'NONE' : (Array.from(new Set(tendonConfig?.guides?.map((g: any) => g.linkId) || [])).join(', ') || 'NONE'),
+        wrap_links_used: !passport?.tendon_count ? 'NONE' : (Array.from(new Set(tendonConfig?.wrap?.map((w: any) => w.linkId) || [])).join(', ') || 'NONE'),
+        routing_mode: !passport?.tendon_count ? 'NONE' : ((tendonConfig?.wrap?.length || 0) === 0 ? 'DIRECT' : (tendonConfig?.wrap?.length === 1 ? 'WRAPPED_SINGLE_STAGE' : 'WRAPPED_MULTI_STAGE')),
+        current_tendon_path_length_m: !passport?.tendon_count ? 0 : tendonPathLength,
+        tension_input_newtons: tendonTension,
+        shoulder_torque_nm: !passport?.tendon_count ? 0 : shoulderTorque,
+        elbow_torque_nm: !passport?.tendon_count ? 0 : elbowTorque,
+        summary: !passport?.tendon_count ? 'No tendon routing is defined for this morphology.' : ((tendonConfig?.wrap?.length || 0) === 0 ? 'Current tendon route is direct and low-complexity.' : ((tendonConfig?.wrap?.length || 0) === 1 ? 'Current tendon route includes one wrapped stage. Verify pulley clearance physically.' : 'Current tendon route includes multiple wrapped stages. Verify routing order and anchor clearance physically.'))
+      },
+      fabrication_assumptions: {
+        frame_material: assumedFrame,
+        joint_type: assumedJoints,
+        tendon_cable_type: assumedTendons,
+        pulley_guide_strategy: assumedPulleys,
+        end_effector_mount: assumedEndEffector,
+        estimated_printed_part_count: assumedParts,
+        estimated_fastener_complexity: assumedFasteners,
+        bench_assembly_risk: assumedRisk
+      },
+      parts_assembly: {
+        frame_rails_count: estimatedFrameRails,
+        frame_rail_length_m: estimatedFrameRailLength,
+        joint_housing_count: estimatedJointHousings,
+        tendon_anchor_count: estimatedTendonAnchors,
+        pulley_or_idler_count: estimatedPulleyCount,
+        guide_bushing_count: estimatedGuideBushings,
+        end_effector_mount_count: 1,
+        estimated_tendon_line_length_m: estimatedTendonLineLength,
+        estimated_fastener_family: assumedFasteners,
+        bench_assembly_sequence: benchAssemblySequence
+      },
+      operator_notes: {
+        fabrication_notes: fabricationNotes,
+        frame_material_notes: frameMaterialNotes,
+        cable_routing_notes: cableRoutingNotes,
+        assembly_notes: assemblyNotes
+      }
+    };
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `combined_fabrication_packet_${passport.asset_id}.json`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+
   return (
     <div className="flex flex-col gap-6 w-full max-w-6xl mx-auto p-4">
       
@@ -774,7 +899,7 @@ export default function RoboticAssetPassport() {
           </div>
         )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 print:hidden">
           
           <div className="border border-slate-900 bg-slate-950/60 rounded-xl overflow-hidden flex flex-col">
             <div className="p-6 font-mono text-xs text-slate-300 flex flex-col gap-4">
@@ -1090,7 +1215,7 @@ export default function RoboticAssetPassport() {
           </div>
         </div>
 
-        <div className="border border-slate-900 bg-slate-950/60 rounded-xl overflow-hidden mt-6">
+        <div className="border border-slate-900 bg-slate-950/60 rounded-xl overflow-hidden mt-6 print:hidden">
           <div className="p-6 font-mono text-xs flex flex-col gap-4">
             <span className="font-bold text-slate-100 uppercase tracking-widest border-b border-slate-800 pb-2">Morphology Inspection Summary</span>
             
@@ -1124,7 +1249,7 @@ export default function RoboticAssetPassport() {
           </div>
         </div>
 
-        <div className="border border-slate-900 bg-slate-950/60 rounded-xl overflow-hidden mt-6">
+        <div className="border border-slate-900 bg-slate-950/60 rounded-xl overflow-hidden mt-6 print:hidden">
           <div className="p-6 font-mono text-xs flex flex-col gap-4">
             <span className="font-bold text-slate-100 uppercase tracking-widest border-b border-slate-800 pb-2">Fabrication Readiness</span>
             
@@ -1152,22 +1277,10 @@ export default function RoboticAssetPassport() {
             <div className="text-[10px] text-amber-500/80 italic mt-2">
               Browser schematic only. Dimensions and routing require physical verification before fabrication.
             </div>
-
-            <div className="mt-4 pt-4 border-t border-slate-800 flex justify-end gap-4">
-              <button onClick={() => window.print()} disabled={!validatorStatus?.valid || isBoundaryViolation} className={`px-4 py-2 rounded font-bold tracking-wider flex items-center gap-2 transition-colors ${validatorStatus?.valid && !isBoundaryViolation ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700' : 'bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed'}`}>
-                <Download size={14} /> Print Review Sheet
-              </button>
-              <button onClick={handleExportOperatorHandoffPacket} disabled={!validatorStatus?.valid || isBoundaryViolation} className={`px-4 py-2 rounded font-bold tracking-wider flex items-center gap-2 transition-colors ${validatorStatus?.valid && !isBoundaryViolation ? 'bg-indigo-900/40 hover:bg-indigo-900/60 border border-indigo-800 text-indigo-300' : 'bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed'}`}>
-                <Download size={14} /> Export Operator Handoff Packet
-              </button>
-              <button onClick={handleExportFabricationPacket} disabled={!validatorStatus?.valid || isBoundaryViolation} className={`px-4 py-2 rounded font-bold tracking-wider flex items-center gap-2 transition-colors ${validatorStatus?.valid && !isBoundaryViolation ? 'bg-amber-900/40 hover:bg-amber-900/60 border border-amber-800 text-amber-300' : 'bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed'}`}>
-                <Download size={14} /> Export Fabrication Packet
-              </button>
-            </div>
           </div>
         </div>
 
-        <div className="border border-slate-900 bg-slate-950/60 rounded-xl overflow-hidden mt-6 mb-8">
+        <div className="border border-slate-900 bg-slate-950/60 rounded-xl overflow-hidden mt-6 mb-8 print:hidden">
           <div className="p-6 font-mono text-xs flex flex-col gap-4">
             <span className="font-bold text-slate-100 uppercase tracking-widest border-b border-slate-800 pb-2">Validation Ledger</span>
             
@@ -1210,7 +1323,7 @@ export default function RoboticAssetPassport() {
           </div>
         </div>
 
-        <div className="border border-slate-900 bg-slate-950/60 rounded-xl overflow-hidden mt-6 mb-8">
+        <div className="border border-slate-900 bg-slate-950/60 rounded-xl overflow-hidden mt-6 mb-8 print:hidden">
           <div className="p-6 font-mono text-xs flex flex-col gap-4">
             <span className="font-bold text-slate-100 uppercase tracking-widest border-b border-slate-800 pb-2">Tendon Routing Ledger</span>
             
@@ -1280,10 +1393,104 @@ export default function RoboticAssetPassport() {
           </div>
         </div>
 
-        <div className="border border-slate-900 bg-slate-950/60 rounded-xl overflow-hidden mt-6 mb-8 hidden print:block">
+        <div className="border border-slate-900 bg-slate-950/60 rounded-xl overflow-hidden mt-6 mb-8 print:hidden">
+          <div className="p-6 font-mono text-xs flex flex-col gap-6">
+            <span className="font-bold text-slate-100 uppercase tracking-widest border-b border-slate-800 pb-2">Unified Fabrication Work Order</span>
+            
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-2 p-4 rounded bg-slate-900/50 border border-slate-800/50">
+                <span className="text-[10px] text-slate-500 uppercase tracking-widest border-b border-slate-800/50 pb-1 mb-2">1. Validation Status</span>
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-slate-400">Geometry</span>
+                  <span className={`font-bold ${preflightStatus.geometry.status === 'PASS' ? 'text-emerald-400' : 'text-red-400'}`}>{preflightStatus.geometry.status}</span>
+                </div>
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-slate-400">Perimeter</span>
+                  <span className={`font-bold ${preflightStatus.perimeter.status === 'PASS' ? 'text-emerald-400' : 'text-red-400'}`}>{preflightStatus.perimeter.status}</span>
+                </div>
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-slate-400">Readiness</span>
+                  <span className={`font-bold ${preflightStatus.isReady ? 'text-emerald-400' : 'text-red-400'}`}>{preflightStatus.isReady ? 'READY' : 'BLOCKED'}</span>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2 p-4 rounded bg-slate-900/50 border border-slate-800/50">
+                <span className="text-[10px] text-slate-500 uppercase tracking-widest border-b border-slate-800/50 pb-1 mb-2">2. Review Artifacts</span>
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-slate-400">Review Summary — human-readable inspection artifact</span>
+                  <button onClick={() => handlePrintSheet('review')} disabled={!preflightStatus.isReady} className={`px-3 py-1 rounded font-bold tracking-wider flex items-center gap-2 transition-colors ${preflightStatus.isReady ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700' : 'bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed'}`}>
+                    <Download size={12} /> Print
+                  </button>
+                </div>
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-slate-400">Fabrication Checklist — confirm-before-build sequence</span>
+                  <button onClick={() => handlePrintSheet('checklist')} disabled={!preflightStatus.isReady} className={`px-3 py-1 rounded font-bold tracking-wider flex items-center gap-2 transition-colors ${preflightStatus.isReady ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700' : 'bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed'}`}>
+                    <Download size={12} /> Print
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2 p-4 rounded bg-slate-900/50 border border-slate-800/50">
+                <span className="text-[10px] text-slate-500 uppercase tracking-widest border-b border-slate-800/50 pb-1 mb-2">3. Bench Artifacts</span>
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-slate-400">Bench Build Packet — carry to the fabrication bench</span>
+                  <button onClick={() => handlePrintSheet('build-packet')} disabled={!preflightStatus.isReady} className={`px-3 py-1 rounded font-bold tracking-wider flex items-center gap-2 transition-colors ${preflightStatus.isReady ? 'bg-emerald-900/40 hover:bg-emerald-900/60 border border-emerald-800 text-emerald-300' : 'bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed'}`}>
+                    <Download size={12} /> Print
+                  </button>
+                </div>
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-slate-400">Assembly Sheet — bench parts & sequence</span>
+                  <button onClick={() => handlePrintSheet('assembly')} disabled={!preflightStatus.isReady} className={`px-3 py-1 rounded font-bold tracking-wider flex items-center gap-2 transition-colors ${preflightStatus.isReady ? 'bg-emerald-900/40 hover:bg-emerald-900/60 border border-emerald-800 text-emerald-300' : 'bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed'}`}>
+                    <Download size={12} /> Print
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2 p-4 rounded bg-slate-900/50 border border-slate-800/50">
+                <span className="text-[10px] text-slate-500 uppercase tracking-widest border-b border-slate-800/50 pb-1 mb-2">4. JSON Handoff Artifacts</span>
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-slate-400">Operator Handoff Packet — human-operator ledger</span>
+                  <button onClick={handleExportOperatorHandoffPacket} disabled={!preflightStatus.isReady} className={`px-3 py-1 rounded font-bold tracking-wider flex items-center gap-2 transition-colors ${preflightStatus.isReady ? 'bg-indigo-900/40 hover:bg-indigo-900/60 border border-indigo-800 text-indigo-300' : 'bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed'}`}>
+                    <Download size={12} /> Export JSON
+                  </button>
+                </div>
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-slate-400">Fabrication Summary JSON — legacy machine-readable format</span>
+                  <button onClick={handleExportFabricationPacket} disabled={!preflightStatus.isReady} className={`px-3 py-1 rounded font-bold tracking-wider flex items-center gap-2 transition-colors ${preflightStatus.isReady ? 'bg-indigo-900/40 hover:bg-indigo-900/60 border border-indigo-800 text-indigo-300' : 'bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed'}`}>
+                    <Download size={12} /> Export JSON
+                  </button>
+                </div>
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-slate-400">Fabrication Assumptions JSON — material & risk parameters</span>
+                  <button onClick={handleExportFabricationAssumptions} disabled={!preflightStatus.isReady} className={`px-3 py-1 rounded font-bold tracking-wider flex items-center gap-2 transition-colors ${preflightStatus.isReady ? 'bg-amber-900/40 hover:bg-amber-900/60 border border-amber-800 text-amber-300' : 'bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed'}`}>
+                    <Download size={12} /> Export JSON
+                  </button>
+                </div>
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-slate-400">Parts Cut Sheet JSON — inventory limits</span>
+                  <button onClick={handleExportPartsCutSheet} disabled={!preflightStatus.isReady} className={`px-3 py-1 rounded font-bold tracking-wider flex items-center gap-2 transition-colors ${preflightStatus.isReady ? 'bg-amber-900/40 hover:bg-amber-900/60 border border-amber-800 text-amber-300' : 'bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed'}`}>
+                    <Download size={12} /> Export JSON
+                  </button>
+                </div>
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-slate-400">Build Packet JSON — canonical machine-readable fabrication handoff</span>
+                  <button onClick={handleExportCombinedFabricationPacket} disabled={!preflightStatus.isReady} className={`px-3 py-1 rounded font-bold tracking-wider flex items-center gap-2 transition-colors ${preflightStatus.isReady ? 'bg-fuchsia-900/40 hover:bg-fuchsia-900/60 border border-fuchsia-800 text-fuchsia-300' : 'bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed'}`}>
+                    <Download size={12} /> Export JSON
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-slate-800 text-[10px] text-amber-500/80 italic text-center font-bold">
+              5. Physical Verification Boundary: Browser schematic only. Dimensions, clearances, routing, and fit require physical verification before fabrication or actuation.
+            </div>
+          </div>
+        </div>
+
+        <div className={`${activePrintSheet === 'review' ? 'hidden print:block' : 'hidden'} border border-slate-900 bg-slate-950/60 rounded-xl overflow-hidden mt-6 mb-8`}>
           <div className="p-6 font-mono text-xs flex flex-col gap-6">
             <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-              <span className="font-bold text-slate-100 uppercase tracking-widest">Handoff Review Sheet</span>
+              <span className="font-bold text-slate-100 uppercase tracking-widest">Review Summary</span>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
@@ -1346,33 +1553,15 @@ export default function RoboticAssetPassport() {
           </div>
         </div>
 
-        <div className="border border-slate-900 bg-slate-950/60 rounded-xl overflow-hidden mt-6 mb-8">
+        <div className="border border-slate-900 bg-slate-950/60 rounded-xl overflow-hidden mt-6 mb-8 print:hidden">
           <div className="p-6 font-mono text-xs flex flex-col gap-6">
             <div className="flex justify-between items-center border-b border-slate-800 pb-2">
               <span className="font-bold text-slate-100 uppercase tracking-widest">Fabrication Planning</span>
-              <div className="flex items-center gap-3 print:hidden">
-                <button 
-                  onClick={handleExportFabricationAssumptions} 
-                  disabled={!validatorStatus?.valid || isBoundaryViolation} 
-                  className={`px-3 py-1 rounded font-bold tracking-wider flex items-center gap-2 transition-colors ${validatorStatus?.valid && !isBoundaryViolation ? 'bg-amber-900/40 hover:bg-amber-900/60 text-amber-300 border border-amber-800' : 'bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed'}`}
-                >
-                  <Download size={12} /> Export Fabrication Assumptions
-                </button>
-                <button
-                  onClick={handleExportPartsCutSheet}
-                  disabled={!validatorStatus?.valid || isBoundaryViolation}
-                  className={`px-3 py-1 rounded font-bold tracking-wider flex items-center gap-2 transition-colors ${validatorStatus?.valid && !isBoundaryViolation ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700' : 'bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed'}`}
-                >
-                  <Download size={12} /> Export Parts Cut Sheet
-                </button>
-                <button
-                  onClick={() => window.print()}
-                  disabled={!validatorStatus?.valid || isBoundaryViolation}
-                  className={`px-3 py-1 rounded font-bold tracking-wider flex items-center gap-2 transition-colors ${validatorStatus?.valid && !isBoundaryViolation ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700' : 'bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed'}`}
-                >
-                  <Download size={12} /> Print Assembly Sheet
-                </button>
-              </div>
+
+            </div>
+
+            <div className="text-[10px] text-slate-500 leading-relaxed">
+              Supporting bench data for the work order: material assumptions, operator notes, and parts/assembly estimates that inform fabrication without replacing physical measurement.
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
@@ -1497,6 +1686,169 @@ export default function RoboticAssetPassport() {
 
             <div className="mt-4 pt-4 border-t border-slate-800 text-[10px] text-amber-500/80 italic text-center font-bold">
               Fabrication assumptions only. Material choice, tolerances, assembly fit, cut lengths, and hole placement require physical verification before build.
+            </div>
+          </div>
+        </div>
+
+        <div className={`${activePrintSheet === 'assembly' ? 'hidden print:block' : 'hidden'} border border-slate-900 bg-slate-950/60 rounded-xl overflow-hidden mt-6 mb-8`}>
+          <div className="p-6 font-mono text-xs flex flex-col gap-6">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+              <span className="font-bold text-slate-100 uppercase tracking-widest">Assembly Sheet</span>
+              <span className="text-[10px] text-slate-400 uppercase tracking-widest">{passport.asset_id}</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+              <div className="flex justify-between"><span className="text-slate-400">Preset Template</span><span className="font-bold text-slate-200">{selectedPreset || 'CUSTOM'}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Morphology Class</span><span className="font-bold text-slate-200">{passport.morphology_class}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Frame Material</span><span className="font-bold text-slate-200">{assumedFrame}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Joint Type</span><span className="font-bold text-slate-200">{assumedJoints}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Frame Rails Count</span><span className="font-bold text-slate-200">{estimatedFrameRails}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Frame Rail Length</span><span className="font-bold text-slate-200">{estimatedFrameRailLength.toFixed(2)} m</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Joint Housings</span><span className="font-bold text-slate-200">{estimatedJointHousings}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Tendon Anchors</span><span className="font-bold text-slate-200">{estimatedTendonAnchors}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Pulley / Idler Count</span><span className="font-bold text-slate-200">{estimatedPulleyCount}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Guide Bushings</span><span className="font-bold text-slate-200">{estimatedGuideBushings}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Est. Tendon Line Length</span><span className="font-bold text-slate-200">{estimatedTendonLineLength.toFixed(2)} m</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Assembly Risk</span><span className="font-bold text-slate-200">{assumedRisk}</span></div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4">
+              <div className="p-3 rounded bg-slate-900/30 border border-slate-800/50">
+                <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-2">Assembly Sequence</div>
+                <div className="text-slate-200">{benchAssemblySequence}</div>
+              </div>
+              {assemblyNotes && (
+                <div className="p-3 rounded bg-slate-900/30 border border-slate-800/50">
+                  <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-2">Assembly Notes</div>
+                  <div className="text-slate-200 whitespace-pre-wrap">{assemblyNotes}</div>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-slate-800 text-[10px] text-amber-500/80 italic text-center font-bold">
+              Fabrication planning only. Cut lengths, hole placement, and fit require physical measurement before build.
+            </div>
+          </div>
+        </div>
+
+        <div className={`${activePrintSheet === 'checklist' ? 'hidden print:block' : 'hidden'} border border-slate-900 bg-slate-950/60 rounded-xl overflow-hidden mt-6 mb-8`}>
+          <div className="p-6 font-mono text-xs flex flex-col gap-6">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+              <span className="font-bold text-slate-100 uppercase tracking-widest">Print-Ready Fabrication Checklist</span>
+              <span className="text-[10px] text-slate-400 uppercase tracking-widest">{passport.asset_id}</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+              <div className="flex justify-between"><span className="text-slate-400">Preset Template</span><span className="font-bold text-slate-200">{selectedPreset || 'CUSTOM'}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Morphology Class</span><span className="font-bold text-slate-200">{passport.morphology_class}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Current Zone</span><span className="font-bold text-slate-200">{zoneLength.toFixed(1)}m x {zoneWidth.toFixed(1)}m</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Fitted Recovery Zone</span><span className="font-bold text-slate-200">{requiredZoneLength.toFixed(1)}m x {requiredZoneWidth.toFixed(1)}m</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Task Path</span><span className="font-bold text-slate-200">{pathLength.toFixed(1)}m x {pathWidth.toFixed(1)}m</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Turn Radius</span><span className="font-bold text-slate-200">{turnRadius.toFixed(1)}m</span></div>
+            </div>
+
+            <div className="p-4 rounded border border-emerald-900/50 bg-emerald-950/20">
+              <div className="text-[10px] text-emerald-300 uppercase tracking-widest mb-2">Release Status</div>
+              <div className="text-emerald-100 font-bold mb-1">Geometry passes the current local checks.</div>
+              <div className="text-emerald-200/80">The morphology is eligible for registration, print review, and fabrication-facing exports.</div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4">
+              <div className="p-3 rounded bg-slate-900/30 border border-slate-800/50">
+                <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-2">Recovery Action</div>
+                <div className="text-slate-200">If a later edit blocks fabrication, use <span className="font-bold">Fit Zone To Current Constraints</span> to recover the zone boundary to {requiredZoneLength.toFixed(1)}m x {requiredZoneWidth.toFixed(1)}m.</div>
+              </div>
+              <div className="p-3 rounded bg-slate-900/30 border border-slate-800/50">
+                <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-2">Fabrication Notes</div>
+                <div className="text-slate-200 whitespace-pre-wrap">{fabricationNotes || 'No fabrication notes recorded.'}</div>
+              </div>
+              <div className="p-3 rounded bg-slate-900/30 border border-slate-800/50">
+                <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-2">Operator Notes</div>
+                <div className="text-slate-200 whitespace-pre-wrap">
+                  Frame: {frameMaterialNotes || 'None recorded.'}
+                  {'\n'}Routing: {cableRoutingNotes || 'None recorded.'}
+                  {'\n'}Assembly: {assemblyNotes || 'None recorded.'}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-slate-800 text-[10px] text-amber-500/80 italic text-center font-bold">
+              Browser schematic only. Dimensions, clearances, and routing require physical verification before fabrication or actuation.
+            </div>
+          </div>
+        </div>
+        <div className={`${activePrintSheet === 'build-packet' ? 'hidden print:block' : 'hidden'} border border-slate-900 bg-slate-950/60 rounded-xl overflow-hidden mt-6 mb-8`}>
+          <div className="p-6 font-mono text-xs flex flex-col gap-6">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+              <span className="font-bold text-slate-100 uppercase tracking-widest">Bench Build Packet</span>
+              <span className="text-[10px] text-slate-400 uppercase tracking-widest">{passport.asset_id}</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+              <div className="flex flex-col gap-2">
+                <span className="text-[10px] text-slate-500 uppercase tracking-widest border-b border-slate-800/50 pb-1">Morphology Identity</span>
+                <div className="flex justify-between"><span className="text-slate-400">Preset Template</span><span className="font-bold text-slate-200">{selectedPreset || 'CUSTOM'}</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">Morphology Class</span><span className="font-bold text-slate-200">{passport.morphology_class}</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">Joint Count</span><span className="font-bold text-slate-200">{passport.actuator_joint_count}</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">Tendon Count</span><span className="font-bold text-slate-200">{passport.tendon_count ?? 0}</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">Max Tensile Load</span><span className="font-bold text-slate-200">{passport.maximum_tensile_newtons} N</span></div>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <span className="text-[10px] text-slate-500 uppercase tracking-widest border-b border-slate-800/50 pb-1">Preflight Status</span>
+                <div className="flex justify-between"><span className="text-slate-400">Geometry</span><span className="font-bold text-emerald-400">{preflightStatus.geometry.status}</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">Perimeter</span><span className="font-bold text-emerald-400">{preflightStatus.perimeter.status}</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">Fabrication Assumptions</span><span className={`font-bold ${preflightStatus.fabricationAssumptions.status === 'PASS' ? 'text-emerald-400' : 'text-slate-400'}`}>{preflightStatus.fabricationAssumptions.status}</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">Tendon Routing</span><span className={`font-bold ${preflightStatus.tendonRouting.status === 'PASS' ? 'text-emerald-400' : 'text-slate-400'}`}>{preflightStatus.tendonRouting.status}</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">Readiness</span><span className="font-bold text-emerald-400">{preflightStatus.isReady ? 'READY' : 'BLOCKED'}</span></div>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <span className="text-[10px] text-slate-500 uppercase tracking-widest border-b border-slate-800/50 pb-1">Routing & Path</span>
+                <div className="flex justify-between"><span className="text-slate-400">Routing Mode</span><span className="font-bold text-slate-200">{!passport?.tendon_count ? 'NONE' : ((tendonConfig?.wrap?.length || 0) === 0 ? 'DIRECT' : (tendonConfig?.wrap?.length === 1 ? 'WRAPPED_SINGLE_STAGE' : 'WRAPPED_MULTI_STAGE'))}</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">Wrap Links</span><span className="font-bold text-slate-200 truncate ml-4 text-right">{!passport?.tendon_count ? 'NONE' : (Array.from(new Set(tendonConfig?.wrap?.map((w: any) => w.linkId) || [])).join(', ') || 'NONE')}</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">Path / Torques</span><span className="font-bold text-slate-200">{!passport?.tendon_count ? '0m / 0Nm / 0Nm' : `${tendonPathLength.toFixed(2)}m / ${shoulderTorque.toFixed(1)}Nm / ${elbowTorque.toFixed(1)}Nm`}</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">Task Path</span><span className="font-bold text-slate-200">{pathLength.toFixed(1)}m x {pathWidth.toFixed(1)}m</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">Reach Envelope</span><span className="font-bold text-slate-200">{!envelopeClipped ? 'PASS' : 'CLIPPED'}</span></div>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <span className="text-[10px] text-slate-500 uppercase tracking-widest border-b border-slate-800/50 pb-1">Fabrication Assumptions</span>
+                <div className="flex justify-between"><span className="text-slate-400">Frame Material</span><span className="font-bold text-slate-200">{assumedFrame}</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">Joint Type</span><span className="font-bold text-slate-200">{assumedJoints}</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">Tendon Type</span><span className="font-bold text-slate-200">{assumedTendons}</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">Pulley Strategy</span><span className="font-bold text-slate-200">{assumedPulleys}</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">End Effector Mount</span><span className="font-bold text-slate-200">{assumedEndEffector}</span></div>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <span className="text-[10px] text-slate-500 uppercase tracking-widest border-b border-slate-800/50 pb-1">Parts & Assembly</span>
+                <div className="flex justify-between"><span className="text-slate-400">Frame Rails / Length</span><span className="font-bold text-slate-200">{estimatedFrameRails} / {estimatedFrameRailLength.toFixed(2)} m</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">Joint Housings</span><span className="font-bold text-slate-200">{estimatedJointHousings}</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">Tendon Anchors</span><span className="font-bold text-slate-200">{estimatedTendonAnchors}</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">Pulley Count</span><span className="font-bold text-slate-200">{estimatedPulleyCount}</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">Assembly Risk</span><span className="font-bold text-slate-200">{assumedRisk}</span></div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4">
+              <div className="p-3 rounded bg-slate-900/30 border border-slate-800/50">
+                <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-2">Assembly Sequence</div>
+                <div className="text-slate-200">{benchAssemblySequence}</div>
+              </div>
+              <div className="p-3 rounded bg-slate-900/30 border border-slate-800/50">
+                <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-2">Operator Notes</div>
+                <div className="text-slate-200 whitespace-pre-wrap">
+                  General: {fabricationNotes || 'None recorded.'}
+                  {'\n'}Frame: {frameMaterialNotes || 'None recorded.'}
+                  {'\n'}Routing: {cableRoutingNotes || 'None recorded.'}
+                  {'\n'}Assembly: {assemblyNotes || 'None recorded.'}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-slate-800 text-[10px] text-amber-500/80 italic text-center font-bold">
+              Browser schematic only. Dimensions, clearances, routing, and fit require physical verification before fabrication or actuation.
             </div>
           </div>
         </div>
