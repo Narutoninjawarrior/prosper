@@ -29,6 +29,7 @@ const RouteHealthPage = lazy(() => import('./RouteHealthPage'));
 const ProofLogPage = lazy(() => import('./ProofLogPage'));
 const ReviewPage = lazy(() => import('./ReviewPage'));
 const OperationsPage = lazy(() => import('./OperationsPage'));
+const ProjectsPage = lazy(() => import('./ProjectsPage'));
 
 const HiveTester = lazy(() => import('./HiveTester'));
 const WitnessPage = lazy(() => import('./WitnessPage').then(m => ({ default: m.WitnessPage })));
@@ -163,6 +164,16 @@ function App() {
       <SuspendedPublicShell className="min-h-screen w-screen bg-[#050806] text-gray-200" label="Loading operations..." showAudio={false}>
         <div className="h-full overflow-y-auto">
           <OperationsPage />
+        </div>
+      </SuspendedPublicShell>
+    );
+  }
+
+  if (pathname === '/projects') {
+    return (
+      <SuspendedPublicShell className="min-h-screen w-screen bg-[#050806] text-gray-200" label="Loading projects..." showAudio={false}>
+        <div className="h-full overflow-y-auto">
+          <ProjectsPage />
         </div>
       </SuspendedPublicShell>
     );

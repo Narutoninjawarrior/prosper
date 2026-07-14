@@ -16,6 +16,7 @@ const LINKS = [
   { href: '/exchange', label: 'Exchange (Experimental)' },
   { href: '/witness', label: 'Record Trail (Beta)' },
   { href: '/operations', label: 'Operations' },
+  { href: '/projects', label: 'Projects' },
 ]
 
 export default function PublicNav({ compact = false }: { compact?: boolean }) {
