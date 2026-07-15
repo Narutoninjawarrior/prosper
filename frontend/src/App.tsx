@@ -31,6 +31,7 @@ const ReviewPage = lazy(() => import('./ReviewPage'));
 const OperationsPage = lazy(() => import('./OperationsPage'));
 const ProjectsPage = lazy(() => import('./ProjectsPage'));
 const SovereignGallery = lazy(() => import('./components/SovereignGallery'));
+const DossierRoute = lazy(() => import('./DossierRoute'));
 
 const HiveTester = lazy(() => import('./HiveTester'));
 const WitnessPage = lazy(() => import('./WitnessPage').then(m => ({ default: m.WitnessPage })));
@@ -361,6 +362,14 @@ function App() {
           <LandingPage />
         </div>
       </SuspendedPublicShell>
+    );
+  }
+
+  if (pathname === '/handoff') {
+    return (
+      <Suspense fallback={<LoadingSurface label="Decrypting Dossier..." />}>
+        <DossierRoute />
+      </Suspense>
     );
   }
 

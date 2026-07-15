@@ -3843,6 +3843,24 @@ export default function ProjectsPage() {
     });
   };
 
+  const handleGenerateShareableDossier = async () => {
+    if (!selectedProject) return;
+    const markdown = buildProjectHandoffMarkdown();
+    const payload = {
+      title: selectedProject.title,
+      markdown
+    };
+    const encoded = btoa(encodeURIComponent(JSON.stringify(payload)));
+    const url = `${window.location.origin}/handoff?p=${encoded}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      alert('Shareable Dossier link copied to clipboard!');
+    } catch (e) {
+      console.error('Failed to copy', e);
+      alert('Failed to copy link. Check console.');
+    }
+  };
+
   const handleCopyProjectHandoffMarkdown = async () => {
     const markdown = buildProjectHandoffMarkdown();
     if (!markdown) return;
@@ -5410,6 +5428,12 @@ export default function ProjectsPage() {
                               className="rounded border border-cyan-800 bg-cyan-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-cyan-300 transition-colors hover:bg-cyan-900/40"
                             >
                               Save Draft
+                            </button>
+                            <button
+                              onClick={handleGenerateShareableDossier}
+                              className="rounded border border-emerald-800 bg-emerald-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-emerald-300 transition-colors hover:bg-emerald-900/40"
+                            >
+                              Copy Shareable Link
                             </button>
                           </div>
                         </div>
