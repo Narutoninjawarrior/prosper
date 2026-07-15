@@ -17,6 +17,7 @@ const LINKS = [
   { href: '/witness', label: 'Record Trail (Beta)' },
   { href: '/operations', label: 'Operations' },
   { href: '/projects', label: 'Projects' },
+  { href: '/gallery', label: 'Gallery' },
 ]
 
 export default function PublicNav({ compact = false }: { compact?: boolean }) {
