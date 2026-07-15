@@ -119,6 +119,146 @@ const GALLERY_ITEMS: GalleryPiece[] = [
       'Symbolizes the sovereign, zero-backend time engine running in perpetual equilibrium.',
       'Designed as a collectible 1-of-1 digital artifact capturing the soul of the Hearthlands.'
     ]
+  },
+  {
+    id: 'hearthlands-farm',
+    title: 'Hearthlands Biodynamic Terraced Farm & Sanctuary',
+    subtitle: 'Ecological Agriculture & Autonomous Nursery Operations',
+    category: 'Art Piece',
+    imageUrl: '/gallery/hearthlands_farm.png',
+    badgeColor: '#10B981',
+    description: 'Vibrant Solarpunk agricultural vista showcasing terraced sage-green hills, solar irrigation channels, and autonomous nursery domes integrated seamlessly into natural terracotta cliffs.',
+    specs: {
+      resolution: '8K UHD Ecological Panorama',
+      engine: 'Agrarian Biosystem Renderer',
+      substrate: 'Terraced Soil & Solar Water Lattices',
+      keyFeature: 'Closed-Loop Biodynamic Fertility Core'
+    },
+    details: [
+      'Depicts the physical edge-compute and nursery deployment grounds of the sovereign Hearthlands.',
+      'Features integrated waterwheel power hubs and terraced permaculture zones.',
+      'Serves as the visual anchor for localized, zero-backend nursery stewardship and plant passporting.'
+    ]
+  },
+  {
+    id: 'earthship-greenhouse',
+    title: 'Subterranean Earthship Greenhouse & Aquaponic Loop',
+    subtitle: 'Passive Solar Thermal Mass & Integrated Fish-Plant Symbiosis',
+    category: 'Technical CAD',
+    imageUrl: '/gallery/earthship_greenhouse.png',
+    badgeColor: '#E8842A',
+    description: 'Cutaway architectural blueprint illustrating passive solar earth-bermed thermal mass walls, multi-tier aquaponic fish tanks, and automated vertical crop growing bays.',
+    specs: {
+      resolution: '8K Architectural Cutaway',
+      engine: 'Passive Thermal & Symbiotic Engine',
+      substrate: 'Ram-Earth Tires & Recycled Glass Prism Walls',
+      keyFeature: 'Zero External Heating Required at Sub-Zero Ambient'
+    },
+    details: [
+      'Earth-bermed rear wall stores solar thermal energy during peak daylight for radiative nighttime release.',
+      'Deep-water culture (DWC) aquaponic tanks circulate nutrient-rich effluent directly to suspended root trays.',
+      'Embedded sensor nodes monitor dissolved oxygen, pH balance, and photosynthetic photon flux density (PPFD).'
+    ]
+  },
+  {
+    id: 'biosystem-canvas',
+    title: 'Closed-Loop Aquascape & Ecological Biosystem Matrix',
+    subtitle: 'Real-Time Nutrient Flow & Aquatic Micro-Climate Simulation',
+    category: 'Kinematics Blueprint',
+    imageUrl: '/gallery/biosystem_canvas.png',
+    badgeColor: '#6366F1',
+    description: 'Dynamic system diagram mapping real-time nutrient cycling, biological filtration layers, and symbiotic exchanges between aquatic fauna and high-density riparian flora.',
+    specs: {
+      resolution: '8K Ecological Flow Matrix',
+      engine: 'Canvas Trend & Biosystem Simulation Engine',
+      substrate: 'Bio-Ceramic Media & Mycelial Filtration Beds',
+      keyFeature: 'Real-Time Nitrogen Cycle Balance Verification'
+    },
+    details: [
+      'Illustrates multi-stage bio-filtration using porous ceramic media and beneficial nitrifying bacteria colonies.',
+      'Tracks dissolved nutrient dynamics, carbon sequestration rates, and aquatic turbidity.',
+      'Directly links physical water quality metrics with digital ledger verification timestamps.'
+    ]
+  },
+  {
+    id: 'solarpunk-codex',
+    title: 'The Illuminated Solarpunk Medieval Codex of the Hearth',
+    subtitle: 'Ancient Wisdom Encapsulated in Crystalline Data Tomes',
+    category: 'Art Piece',
+    imageUrl: '/gallery/solarpunk_codex.png',
+    badgeColor: '#D4A853',
+    description: 'An exquisite cyber-medieval illuminated manuscript open on a carved wooden lectern, featuring intricate gold leaf geometry, botanical illustrations, and glowing holographic data runes.',
+    specs: {
+      resolution: '8K Digital Illuminations',
+      engine: 'Solis Codex & Grimoire Engine',
+      substrate: 'Vellum Archival Canvas & Gold Leaf Holograms',
+      keyFeature: 'Immutable Cryptographic Doctrine Preservation'
+    },
+    details: [
+      'Represents the sovereign doctrine and long-term memory grimoire (`L04_HEARTH_PROTOCOLS`).',
+      'Merges traditional monastic calligraphy with glowing holographic Merkle tree diagrams.',
+      'A centerpiece artifact symbolizing the preservation of local knowledge across generations.'
+    ]
+  },
+  {
+    id: 'palace-explorer',
+    title: 'The Solarpunk Palace Observatory & Skrying Reflection Pool',
+    subtitle: 'Sovereign Architectural Nexus of the Fellowship',
+    category: 'Art Piece',
+    imageUrl: '/gallery/palace_explorer.png',
+    badgeColor: '#EC4899',
+    description: 'A breathtaking wide-angle view of the sovereign Solarpunk Palace, featuring towering arched halls of terracotta and brass surrounding a tranquil obsidian skrying pool fed by geothermal cascades.',
+    specs: {
+      resolution: '8K UHD Architectural Masterwork',
+      engine: 'Sanctuary World-Builder Core',
+      substrate: 'Polished Terracotta & Obsidian Water Mirror',
+      keyFeature: 'Ambient Acoustic & Geothermal Equilibrium'
+    },
+    details: [
+      'The central gathering hall and coordination nexus for all sovereign vessels within the Hearthlands.',
+      'Geothermal cascades maintain constant climate control while powering low-rpm brass turbine generators.',
+      'The obsidian reflection pool acts as a physical metaphor for the Skrying Mirror shared memory layer.'
+    ]
+  },
+  {
+    id: 'solcot-genesis',
+    title: 'SOLCOT Genesis Crest & Emblem of Patronage',
+    subtitle: 'The Sovereign Fellowship Guild Insignia',
+    category: 'Art Piece',
+    imageUrl: '/gallery/solcot_genesis.png',
+    badgeColor: '#D4A853',
+    description: 'The ceremonial emblem of SOLCOT patronage, featuring embossed gold filigree, solar geometric rays, and interlocking terracotta rings symbolizing mutual aid and economic sovereignty.',
+    specs: {
+      resolution: '8K Vector Emblem & Digital Crest',
+      engine: 'Patronage Treasury Engine',
+      substrate: 'Embossed Gold & Matte Terracotta Seal',
+      keyFeature: 'Cryptographic Guild Membership Proof'
+    },
+    details: [
+      'Serves as the visual seal and genesis badge for patrons contributing to the sovereign treasury.',
+      'Interlocking rings represent the unbreakable balance between ecological regeneration and agentic coordination.',
+      'Auditable proof of direct contribution to local-first infrastructure deployment.'
+    ]
+  },
+  {
+    id: 'solcot-shop',
+    title: 'SOLCOT Patronage & Exchange Gateway',
+    subtitle: 'Sovereign Economic Sanctuary & Artifact Depot',
+    category: 'Structural Diagram',
+    imageUrl: '/gallery/solcot_shop.png',
+    badgeColor: '#E8842A',
+    description: 'Warm, inviting interior illustration of the SOLCOT depot, where handcrafted physical artifacts, botanical tinctures, and robotic hardware kits are displayed alongside digital ledger verification terminals.',
+    specs: {
+      resolution: '8K Sanctuary Interior View',
+      engine: 'Zero-Backend Exchange Protocol',
+      substrate: 'Hand-Carved Oak & Brass Terminal Interfaces',
+      keyFeature: 'Direct Peer-to-Peer Physical & Digital Fulfillment'
+    },
+    details: [
+      'Depicts the physical fulfillment center where sovereign hardware and herbal goods meet digital patronage.',
+      'Integrates QR-verified plant passports and hardware telemetry receipts right on the shelves.',
+      'Bridges high-entropy community interaction with precise, auditable local trade.'
+    ]
   }
 ];
 
