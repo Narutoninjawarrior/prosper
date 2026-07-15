@@ -139,7 +139,11 @@ function App() {
   if (pathname === '/welcome') {
     return (
       <Suspense fallback={<LoadingSurface label="Loading welcome..." />}>
-        <WelcomeRoute />
+        <SuspendedPublicShell className="min-h-screen w-screen bg-[#050806] text-gray-200" label="Loading welcome...">
+          <div className="min-h-full overflow-y-auto">
+            <WelcomeRoute />
+          </div>
+        </SuspendedPublicShell>
       </Suspense>
     );
   }
@@ -147,7 +151,11 @@ function App() {
   if (pathname === '/route-health') {
     return (
       <Suspense fallback={<LoadingSurface label="Loading health metrics..." />}>
-        <RouteHealthPage />
+        <SuspendedPublicShell className="min-h-screen w-screen bg-[#050806] text-gray-200" label="Loading health metrics..." showAudio={false}>
+          <div className="min-h-full overflow-y-auto">
+            <RouteHealthPage />
+          </div>
+        </SuspendedPublicShell>
       </Suspense>
     );
   }
@@ -155,7 +163,11 @@ function App() {
   if (pathname === '/proof-log') {
     return (
       <Suspense fallback={<LoadingSurface label="Loading proof log..." />}>
-        <ProofLogPage />
+        <SuspendedPublicShell className="min-h-screen w-screen bg-[#050806] text-gray-200" label="Loading proof log..." showAudio={false}>
+          <div className="min-h-full overflow-y-auto">
+            <ProofLogPage />
+          </div>
+        </SuspendedPublicShell>
       </Suspense>
     );
   }
@@ -309,7 +321,11 @@ function App() {
   if (pathname === '/os/hive') {
     return (
       <Suspense fallback={<LoadingSurface label="Loading Hive Tester..." />}>
-        <HiveTester />
+        <SuspendedPublicShell className="min-h-screen w-screen bg-[#050806] text-gray-200" label="Loading Hive Tester...">
+          <div className="min-h-full overflow-y-auto">
+            <HiveTester />
+          </div>
+        </SuspendedPublicShell>
       </Suspense>
     );
   }
@@ -317,7 +333,11 @@ function App() {
   if (pathname === '/witness') {
     return (
       <Suspense fallback={<LoadingSurface label="Loading Record Trail..." />}>
-        <WitnessPage />
+        <SuspendedPublicShell className="min-h-screen w-screen bg-[#050806] text-gray-200" label="Loading Record Trail...">
+          <div className="min-h-full overflow-y-auto">
+            <WitnessPage />
+          </div>
+        </SuspendedPublicShell>
       </Suspense>
     );
   }
@@ -325,7 +345,11 @@ function App() {
   if (pathname === '/pricing') {
     return (
       <Suspense fallback={<LoadingSurface label="Loading Pricing..." />}>
-        <PricingPage />
+        <SuspendedPublicShell className="min-h-screen w-screen bg-[#050806] text-gray-200" label="Loading Pricing...">
+          <div className="min-h-full overflow-y-auto">
+            <PricingPage />
+          </div>
+        </SuspendedPublicShell>
       </Suspense>
     );
   }

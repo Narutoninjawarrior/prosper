@@ -90,6 +90,12 @@ export default function InternalAppShell() {
   return (
     <div className="flex h-screen w-screen bg-[#020804] text-gray-200 font-sans">
       <div className="w-72 glass-panel m-4 flex flex-col p-5">
+        <a
+          href="/"
+          className="flex items-center gap-2 mb-6 rounded-xl border border-[#E8842A]/40 bg-[#E8842A]/15 px-3.5 py-2 text-xs font-bold tracking-[0.16em] uppercase text-[#FAF6EF] shadow-[0_0_15px_rgba(232,132,42,0.2)] transition hover:bg-[#E8842A]/25 no-underline"
+        >
+          <span>← Hearth Home</span>
+        </a>
         <h1 className="text-2xl font-bold text-[#10b981] flex items-center gap-3 mb-10 tracking-wider">
           <Bot size={28} /> HEARTH OS
         </h1>

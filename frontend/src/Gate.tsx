@@ -25,8 +25,35 @@ const Gate = ({ onUnlock }: { onUnlock: () => void }) => {
       background: 'radial-gradient(circle at center, #1a2e1a 0%, #050a05 100%)',
       color: '#a8d5a8',
       fontFamily: "'Inter', sans-serif",
-      overflow: 'hidden'
+      overflow: 'hidden',
+      position: 'relative'
     }}>
+      <a
+        href="/"
+        style={{
+          position: 'absolute',
+          top: '1.5rem',
+          left: '1.5rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+          padding: '0.6rem 1.2rem',
+          borderRadius: '9999px',
+          border: '1px solid rgba(232, 132, 42, 0.4)',
+          background: 'rgba(232, 132, 42, 0.15)',
+          color: '#FAF6EF',
+          fontSize: '0.75rem',
+          fontWeight: 700,
+          textDecoration: 'none',
+          letterSpacing: '0.1em',
+          textTransform: 'uppercase',
+          backdropFilter: 'blur(10px)',
+          boxShadow: '0 0 20px rgba(232, 132, 42, 0.2)',
+          zIndex: 100,
+        }}
+      >
+        <span>← Hearth Home</span>
+      </a>
       <div style={{
         textAlign: 'center',
         padding: '3rem',

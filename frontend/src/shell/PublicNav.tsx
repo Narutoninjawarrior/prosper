@@ -25,13 +25,13 @@ export default function PublicNav({ compact = false }: { compact?: boolean }) {
 
   return (
     <header
-      className="pointer-events-auto z-40 shrink-0 border-b border-[#D4A853]/15 bg-[rgba(8,12,10,0.88)] backdrop-blur-md"
+      className="pointer-events-auto sticky top-0 z-50 shrink-0 border-b border-[#D4A853]/25 bg-[rgba(5,8,6,0.92)] backdrop-blur-xl shadow-[0_4px_20px_rgba(0,0,0,0.5)]"
       style={{ fontFamily: 'monospace' }}
     >
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-2.5">
-        <a href="/explore" className="flex items-center gap-2 no-underline">
+        <a href="/" className="flex items-center gap-2 rounded-full border border-[#E8842A]/50 bg-[#E8842A]/15 px-3.5 py-1.5 no-underline shadow-[0_0_15px_rgba(232,132,42,0.25)] transition hover:bg-[#E8842A]/25">
           <Flame size={18} className="text-[#E8842A]" />
-          <span className="text-sm font-semibold tracking-[0.2em] text-[#FAF6EF]">HEARTH</span>
+          <span className="text-xs font-bold tracking-[0.2em] text-[#FAF6EF]">HEARTH HOME</span>
         </a>
         {!compact && (
           <nav className="hidden flex-wrap items-center gap-1 md:flex">
