@@ -21,26 +21,6 @@ interface GalleryPiece {
 
 const GALLERY_ITEMS: GalleryPiece[] = [
   {
-    id: 'sovereign-sanctuary',
-    title: 'The Sovereign Sanctuary of the Bellows Engine',
-    subtitle: 'Cyber-Renaissance & Solarpunk Masterpiece (1-of-1 Digital Artifact)',
-    category: 'Art Piece',
-    imageUrl: '/gallery/sovereign_sanctuary.png',
-    badgeColor: '#D4A853',
-    description: 'A monumental observatory where ancient weathered terracotta and sage stone columns intertwine with glowing crystalline data conduits and polished brass clockwork rings. In the center floats the pulsating Bellows astrolabe over an obsidian reflection pool.',
-    specs: {
-      resolution: '8K UHD (7680 × 4320 equivalent)',
-      engine: 'Solis / Bellows Skrying Renderer',
-      substrate: 'Digital Chiaroscuro & Volumetric Light',
-      keyFeature: 'Merkle Proof Holograms & Astronomical Lattices'
-    },
-    details: [
-      'Blends warm terracotta and matte sage architectural aesthetics with crystalline local data conduits.',
-      'Symbolizes the sovereign, zero-backend time engine running in perpetual equilibrium.',
-      'Designed as a collectible 1-of-1 digital artifact capturing the soul of the Hearthlands.'
-    ]
-  },
-  {
     id: 'tail-wheel-lobster',
     title: 'Tail-Tip Hub Wheel & Tricycle Stance Assembly',
     subtitle: 'High-Speed Rolling Geometry & Upright Rearing Anchor',
@@ -118,6 +98,26 @@ const GALLERY_ITEMS: GalleryPiece[] = [
       'Outer Carapace Layer: Impact-resistant terracotta and sage modular shell segments with quick-latch fasteners.',
       'Kinematic Actuation Layer: Hydraulic linkages, mechanical joint stops, and antagonistic tendon routing pathways.',
       'Core Chassis Layer: Central computing node modules, sensor wiring harnesses, and structural carbon-fiber spine.'
+    ]
+  },
+  {
+    id: 'sovereign-sanctuary',
+    title: 'The Sovereign Sanctuary of the Bellows Engine',
+    subtitle: 'Cyber-Renaissance & Solarpunk Masterpiece (1-of-1 Digital Artifact)',
+    category: 'Art Piece',
+    imageUrl: '/gallery/sovereign_sanctuary.png',
+    badgeColor: '#D4A853',
+    description: 'A monumental observatory where ancient weathered terracotta and sage stone columns intertwine with glowing crystalline data conduits and polished brass clockwork rings. In the center floats the pulsating Bellows astrolabe over an obsidian reflection pool.',
+    specs: {
+      resolution: '8K UHD (7680 × 4320 equivalent)',
+      engine: 'Solis / Bellows Skrying Renderer',
+      substrate: 'Digital Chiaroscuro & Volumetric Light',
+      keyFeature: 'Merkle Proof Holograms & Astronomical Lattices'
+    },
+    details: [
+      'Blends warm terracotta and matte sage architectural aesthetics with crystalline local data conduits.',
+      'Symbolizes the sovereign, zero-backend time engine running in perpetual equilibrium.',
+      'Designed as a collectible 1-of-1 digital artifact capturing the soul of the Hearthlands.'
     ]
   }
 ];
