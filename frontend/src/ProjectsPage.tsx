@@ -223,6 +223,21 @@ interface ProjectRoomFrame {
   operatorCue: string;
 }
 
+interface ProjectDailyWorkItem {
+  id: string;
+  projectId: string;
+  projectTitle: string;
+  category: string;
+  reason: string;
+  detail: string;
+  actionLabel: string;
+  targetView: ProjectViewMode;
+  priority: number;
+  updatedAt: string;
+  accentClasses: string;
+  artifactId?: string;
+}
+
 function formatHeartbeatFreshness(lastUpdate?: string) {
   if (!lastUpdate) return 'No recent Bellows state available.';
   const parsed = new Date(lastUpdate);
@@ -339,6 +354,203 @@ function deriveRuntimeCommitmentAdvisory(
   };
 }
 
+function getDaysSinceTimestamp(timestamp?: string) {
+  if (!timestamp) return null;
+  const parsed = new Date(timestamp);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return Math.floor((Date.now() - parsed.getTime()) / 86400000);
+}
+
+function deriveProjectDailyWorkItem(project: Project): ProjectDailyWorkItem | null {
+  const captureInbox = (project.capture_items || []).filter((item) => item.capture_state === 'inbox');
+  const evidence = project.artifacts || [];
+  const decisions = project.decisions || [];
+  const commitments = project.commitments || [];
+  const flaggedEvidence = evidence.filter((artifact) => isArtifactFlagged(artifact));
+  const pendingEvidence = evidence.filter(
+    (artifact) => !isArtifactApproved(artifact) && !isArtifactFlagged(artifact)
+  );
+  const blockedCommitments = commitments.filter((commitment) => commitment.commitment_state === 'blocked');
+  const lowConfidenceActiveCommitments = commitments.filter(
+    (commitment) => commitment.commitment_state === 'active' && commitment.confidence === 'low'
+  );
+  const activeCommitments = commitments.filter((commitment) => commitment.commitment_state === 'active');
+  const unresolvedDecisions = decisions.filter(
+    (decision) => decision.decision_state === 'proposed' || decision.decision_state === 'deferred'
+  );
+  const staleDays = getDaysSinceTimestamp(project.updated_at);
+  const hasAnyProjectObjects =
+    captureInbox.length > 0 ||
+    evidence.length > 0 ||
+    decisions.length > 0 ||
+    commitments.length > 0 ||
+    Boolean(project.next_step?.trim());
+
+  if (blockedCommitments.length > 0) {
+    return {
+      id: `daily_${project.id}_blocked`,
+      projectId: project.id,
+      projectTitle: project.title,
+      category: project.category,
+      reason: 'Blocked commitment',
+      detail: `${blockedCommitments[0].title}${blockedCommitments.length > 1 ? ` +${blockedCommitments.length - 1} more` : ''} is stalled and needs a next move.`,
+      actionLabel: 'Unblock commitment',
+      targetView: 'overview',
+      priority: 0,
+      updatedAt: project.updated_at,
+      accentClasses: 'border-red-900/40 bg-red-950/15 text-red-200'
+    };
+  }
+
+  if (flaggedEvidence.length > 0) {
+    return {
+      id: `daily_${project.id}_flagged`,
+      projectId: project.id,
+      projectTitle: project.title,
+      category: project.category,
+      reason: 'Evidence needs review',
+      detail: `${flaggedEvidence[0].title}${flaggedEvidence.length > 1 ? ` +${flaggedEvidence.length - 1} more` : ''} is flagged before it can support downstream work.`,
+      actionLabel: 'Review evidence',
+      targetView: 'overview',
+      priority: 1,
+      updatedAt: project.updated_at,
+      accentClasses: 'border-amber-900/40 bg-amber-950/15 text-amber-200',
+      artifactId: flaggedEvidence[0].id
+    };
+  }
+
+  if (captureInbox.length > 0) {
+    return {
+      id: `daily_${project.id}_inbox`,
+      projectId: project.id,
+      projectTitle: project.title,
+      category: project.category,
+      reason: 'Inbox waiting',
+      detail: `${captureInbox.length} captured item${captureInbox.length === 1 ? '' : 's'} still need to be sorted into evidence, decisions, or commitments.`,
+      actionLabel: 'Process inbox',
+      targetView: 'overview',
+      priority: 2,
+      updatedAt: project.updated_at,
+      accentClasses: 'border-sky-900/40 bg-sky-950/15 text-sky-200'
+    };
+  }
+
+  if (pendingEvidence.length > 0) {
+    return {
+      id: `daily_${project.id}_pending_evidence`,
+      projectId: project.id,
+      projectTitle: project.title,
+      category: project.category,
+      reason: 'Evidence still open',
+      detail: `${pendingEvidence[0].title}${pendingEvidence.length > 1 ? ` +${pendingEvidence.length - 1} more` : ''} still needs a review outcome before handoff.`,
+      actionLabel: 'Finish evidence review',
+      targetView: 'overview',
+      priority: 3,
+      updatedAt: project.updated_at,
+      accentClasses: 'border-cyan-900/40 bg-cyan-950/15 text-cyan-200',
+      artifactId: pendingEvidence[0].id
+    };
+  }
+
+  if (unresolvedDecisions.length > 0) {
+    return {
+      id: `daily_${project.id}_decision`,
+      projectId: project.id,
+      projectTitle: project.title,
+      category: project.category,
+      reason: 'Decision still open',
+      detail: `${unresolvedDecisions[0].title}${unresolvedDecisions.length > 1 ? ` +${unresolvedDecisions.length - 1} more` : ''} still needs a clear outcome.`,
+      actionLabel: 'Resolve decision',
+      targetView: 'overview',
+      priority: 4,
+      updatedAt: project.updated_at,
+      accentClasses: 'border-indigo-900/40 bg-indigo-950/15 text-indigo-200'
+    };
+  }
+
+  if (lowConfidenceActiveCommitments.length > 0) {
+    return {
+      id: `daily_${project.id}_risk`,
+      projectId: project.id,
+      projectTitle: project.title,
+      category: project.category,
+      reason: 'Low-confidence commitment',
+      detail: `${lowConfidenceActiveCommitments[0].title}${lowConfidenceActiveCommitments.length > 1 ? ` +${lowConfidenceActiveCommitments.length - 1} more` : ''} is moving forward without enough confidence yet.`,
+      actionLabel: 'Review commitment',
+      targetView: 'overview',
+      priority: 5,
+      updatedAt: project.updated_at,
+      accentClasses: 'border-amber-900/40 bg-amber-950/10 text-amber-200'
+    };
+  }
+
+  if (activeCommitments.length > 0 && !project.next_step?.trim()) {
+    return {
+      id: `daily_${project.id}_next_step`,
+      projectId: project.id,
+      projectTitle: project.title,
+      category: project.category,
+      reason: 'Next step missing',
+      detail: `${activeCommitments.length} active commitment${activeCommitments.length === 1 ? '' : 's'} exist, but the project does not yet say what moves next.`,
+      actionLabel: 'Set next step',
+      targetView: 'overview',
+      priority: 6,
+      updatedAt: project.updated_at,
+      accentClasses: 'border-emerald-900/40 bg-emerald-950/15 text-emerald-200'
+    };
+  }
+
+  if (activeCommitments.length > 0) {
+    return {
+      id: `daily_${project.id}_active`,
+      projectId: project.id,
+      projectTitle: project.title,
+      category: project.category,
+      reason: 'Active work in motion',
+      detail: `${activeCommitments[0].title}${activeCommitments.length > 1 ? ` +${activeCommitments.length - 1} more` : ''} is active and ready to resume.`,
+      actionLabel: 'Resume project',
+      targetView: 'overview',
+      priority: 7,
+      updatedAt: project.updated_at,
+      accentClasses: 'border-slate-700 bg-slate-950/40 text-slate-200'
+    };
+  }
+
+  if (staleDays !== null && staleDays >= 7 && hasAnyProjectObjects) {
+    return {
+      id: `daily_${project.id}_stale`,
+      projectId: project.id,
+      projectTitle: project.title,
+      category: project.category,
+      reason: 'Needs re-entry',
+      detail: `This project has been quiet for ${staleDays} day${staleDays === 1 ? '' : 's'}. Reconfirm the next step before it drifts.`,
+      actionLabel: 'Re-enter project',
+      targetView: 'overview',
+      priority: 8,
+      updatedAt: project.updated_at,
+      accentClasses: 'border-slate-800 bg-slate-950/30 text-slate-300'
+    };
+  }
+
+  if (!hasAnyProjectObjects) {
+    return {
+      id: `daily_${project.id}_start`,
+      projectId: project.id,
+      projectTitle: project.title,
+      category: project.category,
+      reason: 'Project still empty',
+      detail: 'Start by dropping raw inputs into the inbox so the project can begin to accumulate evidence.',
+      actionLabel: 'Start project',
+      targetView: 'overview',
+      priority: 9,
+      updatedAt: project.updated_at,
+      accentClasses: 'border-slate-800 bg-slate-950/30 text-slate-300'
+    };
+  }
+
+  return null;
+}
+
 function deriveProjectBrief(
   project: Project | null,
   projectMemory: DerivedProjectMemory,
@@ -412,13 +624,13 @@ function deriveProjectBrief(
 
   const artifactReadiness = [
     artifacts.length > 0
-      ? `Artifacts attached: ${artifacts.length} total, ${reviewedArtifacts.length} reviewed.`
-      : 'No artifacts attached yet.',
+      ? `Evidence items attached: ${artifacts.length} total, ${reviewedArtifacts.length} reviewed.`
+      : 'No evidence items attached yet.',
     blockedArtifacts.length > 0
-      ? `Blocked artifacts: ${blockedArtifacts.map((artifact) => artifact.title).join(', ')}.`
+      ? `Blocked evidence: ${blockedArtifacts.map((artifact) => artifact.title).join(', ')}.`
       : attentionArtifacts.length > 0
-        ? `Artifacts needing attention: ${attentionArtifacts.map((artifact) => artifact.title).join(', ')}.`
-        : 'No artifact block or attention signal is currently active.',
+        ? `Evidence needing attention: ${attentionArtifacts.map((artifact) => artifact.title).join(', ')}.`
+        : 'No evidence block or attention signal is currently active.',
     agentSummary.suggestedReviewFocus[0] || 'No suggested review focus is currently derived.'
   ];
 
@@ -1375,7 +1587,7 @@ function deriveAgentSummary(project: Project | null): DerivedAgentSummary {
   const currentState = [
     `Status: ${project.status}`,
     project.next_step?.trim() ? `Next step: ${project.next_step.trim()}` : 'Next step: not yet defined.',
-    `Artifacts attached: ${artifacts.length}`,
+    `Evidence items attached: ${artifacts.length}`,
     latestActivity ? `Latest activity: ${latestActivity.title}` : 'Latest activity: no project activity recorded yet.'
   ];
 
@@ -1428,7 +1640,7 @@ function deriveAgentSummary(project: Project | null): DerivedAgentSummary {
     openAttention.push(`Open question: ${unresolvedQuestions[unresolvedQuestions.length - 1].content}`);
   }
   if (artifacts.length === 0) {
-    openAttention.push('No attached artifacts yet.');
+    openAttention.push('No evidence items attached yet.');
   }
   if (!project.next_step?.trim()) {
     openAttention.push('Project does not yet have a defined next step.');
@@ -1450,10 +1662,10 @@ function deriveAgentSummary(project: Project | null): DerivedAgentSummary {
   }
 
   if (blockedArtifacts.length > 0) {
-    suggestedReviewFocus.push(`Address the block on artifact: ${blockedArtifacts[0].title}.`);
+    suggestedReviewFocus.push(`Address the block on evidence item: ${blockedArtifacts[0].title}.`);
   }
   if (attentionArtifacts.length > 0) {
-    suggestedReviewFocus.push(`Review outstanding feedback on artifact: ${attentionArtifacts[0].title}.`);
+    suggestedReviewFocus.push(`Review outstanding feedback on evidence item: ${attentionArtifacts[0].title}.`);
   }
   if (unresolvedDecisions.length > 0) {
     suggestedReviewFocus.push(`Resolve pending decision: "${unresolvedDecisions[0].title}" (${unresolvedDecisions[0].decision_state}).`);
@@ -1465,10 +1677,10 @@ function deriveAgentSummary(project: Project | null): DerivedAgentSummary {
     suggestedReviewFocus.push('Resolve open discussion questions so the project thread can move forward cleanly.');
   }
   if (artifacts.length > 0 && project.messages.length <= 1) {
-    suggestedReviewFocus.push('Review attached artifacts; the project has more handoff material than discussion context right now.');
+    suggestedReviewFocus.push('Review attached evidence; the project has more handoff material than discussion context right now.');
   }
   if (artifacts.length === 0) {
-    suggestedReviewFocus.push('Attach at least one project artifact so the record has a durable review surface.');
+    suggestedReviewFocus.push('Attach at least one evidence item so the record has a durable review surface.');
   }
   if (project.next_step?.trim()) {
     suggestedReviewFocus.push(`Keep the next review pass aligned to the stated next step: ${project.next_step.trim()}`);
@@ -1560,7 +1772,7 @@ function deriveProjectRelevance(project: Project | null): DerivedProjectRelevanc
 
   const latestArtifactLabel = latestArtifact
     ? `${latestArtifact.title}${latestArtifact.review_state ? ` (${getArtifactReviewStateLabel(latestArtifact.review_state)})` : ''}`
-    : 'No artifact attached yet.';
+    : 'No evidence item attached yet.';
 
   const returnFocus = blockedCommitment
     ? `Return focus: unblock commitment ${blockedCommitment.title}${blockedCommitment.blocker_note ? ` - ${blockedCommitment.blocker_note}` : ''}`
@@ -1647,7 +1859,7 @@ function deriveProjectMemory(
           : 'No open question or blocker is currently surfaced.';
 
   const criticalReviewSignal = blockedArtifact
-    ? `Blocked artifact: ${blockedArtifact.title}`
+    ? `Blocked evidence: ${blockedArtifact.title}`
     : attentionArtifact
       ? `Needs attention: ${attentionArtifact.title}`
       : blockedCommitment
@@ -2541,7 +2753,7 @@ export default function ProjectsPage() {
   const [decisionState, setDecisionState] = useState<DecisionState>('accepted');
   const [decisionImpact, setDecisionImpact] = useState('');
   const [isCreating, setIsCreating] = useState(false);
-  const [projectViewMode, setProjectViewMode] = useState<ProjectViewMode>('frames');
+  const [projectViewMode, setProjectViewMode] = useState<ProjectViewMode>('overview');
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newCategory, setNewCategory] = useState('operations');
@@ -2569,15 +2781,6 @@ export default function ProjectsPage() {
   const [captureNote, setCaptureNote] = useState('');
   const [selectedFrameId, setSelectedFrameId] = useState<ProjectRoomFrame['id'] | null>('next_moves');
   const [selectedRoomObjectId, setSelectedRoomObjectId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!selectedProjectId && projects.length > 0) {
-      const params = new URLSearchParams(window.location.search);
-      const projectFromUrl = params.get('project');
-      const matchingProject = projectFromUrl ? projects.find((project) => project.id === projectFromUrl) : null;
-      setSelectedProjectId(matchingProject?.id || projects[0].id);
-    }
-  }, [projects, selectedProjectId]);
 
   const isProjectMatchingFilter = useCallback((project: Project) => {
     if (commitmentFocusFilter === 'all') return true;
@@ -2607,6 +2810,29 @@ export default function ProjectsPage() {
       return matchB - matchA;
     });
   }, [projects, commitmentFocusFilter, isProjectMatchingFilter]);
+  const dailyWorkQueue = useMemo(
+    () =>
+      projects
+        .map((project) => deriveProjectDailyWorkItem(project))
+        .filter((item): item is ProjectDailyWorkItem => Boolean(item))
+        .sort((a, b) => {
+          if (a.priority !== b.priority) return a.priority - b.priority;
+          return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+        }),
+    [projects]
+  );
+  useEffect(() => {
+    if (!selectedProjectId && projects.length > 0) {
+      const params = new URLSearchParams(window.location.search);
+      const projectFromUrl = params.get('project');
+      const matchingProject = projectFromUrl ? projects.find((project) => project.id === projectFromUrl) : null;
+      const fallbackProjectId = matchingProject?.id || dailyWorkQueue[0]?.projectId || projects[0].id;
+      setSelectedProjectId(fallbackProjectId);
+      if (!matchingProject && dailyWorkQueue[0]) {
+        setProjectViewMode(dailyWorkQueue[0].targetView);
+      }
+    }
+  }, [projects, selectedProjectId, dailyWorkQueue]);
 
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === selectedProjectId) || null,
@@ -2837,6 +3063,14 @@ export default function ProjectsPage() {
     setNewMessage('');
     setAssociatedArtifactId('');
   };
+
+  const handleOpenDailyWorkItem = useCallback((item: ProjectDailyWorkItem) => {
+    setSelectedProjectId(item.projectId);
+    setProjectViewMode(item.targetView);
+    if (item.artifactId) {
+      setSelectedArtifactId(item.artifactId);
+    }
+  }, []);
 
   const resetCaptureComposer = () => {
     setCaptureType('text_note');
@@ -3583,7 +3817,7 @@ export default function ProjectsPage() {
     if (!selectedProject) return;
     addProjectArtifact(selectedProject.id, {
       type: 'project_room_dossier',
-      title: `Project Room Packet - ${selectedProject.title}`,
+      title: `Handoff Packet - ${selectedProject.title}`,
       summary: selectedProject.next_step?.trim() || projectMemory.currentDirection,
       source_lane: 'projects',
       review_state: 'unreviewed',
@@ -3640,7 +3874,7 @@ export default function ProjectsPage() {
       <html>
         <head>
           <meta charset="utf-8" />
-          <title>${escapeHtml(selectedProject.title)} - Project Room Packet</title>
+          <title>${escapeHtml(selectedProject.title)} - Handoff Packet</title>
           <style>
             body { font-family: Inter, ui-sans-serif, system-ui, sans-serif; background: #ffffff; color: #0f172a; margin: 0; padding: 28px; }
             h1, h2 { margin: 0; }
@@ -3667,14 +3901,14 @@ export default function ProjectsPage() {
           <h1>${escapeHtml(selectedProject.title)}</h1>
           <div class="meta">${escapeHtml(selectedProject.category)} | ${escapeHtml(selectedProject.status)} | Updated ${escapeHtml(formatTimestamp(selectedProject.updated_at))}</div>
           <div class="intro">
-            <div><strong>Room direction:</strong> ${escapeHtml(selectedProject.next_step?.trim() || projectMemory.currentDirection)}</div>
+            <div><strong>Project direction:</strong> ${escapeHtml(selectedProject.next_step?.trim() || projectMemory.currentDirection)}</div>
             <div style="margin-top:8px;"><strong>Return focus:</strong> ${escapeHtml(projectRelevance.returnFocus)}</div>
             <div style="margin-top:8px;"><strong>Runtime condition:</strong> ${escapeHtml(bellowsRuntime.label)} (${escapeHtml(bellowsRuntime.detail)})</div>
           </div>
-          <div class="section-title">Project Frames</div>
+          <div class="section-title">Project Sections</div>
           ${frameHtml}
           <div class="footer">
-            Built from current project data, room objects, commitments, decisions, runtime context, and attached artifacts. No external model call or sync involved.
+            Built from current project data, linked objects, commitments, decisions, runtime context, and attached evidence. No external model call or sync involved.
           </div>
         </body>
       </html>
@@ -3708,9 +3942,9 @@ export default function ProjectsPage() {
     <div className="flex h-full w-full max-w-7xl flex-col gap-6 p-6 mx-auto font-mono">
       <div className="flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-4">
         <div>
-          <h1 className="text-2xl font-bold uppercase tracking-widest text-slate-100">Community Projects</h1>
+          <h1 className="text-2xl font-bold uppercase tracking-widest text-slate-100">Projects</h1>
           <p className="mt-1 text-slate-400">
-            Shared workstreams, progress notes, and handoff artifacts collected into one review surface.
+            Capture project inputs, review evidence, record decisions, carry commitments forward, and compile handoff in one workspace.
           </p>
         </div>
         <button
@@ -3724,7 +3958,7 @@ export default function ProjectsPage() {
       {isCreating && (
         <div className="flex flex-col gap-4 rounded-xl border border-indigo-900/50 bg-indigo-950/20 p-6">
           <h2 className="border-b border-indigo-900/50 pb-2 text-sm font-bold uppercase tracking-widest text-indigo-200">
-            Initialize Project
+            New Project
           </h2>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <input
@@ -3929,6 +4163,58 @@ export default function ProjectsPage() {
             );
           })()}
 
+          <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
+            <div className="flex items-center justify-between border-b border-slate-800/50 pb-1.5 mb-2">
+              <div>
+                <h4 className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                  Resume Work
+                </h4>
+                <div className="mt-1 text-[10px] text-slate-500">
+                  Start where a project changed, stalled, or still needs review.
+                </div>
+              </div>
+              <span className="rounded border border-slate-800 bg-slate-900/40 px-1.5 py-0.5 text-[8px] font-mono text-slate-400">
+                {dailyWorkQueue.length} queued
+              </span>
+            </div>
+            {dailyWorkQueue.length === 0 ? (
+              <div className="rounded border border-dashed border-slate-800 px-3 py-4 text-[11px] text-slate-500">
+                No resume items yet. Capture something or record a next step to build momentum here.
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {dailyWorkQueue.slice(0, 5).map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => handleOpenDailyWorkItem(item)}
+                    className={`rounded-lg border p-2.5 text-left transition-colors hover:border-slate-600 ${item.accentClasses} ${
+                      selectedProjectId === item.projectId ? 'ring-1 ring-indigo-500/30' : ''
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="text-[9px] font-bold uppercase tracking-widest opacity-80">{item.reason}</div>
+                        <div className="mt-1 truncate text-sm font-bold text-slate-100">{item.projectTitle}</div>
+                      </div>
+                      <span className="rounded-full bg-slate-950/70 px-1.5 py-0.5 text-[8px] uppercase tracking-wider text-slate-400">
+                        {item.category}
+                      </span>
+                    </div>
+                    <div className="mt-2 text-[11px] leading-relaxed text-slate-300">{item.detail}</div>
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <span className="text-[9px] uppercase tracking-wider text-slate-500">
+                        Updated {formatTimestamp(item.updatedAt)}
+                      </span>
+                      <span className="text-[9px] font-bold uppercase tracking-widest text-slate-200">
+                        {item.actionLabel}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           {commitmentFocusFilter !== 'all' && (
             <div className="flex items-center justify-between rounded-lg bg-slate-950/30 px-3 py-1.5 text-[9px] border border-slate-800/40 font-mono">
               <span className="text-slate-400 font-bold">
@@ -4047,7 +4333,7 @@ export default function ProjectsPage() {
           {!selectedProject ? (
             <div className="flex h-full flex-col items-center justify-center p-6 text-center text-slate-500">
               <span className="mb-2 text-lg">Select a Project</span>
-              <span className="text-sm">Review project context, progress updates, related artifacts, and discussion.</span>
+              <span className="text-sm">Review project context, progress updates, evidence items, and discussion.</span>
             </div>
           ) : (
             <div className="flex h-full flex-col">
@@ -4359,10 +4645,10 @@ export default function ProjectsPage() {
                 <div className="mt-4 rounded border border-fuchsia-900/40 bg-fuchsia-950/10 p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3 border-b border-fuchsia-900/30 pb-3">
                     <div>
-                      <div className="text-[10px] font-bold uppercase tracking-widest text-fuchsia-400">Project Brief</div>
-                      <div className="mt-1 text-xs text-fuchsia-100/70">
-                        A concise project summary built from memory, decisions, commitments, runtime context, and attached work.
-                      </div>
+                          <div className="text-[10px] font-bold uppercase tracking-widest text-fuchsia-400">Project Brief</div>
+                          <div className="mt-1 text-xs text-fuchsia-100/70">
+                        A concise project summary built from memory, evidence, decisions, commitments, and runtime context.
+                          </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <button
@@ -4623,7 +4909,7 @@ export default function ProjectsPage() {
                     </div>
                   </div>
                   <div className="text-xs text-amber-200/70">
-                    Built from project activity, artifacts, and discussion. No external model call.
+                    Built from project activity, evidence items, and discussion. No external model call.
                   </div>
                 </div>
 
@@ -4637,7 +4923,7 @@ export default function ProjectsPage() {
                     <div className="mt-1 text-lg font-bold text-slate-200">{selectedProject.messages.length}</div>
                   </div>
                   <div className="rounded border border-slate-800 bg-slate-950/60 p-3">
-                    <div className="text-[10px] uppercase tracking-widest text-slate-500">Artifacts</div>
+                    <div className="text-[10px] uppercase tracking-widest text-slate-500">Evidence</div>
                     <div className="mt-1 text-lg font-bold text-slate-200">{selectedProject.artifacts?.length || 0}</div>
                   </div>
                   <div className="rounded border border-slate-800 bg-slate-950/60 p-3">
@@ -4653,9 +4939,9 @@ export default function ProjectsPage() {
                 <div className="mt-4 rounded border border-slate-800 bg-slate-950/30 p-3">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-300">Project Views</div>
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-300">Project Sections</div>
                       <div className="mt-1 text-xs text-slate-500">
-                        Move between the full project, frames, room objects, review queue, and a compiled handoff without losing context.
+                        Move through the project record, sections, linked objects, review queue, and handoff without losing context.
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -4663,19 +4949,19 @@ export default function ProjectsPage() {
                         onClick={handleExportProjectRoomDossier}
                         className="rounded border border-fuchsia-800 bg-fuchsia-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-fuchsia-300 transition-colors hover:bg-fuchsia-900/40"
                       >
-                        Export Room Packet
+                        Export Handoff Packet
                       </button>
                       <button
                         onClick={handleRecordProjectRoomDossierArtifact}
                         className="rounded border border-indigo-800 bg-indigo-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-indigo-300 transition-colors hover:bg-indigo-900/40"
                       >
-                        Save Room Packet
+                        Save Handoff Packet
                       </button>
                       <button
                         onClick={handlePrintProjectRoomDossier}
                         className="rounded border border-slate-700 bg-slate-950/50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-200 transition-colors hover:bg-slate-900/70"
                       >
-                        Print Room Packet
+                        Print Handoff Packet
                       </button>
                       <button
                         onClick={handleExportProjectHandoff}
@@ -4697,8 +4983,8 @@ export default function ProjectsPage() {
                       </button>
                       {([
                         { id: 'overview', label: 'Overview' },
-                        { id: 'frames', label: 'Frames' },
-                        { id: 'room', label: 'Room' },
+                        { id: 'frames', label: 'Sections' },
+                        { id: 'room', label: 'Links' },
                         { id: 'review', label: 'Review Queue' },
                         { id: 'handoff', label: 'Handoff' }
                       ] as Array<{ id: ProjectViewMode; label: string }>).map((view) => {
@@ -4726,9 +5012,9 @@ export default function ProjectsPage() {
               <div className="grid min-h-0 flex-1 grid-cols-1 gap-0 lg:grid-cols-[minmax(0,1.4fr),minmax(320px,0.9fr)]">
                 <div className="flex min-h-0 flex-col border-b border-slate-800 lg:border-b-0 lg:border-r">
                   <div className="border-b border-slate-800 px-5 py-4">
-                    <h3 className="text-xs font-bold uppercase tracking-widest text-slate-300">Project Activity</h3>
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-slate-300">Project Timeline</h3>
                     <p className="mt-1 text-xs text-slate-500">
-                      Durable progress updates and handoff milestones attached to this workstream.
+                      Durable updates, review calls, and handoff milestones attached to this project.
                     </p>
                   </div>
                   <div className="flex-1 overflow-y-auto p-5">
@@ -4972,7 +5258,7 @@ export default function ProjectsPage() {
                           </div>
                         ) : (
                           <div className="rounded border border-dashed border-slate-800 p-4 text-sm text-slate-500">
-                            No attached artifacts yet.
+                            No evidence items attached yet.
                           </div>
                         )}
                       </div>
@@ -5762,7 +6048,7 @@ export default function ProjectsPage() {
                 <div className="grid min-h-0 flex-1 grid-cols-1 gap-0 xl:grid-cols-[260px,minmax(0,1.15fr),minmax(320px,0.85fr)]">
                   <div className="flex min-h-0 flex-col border-b border-slate-800 xl:border-b-0 xl:border-r">
                     <div className="border-b border-slate-800 px-5 py-4">
-                      <h3 className="text-xs font-bold uppercase tracking-widest text-slate-300">Project Frames</h3>
+                      <h3 className="text-xs font-bold uppercase tracking-widest text-slate-300">Project Sections</h3>
                       <p className="mt-1 text-xs text-slate-500">
                         Durable room containers that turn project objects into a navigable place instead of a stack.
                       </p>
@@ -5990,9 +6276,9 @@ export default function ProjectsPage() {
                 <div className="grid min-h-0 flex-1 grid-cols-1 gap-0 xl:grid-cols-[minmax(0,1.3fr),minmax(320px,0.8fr)]">
                   <div className="flex min-h-0 flex-col border-b border-slate-800 xl:border-b-0 xl:border-r">
                     <div className="border-b border-slate-800 px-5 py-4">
-                      <h3 className="text-xs font-bold uppercase tracking-widest text-slate-300">Project Room Objects</h3>
+                      <h3 className="text-xs font-bold uppercase tracking-widest text-slate-300">Linked Objects</h3>
                       <p className="mt-1 text-xs text-slate-500">
-                        Durable project objects assembled from artifacts, commitments, decisions, runtime context, and shell-derived briefs.
+                        Durable project objects assembled from evidence, decisions, commitments, runtime context, and derived briefs.
                       </p>
                     </div>
                     <div className="flex-1 overflow-y-auto p-5">
@@ -6032,9 +6318,9 @@ export default function ProjectsPage() {
 
                   <div className="flex min-h-0 flex-col">
                     <div className="border-b border-slate-800 px-5 py-4">
-                      <h3 className="text-xs font-bold uppercase tracking-widest text-slate-300">Room Focus</h3>
+                      <h3 className="text-xs font-bold uppercase tracking-widest text-slate-300">Linked Detail</h3>
                       <p className="mt-1 text-xs text-slate-500">
-                        Inspect one project object at a time without losing the surrounding room.
+                        Inspect one linked project object at a time without losing the surrounding context.
                       </p>
                     </div>
                     <div className="flex-1 overflow-y-auto p-5">
@@ -6138,7 +6424,7 @@ export default function ProjectsPage() {
                   <div className="border-b border-slate-800 px-5 py-4">
                     <h3 className="text-xs font-bold uppercase tracking-widest text-slate-300">Review Queue</h3>
                     <p className="mt-1 text-xs text-slate-500">
-                      A compact review stack derived from commitments, decisions, artifacts, and runtime pressure.
+                      A compact review stack derived from commitments, decisions, evidence, and runtime pressure.
                     </p>
                   </div>
                   <div className="flex-1 overflow-y-auto p-5">

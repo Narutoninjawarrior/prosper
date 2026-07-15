@@ -1,23 +1,13 @@
 import { Flame } from 'lucide-react'
 
 const LINKS = [
+  { href: '/projects', label: 'Projects' },
   { href: '/review', label: 'Review' },
+  { href: '/activity', label: 'Activity' },
+  { href: '/workbench', label: 'Workbench' },
+  { href: '/operations', label: 'Operations' },
   { href: '/proof-log', label: 'Proof Log' },
   { href: '/route-health', label: 'Health (Beta)' },
-  { href: '/forge', label: 'Forge' },
-  { href: '/workbench', label: 'Workbench' },
-  { href: '/explore', label: 'Explore' },
-  { href: '/activity', label: 'Activity' },
-  { href: '/registry', label: 'Provenance' },
-  { href: '/world', label: 'World' },
-  { href: '/agent-access', label: 'Agents' },
-  { href: '/hall', label: 'Hall' },
-  { href: '/lodge-mind', label: 'Mind (Legacy)' },
-  { href: '/exchange', label: 'Exchange (Experimental)' },
-  { href: '/witness', label: 'Record Trail (Beta)' },
-  { href: '/operations', label: 'Operations' },
-  { href: '/projects', label: 'Projects' },
-  { href: '/gallery', label: 'Gallery' },
 ]
 
 export default function PublicNav({ compact = false }: { compact?: boolean }) {
@@ -31,7 +21,7 @@ export default function PublicNav({ compact = false }: { compact?: boolean }) {
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-2.5">
         <a href="/" className="flex items-center gap-2 rounded-full border border-[#E8842A]/50 bg-[#E8842A]/15 px-3.5 py-1.5 no-underline shadow-[0_0_15px_rgba(232,132,42,0.25)] transition hover:bg-[#E8842A]/25">
           <Flame size={18} className="text-[#E8842A]" />
-          <span className="text-xs font-bold tracking-[0.2em] text-[#FAF6EF]">HEARTH HOME</span>
+          <span className="text-xs font-bold tracking-[0.2em] text-[#FAF6EF]">PROSPER</span>
         </a>
         {!compact && (
           <nav className="hidden flex-wrap items-center gap-1 md:flex">
@@ -58,7 +48,7 @@ export default function PublicNav({ compact = false }: { compact?: boolean }) {
           href="/hearth"
           className="rounded-full border border-[#10b981]/35 bg-[#10b981]/12 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#9ff0c4] no-underline"
         >
-          Hearth OS
+          Workspace
         </a>
       </div>
     </header>

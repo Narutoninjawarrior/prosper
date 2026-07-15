@@ -356,7 +356,7 @@ function App() {
 
   if (pathname === '/' || pathname === '/explore') {
     return (
-      <SuspendedPublicShell className="min-h-screen w-screen bg-[#050806]" label="Loading the Hearthlands...">
+      <SuspendedPublicShell className="min-h-screen w-screen bg-[#050806]" label="Loading Prosper...">
         <div className="min-h-full overflow-y-auto">
           <LandingPage />
         </div>
@@ -364,13 +364,13 @@ function App() {
     );
   }
 
-  // The rest of the routes, if not matched, go to Hearth OS (/hearth or fallback)
+  // The rest of the routes, if not matched, go to the internal workspace (/hearth or fallback)
   if (!unlocked) {
     return <Gate onUnlock={handleUnlock} />;
   }
 
   return (
-    <Suspense fallback={<LoadingSurface label="Loading Hearth OS..." />}>
+    <Suspense fallback={<LoadingSurface label="Loading workspace..." />}>
       <InternalAppShell />
     </Suspense>
   );

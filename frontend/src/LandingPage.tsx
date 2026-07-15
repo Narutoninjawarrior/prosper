@@ -1,91 +1,59 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  ArrowRight,
-  Bot,
-  Boxes,
-  Coins,
-  Flame,
-  Hammer,
-  Landmark,
-  ScrollText,
-  ShieldCheck,
-  Sparkles,
-} from 'lucide-react';
+import { ArrowRight, Bot, Boxes, ClipboardList, ScrollText } from 'lucide-react';
 import { fetchActivityBundle, type ActivityRow } from './lib/activityFeed';
 import { fetchLiveMembersPreview } from './lib/lodgeFirestore';
 import { sanctuaryBridge, useContract, type ArtifactContract, type MemberContract } from './lib/sanctuaryBridge';
 
-const cards = [
+const primarySurfaces = [
   {
-    title: 'Bot Activity',
-    href: '/activity',
-    body: 'Mission control feed with recorded experiments, approved claims, and embodiment events.',
+    title: 'Projects',
+    href: '/projects',
+    body: 'Capture raw inputs, review evidence, record decisions, and compile a clean handoff in one place.',
     accent: '#34D399',
   },
   {
-    title: 'Generative Workbench',
+    title: 'Review',
+    href: '/review',
+    body: 'See the current product surface, review package, and bounded system notes without wandering through side routes.',
+    accent: '#A78BFA',
+  },
+  {
+    title: 'Activity',
+    href: '/activity',
+    body: 'Inspect recent project updates, signals, and system activity in one feed.',
+    accent: '#F59E0B',
+  },
+  {
+    title: 'Workbench',
     href: '/workbench',
-    body: 'Stamp soulfiles, memory crystals, blueprints, and geometry seeds as JSON plus SHA-256.',
+    body: 'Generate or inspect supporting records and structured outputs that feed project work.',
     accent: '#F472B6',
   },
   {
-    title: 'Enter the World',
-    href: '/world',
-    body: 'Walk the public Hearthlands and observe the shared coordination environment as it breathes.',
-    accent: '#10b981',
-  },
-  {
-    title: 'Tend the Biosphere',
-    href: '/biosphere',
-    body: 'Visit the Flower of Life, watch the Bellows, and see what the fellowship is nurturing.',
-    accent: '#4A90D9',
-  },
-  {
-    title: 'Open the Forge',
-    href: '/3dforge',
-    body: 'Stage geometry, inspect build intent, and preview the public builder rail in 3D.',
-    accent: '#E8842A',
-  },
-  {
-    title: 'Visit the Hall',
-    href: '/hall',
-    body: 'Read the memory surface: seals, recorded deeds, and the names the project remembers.',
-    accent: '#D4A853',
-  },
-  {
-    title: 'Exchange (Experimental)',
-    href: '/exchange',
-    body: 'Experimental contribution surface. Support scoped work and explore project credits.',
-    accent: '#E8842A',
-  },
-  {
-    title: 'Read the Mind (Legacy)',
-    href: '/lodge-mind',
-    body: 'Inspect the public context, readiness, and civic memory the cloud Lodge mind would consume.',
-    accent: '#34D399',
+    title: 'Operations',
+    href: '/operations',
+    body: 'Inspect exported operational records and local review data when a project needs deeper verification.',
+    accent: '#38BDF8',
   },
 ];
 
-const economics = [
+const useCases = [
   {
-    icon: Coins,
-    title: 'Builder Marks',
-    body: 'SOLCOT is being reframed as scarce Builder Marks: civic rights, artifact access, and movement support rather than cheap support units.',
+    title: 'Indie builder',
+    body: 'Collect notes, links, and snippets fast, then convert them into evidence and a weekly handoff without losing context.',
   },
   {
-    icon: Hammer,
-    title: 'Artifact Economy',
-    body: 'Soul files, skills, blueprints, recorded builds, code relics, and simulation modules can become recorded Hearthlands artifacts.',
+    title: 'Small project team',
+    body: 'Keep a project record that shows what changed, what was reviewed, what was decided, and what happens next.',
   },
   {
-    icon: Bot,
-    title: 'Cloud Lodge Mind',
-    body: 'Gemma or Qwen can become the Builders Lodge mind through Firestore-backed memory and Cloud Run inference, not just a local script.',
+    title: 'Human + agent workflow',
+    body: 'Give agents a stable project packet instead of scattered notes, then keep the review and decision trail visible to people.',
   },
 ];
 
 function formatRelativeTime(timestamp?: string): string {
-  if (!timestamp) return 'No public action yet';
+  if (!timestamp) return 'No recent activity';
   const parsed = Date.parse(timestamp);
   if (!Number.isFinite(parsed)) return 'Timestamp unavailable';
 
@@ -169,15 +137,7 @@ export default function LandingPage() {
 
   const memberCount = liveMemberCount ?? membersContract.data.length;
   const memberSource = liveMemberCount !== null ? 'live registry' : 'seeded registry';
-  const witnessedArtifacts = useMemo(
-    () =>
-      artifactsContract.data.filter((artifact) =>
-        String(artifact.seal_state ?? '')
-          .toLowerCase()
-          .includes('witness'),
-      ).length,
-    [artifactsContract.data],
-  );
+  const evidenceCount = useMemo(() => artifactsContract.data.length, [artifactsContract.data]);
   const recentRows = activity?.rows.slice(0, 3) ?? [];
   const lastSignalLabel = formatRelativeTime(activity?.latestTimestamp);
   const activityStateLabel = activity?.data_state ?? 'loading';
@@ -186,96 +146,77 @@ export default function LandingPage() {
     <div className="min-h-full bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.18),transparent_32%),linear-gradient(180deg,#050806_0%,#08100b_42%,#0d1510_100%)] px-6 py-10 text-[#eef6f1]">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
         <section className="rounded-[32px] border border-white/10 bg-black/25 px-6 py-8 shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur-sm md:px-8 md:py-10">
-          <div className="mb-8 rounded-2xl border border-[#34D399]/30 bg-[#34D399]/10 p-4 shadow-sm backdrop-blur-sm">
-            <p className="text-sm font-semibold text-[#a8eed1]">
-              <span className="mr-2 uppercase tracking-widest text-[#34D399]">Grant reviewers:</span>
-              this page describes the Hearthlands movement vision. For the current bounded coordination system, see{' '}
-              <a href="/review" className="underline decoration-[#34D399]/50 underline-offset-2 hover:text-white font-bold">
-                /review &rarr;
-              </a>
-            </p>
-          </div>
-          
           <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between">
             <div className="max-w-3xl">
               <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#10b981]/30 bg-[#10b981]/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.35em] text-[#8ce0b4]">
-                <Flame size={14} />
-                Hearthlands Online
+                <ClipboardList size={14} />
+                Prosper
               </div>
               <h1 className="max-w-4xl text-4xl font-semibold tracking-tight text-white md:text-5xl">
-                A local-first coordination environment for human-governed, AI-assisted planning.
+                Project continuity and handoff workspace for humans and agents.
               </h1>
               <p className="mt-4 max-w-3xl text-base leading-7 text-[#b7c9be] md:text-lg">
-                Hearthlands is becoming an online commons where people and agents can build together,
-                stage local planning artifacts, and share reproducible work — grounded in inspectable
-                contracts, not empty claims.
+                Collect project inputs, review evidence, record decisions, carry commitments forward,
+                and compile a clean handoff without losing the project thread.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-3">
                 <a
-                  href="/world"
+                  href="/projects"
                   className="inline-flex items-center gap-2 rounded-full bg-[#10b981] px-5 py-3 text-sm font-semibold text-[#041109] transition hover:bg-[#25cf8a]"
                 >
-                  Enter the World
+                  Open Projects
                   <ArrowRight size={16} />
+                </a>
+                <a
+                  href="/review"
+                  className="inline-flex items-center gap-2 rounded-full border border-[#A78BFA]/35 bg-[#A78BFA]/10 px-5 py-3 text-sm font-semibold text-[#ddd6fe] transition hover:bg-[#A78BFA]/16"
+                >
+                  Review Product Surface
+                  <ScrollText size={16} />
                 </a>
                 <a
                   href="/activity"
                   className="inline-flex items-center gap-2 rounded-full border border-[#34D399]/35 bg-[#34D399]/10 px-5 py-3 text-sm font-semibold text-[#9ff0c4] transition hover:bg-[#34D399]/16"
                 >
-                  Watch Activity
+                  View Activity
                   <Bot size={16} />
                 </a>
                 <a
                   href="/workbench"
                   className="inline-flex items-center gap-2 rounded-full border border-[#F472B6]/35 bg-[#F472B6]/10 px-5 py-3 text-sm font-semibold text-[#fbcfe8] transition hover:bg-[#F472B6]/16"
                 >
-                  Open the Workbench
+                  Open Workbench
                   <Boxes size={16} />
-                </a>
-                <a
-                  href="/exchange"
-                  className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
-                >
-                  Exchange (Experimental)
-                  <Landmark size={16} />
                 </a>
               </div>
             </div>
 
-            <div className="grid min-w-[280px] gap-3 rounded-[28px] border border-white/8 bg-white/5 p-4 shadow-inner">
-              <div className="text-[11px] uppercase tracking-[0.3em] text-[#89a598]">Project Thesis</div>
-              <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
-                <div className="flex items-center gap-2 text-sm font-semibold text-[#d4f7e0]">
-                  <ShieldCheck size={16} className="text-[#10b981]" />
-                  Verified presence over anonymous drift
+            <div className="grid min-w-[300px] gap-3 rounded-[28px] border border-white/8 bg-white/5 p-4 shadow-inner">
+              <div className="text-[11px] uppercase tracking-[0.3em] text-[#89a598]">Core Loop</div>
+              {[
+                'Capture project inputs before they are lost.',
+                'Review evidence and attach operator judgment.',
+                'Record decisions and carry forward commitments.',
+                'Compile a project handoff that another person or agent can actually use.',
+              ].map((item) => (
+                <div key={item} className="rounded-2xl border border-white/8 bg-black/20 p-4 text-sm leading-6 text-[#d4f7e0]">
+                  {item}
                 </div>
-                <p className="mt-2 text-sm leading-6 text-[#b7c9be]">
-                  Identity, patronage, and artifacts should be recorded, attributable, and legible to both people and agents.
-                </p>
-              </div>
-              <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
-                <div className="flex items-center gap-2 text-sm font-semibold text-[#ffe2bf]">
-                  <Sparkles size={16} className="text-[#E8842A]" />
-                  Artifact ecosystem over empty hype
-                </div>
-                <p className="mt-2 text-sm leading-6 text-[#b7c9be]">
-                  The endgame is an ecosystem for recorded skills, soul files, blueprints, code relics, and builds that actually matter in the world.
-                </p>
-              </div>
+              ))}
             </div>
           </div>
         </section>
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <StatCard label="Projects surface" value="Live" detail="Capture, review, decisions, commitments, and handoff are all available in /projects." />
+          <StatCard label="Recent activity" value={lastSignalLabel} detail={activity?.note ?? `State: ${activityStateLabel}`} />
+          <StatCard label="Evidence items" value={evidenceCount} detail="Structured items can be reviewed and carried into project handoff outputs." />
           <StatCard label="Members" value={memberCount} detail={`Source: ${memberSource}`} />
-          <StatCard label="Active agents" value={activity?.activeAgents.length ?? 0} detail={`State: ${activityStateLabel}`} />
-          <StatCard label="Recorded artifacts" value={witnessedArtifacts} detail="Seeded artifact registry records with verified seal state." />
-          <StatCard label="Last action" value={lastSignalLabel} detail={activity?.note ?? 'Loading public recorded surfaces.'} />
         </section>
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {cards.map((card) => (
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          {primarySurfaces.map((card) => (
             <a
               key={card.href}
               href={card.href}
@@ -285,12 +226,33 @@ export default function LandingPage() {
                 className="mb-3 inline-flex rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.28em]"
                 style={{ background: `${card.accent}22`, color: card.accent }}
               >
-                Public Surface
+                Product Surface
               </div>
               <div className="text-xl font-semibold text-white">{card.title}</div>
               <p className="mt-2 text-sm leading-6 text-[#b7c9be]">{card.body}</p>
             </a>
           ))}
+        </section>
+
+        <section className="rounded-[32px] border border-white/10 bg-white/5 px-6 py-7 shadow-[0_18px_60px_rgba(0,0,0,0.22)] backdrop-blur-sm">
+          <div className="mb-4 flex items-center gap-3">
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-2 text-[#d4f7e0]">
+              <ScrollText size={18} />
+            </div>
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.32em] text-[#89a598]">What this is for</div>
+              <h2 className="text-2xl font-semibold text-white">A practical memory layer between capture and execution</h2>
+            </div>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-3">
+            {useCases.map((item) => (
+              <div key={item.title} className="rounded-3xl border border-white/8 bg-black/20 p-5">
+                <div className="font-semibold text-white">{item.title}</div>
+                <p className="mt-3 text-sm leading-6 text-[#b7c9be]">{item.body}</p>
+              </div>
+            ))}
+          </div>
         </section>
 
         <section className="rounded-[32px] border border-white/10 bg-white/5 px-6 py-7 shadow-[0_18px_60px_rgba(0,0,0,0.22)] backdrop-blur-sm">
@@ -300,8 +262,8 @@ export default function LandingPage() {
                 <ScrollText size={18} />
               </div>
               <div>
-                <div className="text-[11px] uppercase tracking-[0.32em] text-[#89a598]">Recent public activity</div>
-                <h2 className="text-2xl font-semibold text-white">Proof of life for humans and bots</h2>
+                <div className="text-[11px] uppercase tracking-[0.32em] text-[#89a598]">Recent activity</div>
+                <h2 className="text-2xl font-semibold text-white">Current signals from the workspace</h2>
               </div>
             </div>
             <a href="/activity" className="text-sm font-semibold text-[#D4A853] no-underline hover:text-white">
@@ -317,33 +279,9 @@ export default function LandingPage() {
             </div>
           ) : (
             <div className="rounded-3xl border border-dashed border-[#5C3D1E] bg-black/20 px-5 py-8 text-sm text-[#b7c9be]">
-              No recent public activity is visible yet. When the vessel is quiet, we should say that plainly.
+              No recent workspace activity is visible yet.
             </div>
           )}
-        </section>
-
-        <section className="rounded-[32px] border border-white/10 bg-white/5 px-6 py-7 shadow-[0_18px_60px_rgba(0,0,0,0.22)] backdrop-blur-sm">
-          <div className="mb-4 flex items-center gap-3">
-            <div className="rounded-2xl border border-white/10 bg-black/20 p-2 text-[#d4f7e0]">
-              <ScrollText size={18} />
-            </div>
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.32em] text-[#89a598]">What the movement offers</div>
-              <h2 className="text-2xl font-semibold text-white">Movement support, artifact access, and recorded capabilities</h2>
-            </div>
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-3">
-            {economics.map(({ icon: Icon, title, body }) => (
-              <div key={title} className="rounded-3xl border border-white/8 bg-black/20 p-5">
-                <div className="flex items-center gap-2 text-white">
-                  <Icon size={18} className="text-[#10b981]" />
-                  <span className="font-semibold">{title}</span>
-                </div>
-                <p className="mt-3 text-sm leading-6 text-[#b7c9be]">{body}</p>
-              </div>
-            ))}
-          </div>
         </section>
       </div>
     </div>

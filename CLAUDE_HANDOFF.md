@@ -1,128 +1,40 @@
-PROSPER — REHYDRATE / MAP / SWEEP / THEN SHIP ONE PATCH
+# PROSPER REFORM — PHASE J: GUT AND SIMPLIFY
 
-Workspace:
-D:\Hearth\prosper2
+Workspace: `D:\Hearth\prosper2`
 
-Priority:
-High
-Goal:
-Rebuild your exact mental model of the current Hearthlands frontend, especially the 3D/public routes, then execute one no-regret improvement from fresh repo truth instead of memory.
+Grok recently delivered a brutal but necessary verdict on the current state of Prosper. The core takeaway:
+> "Prosper/Hearthlands is still more over-engineered personal research console than a product anyone would open daily or pay for... Shift decisively to 'Project continuity & handoff workspace' with ruthless simplification."
 
-Important:
-Do not answer from recollection alone.
-Read the files first.
-Assume your old chat context is incomplete or stale.
-Treat this as a repo-grounded rehydration pass.
+Your mandate is to begin executing **Phase J: A Reform Roadmap (Next 2 Weeks)** from this verdict.
 
-PHASE 1 — REHYDRATION READ
-Read these files directly before making any recommendations:
+## THE GROK VERDICT (Context for you)
+- **Move away from**: Fantasy/hearth lore, "Biosphere/Forge/Hall" metaphors, audio protocols, builder marks, public movement vision.
+- **Move towards**: Project continuity and handoff workspace. The reliable "single source of truth" layer between chaotic capture and execution tools.
+- **Core Loop**: Evidence → Decision log → Auto-draft handoff (one-click compile).
+- **Renames**: "Project Frames" → Sections or Views; "Room Packet" → Project Brief / Handoff Packet; "Artifacts" → Evidence Items.
 
-Core routing / shell
-- frontend/src/App.tsx
-- frontend/src/PublicShell.tsx
-- frontend/src/InternalAppShell.tsx if relevant
+## YOUR IMMEDIATE TASK: GUT AND CLARIFY
+You must make ruthless cuts and renames to align with this new reality. Do not be precious about the old lore.
 
-Public/front-door surfaces
-- frontend/src/LandingPage.tsx
-- frontend/src/ReviewPage.tsx
-- frontend/src/RouteHealthPage.tsx
-- frontend/src/ProofLogPage.tsx
-- frontend/src/components/BotCapabilityCatalog.tsx
-- frontend/src/ForgePage.tsx
+### Step 1: Read the current landscape
+Review these files to understand the current homepage, projects page, navigation, and core data structures:
+- `frontend/src/LandingPage.tsx`
+- `frontend/src/ProjectsPage.tsx`
+- `frontend/src/shell/PublicNav.tsx`
+- `frontend/src/App.tsx`
+- `frontend/src/OperationsPage.tsx`
 
-3D / world surfaces
-- frontend/src/ThreeForge.tsx
-- frontend/src/WorldRoute.tsx
-- frontend/src/WorldScene.jsx
-- frontend/src/world/WorldActionSheet.jsx
-- frontend/src/world/ParametricArtifactRenderer.tsx
-- frontend/src/lib/worldArtifactContract.ts
-- frontend/src/lib/worldArtifactSeeds.ts
+### Step 2: Ruthless Renames & Simplification
+Propose and implement the following changes in a single sweep:
+1. **Gut the homepage (`LandingPage.tsx`)**: Remove the "Lodge / Hearthlands" heavy lore. Reframe it immediately as a "Project continuity and handoff workspace."
+2. **Rename key terms in UI**:
+   - "Project Frames" -> "Sections" or "Views"
+   - "Room Packet" -> "Project Brief" or "Handoff Packet"
+   - "Artifacts" -> "Evidence Items"
+   - "Sovereign Gallery" / "Forge" / "Biosphere" (Demote or remove from primary public navigation in `PublicNav.tsx` if they distract from the core loop).
+3. **Clean up `/projects`**: Ensure the default view is focused strictly on: Inbox → Evidence → Decision log → Auto-draft handoff. Remove unnecessary complex states.
 
-If additional files are clearly required to explain current behavior, include them.
-
-PHASE 2 — CURRENT FRONTEND MAP
-After reading, deliver a concrete map in this exact structure:
-
-1. Route Map
-For each route:
-- /
-- /review
-- /route-health
-- /proof-log
-- /entitlements
-- /forge
-- /3dforge
-- /world
-- /commons
-
-List:
-- primary component
-- shell wrapper
-- whether audio/overlay systems are active
-- whether the route reads as calmer/newer or older/legacy
-- the 1–2 files that actually control its visible behavior
-
-2. 3D Ownership Map
-Explain exactly where these behaviors live in JavaScript/TS:
-- artifact rendering
-- artifact inspection
-- placement preview
-- grid snapping
-- rotation controls
-- validity states
-- overlay panels
-- audio/telemetry blocks
-- local placement state
-- query-param deep linking
-
-3. Legacy vs Current Split
-Name which parts of /world and /3dforge appear to come from older prosperity-era / ambient-world logic vs the newer governed artifact/planning layer.
-Be specific.
-
-4. Stale or Contradictory Live Signals
-Name any routes where:
-- live copy still contradicts recent truth sweeps
-- visual hierarchy still feels old
-- one route implies a different thesis than another
-- the code likely explains why deploy parity drift happened
-
-PHASE 3 — CHOOSE ONE NO-REGRET PATCH
-After the map, choose exactly one patch that is:
-- small
-- high leverage
-- safe regardless of whether Malaky later chooses Option 1 or Option 2
-- grounded in the code you just read
-
-Strong candidates include:
-- calming /world or /3dforge further
-- fixing stale copy still visible on live public routes
-- improving route hierarchy where overlays still dominate
-- tightening one confusing title / label / card that still reads old
-
-Do not choose a broad thesis rewrite.
-Do not choose a new subsystem.
-
-PHASE 4 — SHIP IT
-Implement the chosen patch.
-Then run:
-- cd frontend && npm run build
-
-DELIVER BACK
-In this exact structure:
-
-A. Files read
-B. Route map summary
-C. 3D ownership summary
-D. Legacy/current split summary
-E. Chosen patch and why
-F. Exact files touched
-G. Build result
-H. One sentence on what now feels more coherent
-
-Guardrails:
-- no strategy by accident
-- no deciding the full public thesis
-- no giant feature branch
-- no vague recommendations from memory
-- read first, map second, patch third
+### Step 3: Implement & Verify
+Make the edits across the relevant frontend files.
+Run `npm run build` in the `frontend` directory.
+Provide a summary of what was cut, what was renamed, and how the core loop is now clearer.
