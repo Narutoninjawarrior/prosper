@@ -180,7 +180,7 @@ interface DerivedProjectBrief {
   artifactReadiness: string[];
 }
 
-type ProjectViewMode = 'overview' | 'frames' | 'room' | 'review' | 'handoff';
+type ProjectViewMode = 'desk' | 'overview' | 'frames' | 'room' | 'review' | 'handoff';
 
 interface ProjectRoomObject {
   id: string;
@@ -1250,6 +1250,18 @@ function deriveProjectRoomFrames(
 
 function downloadJsonArtifact(filename: string, payload: unknown) {
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  URL.revokeObjectURL(url);
+}
+
+function downloadTextArtifact(filename: string, content: string, type = 'text/plain;charset=utf-8') {
+  const blob = new Blob([content], { type });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
@@ -2753,7 +2765,7 @@ export default function ProjectsPage() {
   const [decisionState, setDecisionState] = useState<DecisionState>('accepted');
   const [decisionImpact, setDecisionImpact] = useState('');
   const [isCreating, setIsCreating] = useState(false);
-  const [projectViewMode, setProjectViewMode] = useState<ProjectViewMode>('overview');
+  const [projectViewMode, setProjectViewMode] = useState<ProjectViewMode>('desk');
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newCategory, setNewCategory] = useState('operations');
@@ -2821,22 +2833,18 @@ export default function ProjectsPage() {
         }),
     [projects]
   );
-  useEffect(() => {
-    if (!selectedProjectId && projects.length > 0) {
-      const params = new URLSearchParams(window.location.search);
-      const projectFromUrl = params.get('project');
-      const matchingProject = projectFromUrl ? projects.find((project) => project.id === projectFromUrl) : null;
-      const fallbackProjectId = matchingProject?.id || dailyWorkQueue[0]?.projectId || projects[0].id;
-      setSelectedProjectId(fallbackProjectId);
-      if (!matchingProject && dailyWorkQueue[0]) {
-        setProjectViewMode(dailyWorkQueue[0].targetView);
-      }
-    }
-  }, [projects, selectedProjectId, dailyWorkQueue]);
+  const effectiveSelectedProjectId = useMemo(() => {
+    if (selectedProjectId) return selectedProjectId;
+    if (projects.length === 0) return null;
+    const params = new URLSearchParams(window.location.search);
+    const projectFromUrl = params.get('project');
+    const matchingProject = projectFromUrl ? projects.find((project) => project.id === projectFromUrl) : null;
+    return matchingProject?.id || dailyWorkQueue[0]?.projectId || projects[0].id;
+  }, [selectedProjectId, projects, dailyWorkQueue]);
 
   const selectedProject = useMemo(
-    () => projects.find((project) => project.id === selectedProjectId) || null,
-    [projects, selectedProjectId]
+    () => projects.find((project) => project.id === effectiveSelectedProjectId) || null,
+    [projects, effectiveSelectedProjectId]
   );
   const agentSummary = useMemo(() => deriveAgentSummary(selectedProject), [selectedProject]);
   const projectRelevance = useMemo(() => deriveProjectRelevance(selectedProject), [selectedProject]);
@@ -2953,6 +2961,37 @@ export default function ProjectsPage() {
       ),
     [selectedProject]
   );
+  const acceptedDecisions = useMemo(
+    () => (selectedProject?.decisions || []).filter((decision) => decision.decision_state === 'accepted'),
+    [selectedProject]
+  );
+  const openDecisions = useMemo(
+    () =>
+      (selectedProject?.decisions || []).filter(
+        (decision) => decision.decision_state === 'proposed' || decision.decision_state === 'deferred'
+      ),
+    [selectedProject]
+  );
+  const activeCommitments = useMemo(
+    () => (selectedProject?.commitments || []).filter((commitment) => commitment.commitment_state === 'active'),
+    [selectedProject]
+  );
+  const blockedCommitments = useMemo(
+    () => (selectedProject?.commitments || []).filter((commitment) => commitment.commitment_state === 'blocked'),
+    [selectedProject]
+  );
+  const handoffReadiness = useMemo(() => {
+    const blockers: string[] = [];
+    if (approvedArtifacts.length === 0) blockers.push('No evidence has been approved yet.');
+    if (selectedProject && !selectedProject.next_step?.trim()) blockers.push('Next step is still undefined.');
+    if (flaggedArtifacts.length > 0) blockers.push(`${flaggedArtifacts.length} evidence item${flaggedArtifacts.length === 1 ? '' : 's'} are flagged.`);
+    if (pendingArtifacts.length > 0) blockers.push(`${pendingArtifacts.length} evidence item${pendingArtifacts.length === 1 ? '' : 's'} still need review.`);
+    if (blockedCommitments.length > 0) blockers.push(`${blockedCommitments.length} commitment${blockedCommitments.length === 1 ? '' : 's'} are blocked.`);
+    return {
+      ready: blockers.length === 0 && Boolean(selectedProject),
+      blockers
+    };
+  }, [approvedArtifacts, selectedProject, flaggedArtifacts, pendingArtifacts, blockedCommitments]);
 
   const sortedCommitments = useMemo(() => {
     if (!selectedProject?.commitments?.length) return [];
@@ -3036,12 +3075,12 @@ export default function ProjectsPage() {
   }, [selectedProject, projectFrames, selectedFrameId, selectedFrame, selectedFrameObjects, projectRoomObjects, selectedRoomObjectId]);
 
   const handlePostUpdate = () => {
-    if (!selectedProjectId || !newMessage.trim()) return;
+    if (!effectiveSelectedProjectId || !newMessage.trim()) return;
     
     if (updateType === 'decision') {
       const titleToUse = decisionTitle.trim() || 'Untitled Choice';
       addProjectDecision(
-        selectedProjectId,
+        effectiveSelectedProjectId,
         titleToUse,
         newMessage,
         decisionState,
@@ -3053,7 +3092,7 @@ export default function ProjectsPage() {
       setDecisionImpact('');
     } else {
       addStructuredUpdate(
-        selectedProjectId,
+        effectiveSelectedProjectId,
         updateType,
         newMessage,
         associatedArtifactId || undefined
@@ -3080,7 +3119,7 @@ export default function ProjectsPage() {
   };
 
   const handleAddCaptureItem = () => {
-    if (!selectedProjectId) return;
+    if (!effectiveSelectedProjectId) return;
 
     const normalizedTitle = captureTitle.trim();
     const normalizedContent = captureContent.trim();
@@ -3097,7 +3136,7 @@ export default function ProjectsPage() {
 
     if (!normalizedTitle && !normalizedContent) return;
 
-    addProjectCaptureItem(selectedProjectId, {
+    addProjectCaptureItem(effectiveSelectedProjectId, {
       capture_type: captureType,
       title: normalizedTitle || fallbackTitle,
       content: normalizedContent || normalizedTitle,
@@ -3195,11 +3234,11 @@ export default function ProjectsPage() {
   };
 
   const handleCreateCommitment = () => {
-    if (!selectedProjectId || !commitmentTitle.trim() || !commitmentRationale.trim() || !commitmentNextAction.trim() || !commitmentDoneWhen.trim()) {
+    if (!effectiveSelectedProjectId || !commitmentTitle.trim() || !commitmentRationale.trim() || !commitmentNextAction.trim() || !commitmentDoneWhen.trim()) {
       return;
     }
 
-    addProjectCommitment(selectedProjectId, {
+    addProjectCommitment(effectiveSelectedProjectId, {
       title: commitmentTitle.trim(),
       commitment_state: commitmentState,
       rationale: commitmentRationale.trim(),
@@ -3229,6 +3268,21 @@ export default function ProjectsPage() {
     setCommitmentWorkPackage(`Artifact Review Package (${artifact.type})`);
     setCommitmentConstraints('Requires verification against active lodge contracts.');
     setIsCreatingCommitment(true);
+  };
+
+  const seedDecisionFromArtifact = (artifact: ProjectArtifact) => {
+    setUpdateType('decision');
+    setAssociatedArtifactId(artifact.id);
+    setDecisionTitle(`Decision for ${artifact.title}`);
+    setDecisionState(isArtifactApproved(artifact) ? 'accepted' : 'proposed');
+    setDecisionImpact(artifact.review_note?.trim() || '');
+    setNewMessage(
+      artifact.summary?.trim() ||
+        artifact.review_note?.trim() ||
+        `Use ${artifact.title} to define the next project decision.`
+    );
+    setProjectViewMode('overview');
+    setSelectedArtifactId(artifact.id);
   };
 
   const seedCommitmentFromDecision = (decision: ProjectDecision) => {
@@ -3650,6 +3704,108 @@ export default function ProjectsPage() {
     };
   }, [selectedProject, projectMemory, projectRelevance, bellowsRuntime, runtimeCommitmentAdvisory]);
 
+  const buildProjectHandoffMarkdown = useCallback(() => {
+    if (!selectedProject) return '';
+
+    const lines: string[] = [
+      `# ${selectedProject.title}`,
+      '',
+      `- Category: ${selectedProject.category}`,
+      `- Status: ${selectedProject.status}`,
+      `- Updated: ${formatTimestamp(selectedProject.updated_at)}`,
+      '',
+      '## Summary',
+      '',
+      selectedProject.description || 'No project description recorded yet.',
+      '',
+      '## Current Direction',
+      '',
+      `- Current direction: ${projectMemory.currentDirection}`,
+      `- Next step: ${selectedProject.next_step?.trim() || 'No next step recorded yet.'}`,
+      `- Return focus: ${projectRelevance.returnFocus}`,
+      agentSummary.suggestedReviewFocus[0]
+        ? `- Review focus: ${agentSummary.suggestedReviewFocus[0]}`
+        : '- Review focus: No special review focus is active.',
+      '',
+      '## Evidence Ready to Carry Forward',
+      ''
+    ];
+
+    if (approvedArtifacts.length === 0) {
+      lines.push('- No approved evidence yet.');
+    } else {
+      approvedArtifacts.forEach((artifact) => {
+        lines.push(`- ${artifact.title} (${artifact.type})`);
+        if (artifact.summary?.trim()) lines.push(`  - Summary: ${artifact.summary.trim()}`);
+        if (artifact.review_note?.trim()) lines.push(`  - Comment: ${artifact.review_note.trim()}`);
+      });
+    }
+
+    lines.push('', '## Open Review Items', '');
+    if (flaggedArtifacts.length + pendingArtifacts.length === 0) {
+      lines.push('- No evidence is currently blocking handoff.');
+    } else {
+      [...flaggedArtifacts, ...pendingArtifacts].forEach((artifact) => {
+        lines.push(`- ${artifact.title}: ${getArtifactReviewOutcomeLabel(artifact)}`);
+        lines.push(`  - Detail: ${(artifact.review_note || getArtifactReviewOutcomeDetail(artifact)).trim()}`);
+      });
+    }
+
+    lines.push('', '## Decisions', '');
+    if ((selectedProject.decisions || []).length === 0) {
+      lines.push('- No decisions recorded yet.');
+    } else {
+      (selectedProject.decisions || []).forEach((decision) => {
+        lines.push(`- ${decision.title} [${decision.decision_state}]`);
+        lines.push(`  - Rationale: ${decision.rationale}`);
+        if (decision.impact_note?.trim()) lines.push(`  - Impact: ${decision.impact_note.trim()}`);
+      });
+    }
+
+    lines.push('', '## Commitments', '');
+    if (sortedCommitments.length === 0) {
+      lines.push('- No commitments recorded yet.');
+    } else {
+      sortedCommitments.forEach((commitment) => {
+        lines.push(`- ${commitment.title} [${getCommitmentStateLabel(commitment.commitment_state)}]`);
+        lines.push(`  - Rationale: ${commitment.rationale}`);
+        lines.push(`  - Next action: ${commitment.next_action}`);
+        lines.push(`  - Done when: ${commitment.done_when}`);
+        if (commitment.blocker_note?.trim()) lines.push(`  - Blocker: ${commitment.blocker_note.trim()}`);
+        if (commitment.constraints?.trim()) lines.push(`  - Constraints: ${commitment.constraints.trim()}`);
+      });
+    }
+
+    lines.push('', '## Runtime Context', '');
+    lines.push(`- Runtime condition: ${bellowsRuntime.label} (${bellowsRuntime.detail})`);
+    if (runtimeCommitmentAdvisory) {
+      lines.push(`- Advisory: ${runtimeCommitmentAdvisory.message}`);
+      lines.push(`- Detail: ${runtimeCommitmentAdvisory.detail}`);
+    } else {
+      lines.push('- Advisory: No runtime advisory is currently changing this handoff.');
+    }
+
+    lines.push(
+      '',
+      '## Truth Boundary',
+      '',
+      'Built from current project data, evidence review, decisions, commitments, and runtime context. No external model call or sync involved.'
+    );
+
+    return lines.join('\n');
+  }, [
+    selectedProject,
+    projectMemory,
+    projectRelevance,
+    agentSummary,
+    approvedArtifacts,
+    flaggedArtifacts,
+    pendingArtifacts,
+    sortedCommitments,
+    bellowsRuntime,
+    runtimeCommitmentAdvisory
+  ]);
+
   const handleExportProjectHandoff = () => {
     const packet = buildProjectHandoffPacket();
     if (!packet || !selectedProject) return;
@@ -3667,6 +3823,34 @@ export default function ProjectsPage() {
       review_signal: 'clear',
       review_note: 'Compiled from reviewed evidence, decisions, commitments, and current next step.'
     });
+  };
+
+  const handleExportProjectHandoffMarkdown = () => {
+    if (!selectedProject) return;
+    downloadTextArtifact(`project-handoff-${selectedProject.id}.md`, buildProjectHandoffMarkdown(), 'text/markdown;charset=utf-8');
+  };
+
+  const handleSaveProjectHandoffMarkdownArtifact = () => {
+    if (!selectedProject) return;
+    addProjectArtifact(selectedProject.id, {
+      type: 'handoff_markdown',
+      title: `Handoff Draft - ${selectedProject.title}`,
+      summary: selectedProject.next_step?.trim() || projectMemory.currentDirection,
+      source_lane: 'projects',
+      review_state: 'unreviewed',
+      review_signal: 'clear',
+      review_note: 'Markdown handoff draft compiled from current project direction, evidence, decisions, commitments, and runtime context.'
+    });
+  };
+
+  const handleCopyProjectHandoffMarkdown = async () => {
+    const markdown = buildProjectHandoffMarkdown();
+    if (!markdown) return;
+    try {
+      await navigator.clipboard.writeText(markdown);
+    } catch {
+      downloadTextArtifact('project-handoff-copy-fallback.md', markdown, 'text/markdown;charset=utf-8');
+    }
   };
 
   const handlePrintProjectHandoff = () => {
@@ -3932,11 +4116,11 @@ export default function ProjectsPage() {
   }, [selectedArtifactId, selectedProject]);
 
   useEffect(() => {
-    if (!selectedProjectId) return;
+    if (!effectiveSelectedProjectId) return;
     const url = new URL(window.location.href);
-    url.searchParams.set('project', selectedProjectId);
+    url.searchParams.set('project', effectiveSelectedProjectId);
     window.history.replaceState({}, '', `${url.pathname}${url.search}`);
-  }, [selectedProjectId]);
+  }, [effectiveSelectedProjectId]);
 
   return (
     <div className="flex h-full w-full max-w-7xl flex-col gap-6 p-6 mx-auto font-mono">
@@ -4188,7 +4372,7 @@ export default function ProjectsPage() {
                     key={item.id}
                     onClick={() => handleOpenDailyWorkItem(item)}
                     className={`rounded-lg border p-2.5 text-left transition-colors hover:border-slate-600 ${item.accentClasses} ${
-                      selectedProjectId === item.projectId ? 'ring-1 ring-indigo-500/30' : ''
+                      effectiveSelectedProjectId === item.projectId ? 'ring-1 ring-indigo-500/30' : ''
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -4264,7 +4448,7 @@ export default function ProjectsPage() {
                 key={project.id}
                 onClick={() => setSelectedProjectId(project.id)}
                 className={`flex flex-col rounded-xl border p-4 text-left transition-all ${fadeClass} ${
-                  selectedProjectId === project.id
+                  effectiveSelectedProjectId === project.id
                     ? 'border-slate-600 bg-slate-800 shadow-md'
                     : borderAccentClass
                       ? borderAccentClass
@@ -4939,9 +5123,9 @@ export default function ProjectsPage() {
                 <div className="mt-4 rounded border border-slate-800 bg-slate-950/30 p-3">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-300">Project Sections</div>
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-300">Workspace Views</div>
                       <div className="mt-1 text-xs text-slate-500">
-                        Move through the project record, sections, linked objects, review queue, and handoff without losing context.
+                        Move through the daily desk, project record, linked objects, review queue, and handoff without losing context.
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -4982,6 +5166,7 @@ export default function ProjectsPage() {
                         Print Handoff
                       </button>
                       {([
+                        { id: 'desk', label: 'Desk' },
                         { id: 'overview', label: 'Overview' },
                         { id: 'frames', label: 'Sections' },
                         { id: 'room', label: 'Links' },
@@ -5007,6 +5192,234 @@ export default function ProjectsPage() {
                   </div>
                 </div>
               </div>
+
+              {projectViewMode === 'desk' && (
+              <div className="grid min-h-0 flex-1 grid-cols-1 gap-0 xl:grid-cols-[minmax(0,1.25fr),minmax(340px,0.95fr)]">
+                <div className="flex min-h-0 flex-col border-b border-slate-800 xl:border-b-0 xl:border-r">
+                  <div className="border-b border-slate-800 px-5 py-4">
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-slate-300">Project Desk</h3>
+                    <p className="mt-1 text-xs text-slate-500">
+                      The working surface for what needs a call now, what is ready to move, and what can already be handed off.
+                    </p>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-5">
+                    <div className="flex flex-col gap-5">
+                      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                        <div className="rounded border border-sky-900/30 bg-sky-950/10 p-4">
+                          <div className="text-[10px] font-bold uppercase tracking-widest text-sky-400">Inbox</div>
+                          <div className="mt-2 text-2xl font-bold text-slate-100">{captureInboxItems.length}</div>
+                          <div className="mt-2 text-sm text-slate-300">
+                            {captureInboxItems.length === 0
+                              ? 'No loose inputs are waiting right now.'
+                              : `${captureInboxItems.length} captured item${captureInboxItems.length === 1 ? '' : 's'} still need to be sorted into project evidence or decisions.`}
+                          </div>
+                          <button
+                            onClick={() => setProjectViewMode('overview')}
+                            className="mt-4 rounded border border-sky-800 bg-sky-950/30 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-sky-300 transition-colors hover:bg-sky-900/40"
+                          >
+                            Open Inbox
+                          </button>
+                        </div>
+                        <div className="rounded border border-amber-900/30 bg-amber-950/10 p-4">
+                          <div className="text-[10px] font-bold uppercase tracking-widest text-amber-400">Needs Review</div>
+                          <div className="mt-2 text-2xl font-bold text-slate-100">{flaggedArtifacts.length + pendingArtifacts.length}</div>
+                          <div className="mt-2 text-sm text-slate-300">
+                            {flaggedArtifacts.length + pendingArtifacts.length === 0
+                              ? 'Evidence review is currently clear.'
+                              : `${flaggedArtifacts.length} flagged and ${pendingArtifacts.length} still waiting on a review call.`}
+                          </div>
+                          <button
+                            onClick={() => {
+                              setProjectViewMode('overview');
+                              if ((flaggedArtifacts[0] || pendingArtifacts[0])?.id) {
+                                setSelectedArtifactId((flaggedArtifacts[0] || pendingArtifacts[0]).id);
+                              }
+                            }}
+                            className="mt-4 rounded border border-amber-800 bg-amber-950/30 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-amber-300 transition-colors hover:bg-amber-900/40"
+                          >
+                            Review Evidence
+                          </button>
+                        </div>
+                        <div className="rounded border border-emerald-900/30 bg-emerald-950/10 p-4">
+                          <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-400">Ready to Carry</div>
+                          <div className="mt-2 text-2xl font-bold text-slate-100">{approvedArtifacts.length + acceptedDecisions.length + activeCommitments.length}</div>
+                          <div className="mt-2 text-sm text-slate-300">
+                            {approvedArtifacts.length} approved evidence, {acceptedDecisions.length} accepted decision{acceptedDecisions.length === 1 ? '' : 's'}, and {activeCommitments.length} active commitment{activeCommitments.length === 1 ? '' : 's'} can feed the next handoff.
+                          </div>
+                          <button
+                            onClick={() => setProjectViewMode('handoff')}
+                            className="mt-4 rounded border border-emerald-800 bg-emerald-950/30 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-emerald-300 transition-colors hover:bg-emerald-900/40"
+                          >
+                            Open Handoff
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="rounded border border-slate-800 bg-slate-950/40 p-5">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Work That Needs a Call</div>
+                            <div className="mt-1 text-xs text-slate-500">
+                              These are the places where the project still needs review, a decision, or a clearer next move.
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setProjectViewMode('review')}
+                            className="rounded border border-slate-700 bg-slate-950/60 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-300 transition-colors hover:bg-slate-900/70"
+                          >
+                            Open Review Queue
+                          </button>
+                        </div>
+                        <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                          {blockedCommitments.slice(0, 2).map((commitment) => (
+                            <div key={`desk-blocked-${commitment.id}`} className="rounded border border-red-900/30 bg-red-950/10 p-4">
+                              <div className="text-[10px] font-bold uppercase tracking-widest text-red-300">Blocked Commitment</div>
+                              <div className="mt-2 text-sm font-bold text-slate-100">{commitment.title}</div>
+                              <div className="mt-2 text-sm text-slate-300">{commitment.blocker_note || commitment.rationale}</div>
+                            </div>
+                          ))}
+                          {openDecisions.slice(0, 2).map((decision) => (
+                            <div key={`desk-decision-${decision.id}`} className="rounded border border-indigo-900/30 bg-indigo-950/10 p-4">
+                              <div className="text-[10px] font-bold uppercase tracking-widest text-indigo-300">Open Decision</div>
+                              <div className="mt-2 text-sm font-bold text-slate-100">{decision.title}</div>
+                              <div className="mt-2 text-sm text-slate-300">{decision.rationale}</div>
+                            </div>
+                          ))}
+                          {[...flaggedArtifacts, ...pendingArtifacts].slice(0, 2).map((artifact) => (
+                            <div key={`desk-artifact-${artifact.id}`} className="rounded border border-amber-900/30 bg-amber-950/10 p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <div className="text-[10px] font-bold uppercase tracking-widest text-amber-300">Evidence Review</div>
+                                  <div className="mt-2 text-sm font-bold text-slate-100">{artifact.title}</div>
+                                </div>
+                                <span className={`inline-flex rounded border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest ${getArtifactReviewOutcomeClasses(artifact)}`}>
+                                  {getArtifactReviewOutcomeLabel(artifact)}
+                                </span>
+                              </div>
+                              <div className="mt-2 text-sm text-slate-300">{artifact.review_note || artifact.summary || getArtifactReviewOutcomeDetail(artifact)}</div>
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                <button
+                                  onClick={() => {
+                                    setProjectViewMode('overview');
+                                    setSelectedArtifactId(artifact.id);
+                                  }}
+                                  className="rounded border border-amber-800 bg-amber-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-amber-300 transition-colors hover:bg-amber-900/40"
+                                >
+                                  Open Review
+                                </button>
+                                <button
+                                  onClick={() => seedDecisionFromArtifact(artifact)}
+                                  className="rounded border border-indigo-800 bg-indigo-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-indigo-300 transition-colors hover:bg-indigo-900/40"
+                                >
+                                  Draft Decision
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                          {blockedCommitments.length === 0 && openDecisions.length === 0 && flaggedArtifacts.length + pendingArtifacts.length === 0 && (
+                            <div className="rounded border border-dashed border-slate-800 p-4 text-sm text-slate-500 lg:col-span-2">
+                              This project is calm right now. The fastest next move is to refresh the handoff draft or capture new evidence.
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="rounded border border-slate-800 bg-slate-950/40 p-5">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Recent Movement</div>
+                            <div className="mt-1 text-xs text-slate-500">
+                              The latest changes to the project record, so a returning person can recover context fast.
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setProjectViewMode('overview')}
+                            className="rounded border border-slate-700 bg-slate-950/60 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-300 transition-colors hover:bg-slate-900/70"
+                          >
+                            Open Timeline
+                          </button>
+                        </div>
+                        <div className="mt-4 flex flex-col gap-3">
+                          {(selectedProject.activity || []).slice(-4).reverse().map((activity) => (
+                            <div key={`desk-activity-${activity.id}`} className="rounded border border-slate-800 bg-slate-950/60 p-3">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="text-sm font-bold text-slate-100">{activity.title}</div>
+                                <div className="text-[10px] uppercase tracking-widest text-slate-500">{formatTimestamp(activity.timestamp)}</div>
+                              </div>
+                              {activity.detail && <div className="mt-2 text-sm text-slate-300">{activity.detail}</div>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex min-h-0 flex-col">
+                  <div className="border-b border-slate-800 px-5 py-4">
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-slate-300">Auto-Draft Handoff</h3>
+                    <p className="mt-1 text-xs text-slate-500">
+                      A markdown-ready handoff draft compiled from the project record, ready to copy, export, or save.
+                    </p>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-5">
+                    <div className="flex flex-col gap-4">
+                      <div className={`rounded border p-4 ${handoffReadiness.ready ? 'border-emerald-900/30 bg-emerald-950/10' : 'border-amber-900/30 bg-amber-950/10'}`}>
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Handoff Readiness</div>
+                            <div className="mt-1 text-sm font-bold text-slate-100">
+                              {handoffReadiness.ready ? 'Ready to share forward' : 'Still needs a few calls'}
+                            </div>
+                          </div>
+                          <span className={`rounded border px-2 py-1 text-[10px] font-bold uppercase tracking-widest ${handoffReadiness.ready ? 'border-emerald-800 bg-emerald-950/20 text-emerald-300' : 'border-amber-800 bg-amber-950/20 text-amber-300'}`}>
+                            {handoffReadiness.ready ? 'Ready' : `${handoffReadiness.blockers.length} blocker${handoffReadiness.blockers.length === 1 ? '' : 's'}`}
+                          </span>
+                        </div>
+                        <div className="mt-3 space-y-2 text-sm text-slate-300">
+                          {handoffReadiness.blockers.length === 0 ? (
+                            <div>Approved evidence, decisions, commitments, and next step are in shape for a useful handoff.</div>
+                          ) : (
+                            handoffReadiness.blockers.map((blocker) => (
+                              <div key={blocker} className="rounded border border-amber-900/20 bg-slate-950/30 px-3 py-2">
+                                {blocker}
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="rounded border border-slate-800 bg-slate-950/40 p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Draft Output</div>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              onClick={handleCopyProjectHandoffMarkdown}
+                              className="rounded border border-slate-700 bg-slate-950/60 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-200 transition-colors hover:bg-slate-900/70"
+                            >
+                              Copy Markdown
+                            </button>
+                            <button
+                              onClick={handleExportProjectHandoffMarkdown}
+                              className="rounded border border-fuchsia-800 bg-fuchsia-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-fuchsia-300 transition-colors hover:bg-fuchsia-900/40"
+                            >
+                              Export Markdown
+                            </button>
+                            <button
+                              onClick={handleSaveProjectHandoffMarkdownArtifact}
+                              className="rounded border border-cyan-800 bg-cyan-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-cyan-300 transition-colors hover:bg-cyan-900/40"
+                            >
+                              Save Draft
+                            </button>
+                          </div>
+                        </div>
+                        <pre className="mt-4 max-h-[740px] overflow-auto whitespace-pre-wrap rounded border border-slate-800 bg-[#06090b] p-4 text-[12px] leading-6 text-slate-300">{buildProjectHandoffMarkdown()}</pre>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              )}
 
               {projectViewMode === 'overview' && (
               <div className="grid min-h-0 flex-1 grid-cols-1 gap-0 lg:grid-cols-[minmax(0,1.4fr),minmax(320px,0.9fr)]">

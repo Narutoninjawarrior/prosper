@@ -8,7 +8,7 @@ const primarySurfaces = [
   {
     title: 'Projects',
     href: '/projects',
-    body: 'Capture raw inputs, review evidence, record decisions, and compile a clean handoff in one place.',
+    body: 'Use the daily project desk to capture inputs, review evidence, record decisions, and draft a clean handoff in one place.',
     accent: '#34D399',
   },
   {
@@ -165,7 +165,7 @@ export default function LandingPage() {
                   href="/projects"
                   className="inline-flex items-center gap-2 rounded-full bg-[#10b981] px-5 py-3 text-sm font-semibold text-[#041109] transition hover:bg-[#25cf8a]"
                 >
-                  Open Projects
+                  Open Project Desk
                   <ArrowRight size={16} />
                 </a>
                 <a
@@ -198,7 +198,7 @@ export default function LandingPage() {
                 'Capture project inputs before they are lost.',
                 'Review evidence and attach operator judgment.',
                 'Record decisions and carry forward commitments.',
-                'Compile a project handoff that another person or agent can actually use.',
+                'Draft a project handoff that another person or agent can actually use.',
               ].map((item) => (
                 <div key={item} className="rounded-2xl border border-white/8 bg-black/20 p-4 text-sm leading-6 text-[#d4f7e0]">
                   {item}
