@@ -22,7 +22,7 @@ export default function PublicShell({
   return (
     <div className={`${className} relative flex flex-col`}>
       {showNav && <PublicNav compact={navCompact} />}
-      <div className="flex-1 relative overflow-hidden">{children}</div>
+      <div className={`flex-1 relative ${className.includes('h-screen') && !className.includes('min-h-screen') ? 'overflow-hidden' : ''}`}>{children}</div>
       {showFooter && (
         <div className="pointer-events-auto shrink-0 py-2 bg-black/40 backdrop-blur-sm border-t border-white/5">
           <LegalFooter className="!text-gray-500" />
