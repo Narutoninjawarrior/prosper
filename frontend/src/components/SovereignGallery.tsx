@@ -259,6 +259,126 @@ const GALLERY_ITEMS: GalleryPiece[] = [
       'Integrates QR-verified plant passports and hardware telemetry receipts right on the shelves.',
       'Bridges high-entropy community interaction with precise, auditable local trade.'
     ]
+  },
+  {
+    id: 'cottage-commons-hearth',
+    title: 'Cottage Commons & The Central Village Hearth Vision',
+    subtitle: 'Warm Botanical Sanctuary & Shared Fellowship Gathering Core',
+    category: 'Art Piece',
+    imageUrl: '/gallery/cottage_commons_hearth.png',
+    badgeColor: '#10B981',
+    description: 'An enchanting Solarpunk cottage interior surrounded by lush hanging botanical gardens, warm candlelit hearth fire, and hand-hewn oak table where village fellowship coordinates.',
+    specs: {
+      resolution: '8K UHD Botanical Sanctuary Art',
+      engine: 'Cottage Commons & Hearth Core',
+      substrate: 'Terracotta Pots, Sage Stone & Oak',
+      keyFeature: 'Warm Minimalism & Living Plant Symbiosis'
+    },
+    details: [
+      'Embodies the pure aesthetic soul of the Cottage Commons and central village hearth.',
+      'Surrounded by thriving indoor medicinal herbs, trailing ivy, and terracotta planting vessels.',
+      'Serves as the emotional anchor and coordination room for localized village fellowship.'
+    ]
+  },
+  {
+    id: 'utopia-commons',
+    title: 'Utopian Village Convergence: The Living Commons & Hearth',
+    subtitle: 'Interconnected Solarpunk Community Architecture',
+    category: 'Art Piece',
+    imageUrl: '/gallery/utopia_commons.png',
+    badgeColor: '#D4A853',
+    description: 'A sweeping panorama of an advanced Solarpunk village commons where glowing terracotta towers, terraced botanical gardens, and crystal-clear water channels converge around the central hearth.',
+    specs: {
+      resolution: '8K UHD Village Convergence View',
+      engine: 'Sovereign Village World-Builder',
+      substrate: 'Terraced Biophilic Architecture',
+      keyFeature: 'Decentralized Community Energy & Water Grid'
+    },
+    details: [
+      'Illustrates the harmony between high-density village coordination and bountiful botanical food forests.',
+      'Waterwheel networks feed gravity-assisted terraced crop fields right outside residential balconies.',
+      'Represents the ultimate expression of Prosper as an active, living human-robotics commons.'
+    ]
+  },
+  {
+    id: 'utopia-prosperity',
+    title: 'Prosper Convergence: Solarpunk Utopia & Botanical Terraces',
+    subtitle: 'Abundant Agrarian Biosystem & Solar Canopy Hubs',
+    category: 'Art Piece',
+    imageUrl: '/gallery/utopia_prosperity.png',
+    badgeColor: '#10B981',
+    description: 'Vibrant golden hour illustration depicting abundant terraced agriculture, translucent geodesic greenhouse canopies, and automated nutrient circulation loops flowing through the village center.',
+    specs: {
+      resolution: '8K UHD Solarpunk Utopia Panorama',
+      engine: 'Prosper Economic & Ecological Engine',
+      substrate: 'Geodesic Glass & Organic Soil Lattices',
+      keyFeature: 'Perpetual Local Food Security & Energy Autonomy'
+    },
+    details: [
+      'Visualizes the physical realization of the Prosper doctrine: where ecology meets high-efficiency robotics.',
+      'Terraced crop rings act as natural thermal buffers while generating continuous organic yields.',
+      'Designed to inspire field stewards building self-sufficient local sanctuaries.'
+    ]
+  },
+  {
+    id: 'village-header',
+    title: 'Phoenix Village Revival Header & Solarpunk Gardens',
+    subtitle: 'The Living Sanctuary Canopy & Sunrise Horizon',
+    category: 'Art Piece',
+    imageUrl: '/gallery/village_header.png',
+    badgeColor: '#E8842A',
+    description: 'A breathtaking wide banner composition featuring warm sunrise light washing across terraced sage gardens, ancient terracotta archways, and the glowing hearth beacon.',
+    specs: {
+      resolution: '8K Wide Horizon Masterpiece',
+      engine: 'Phoenix Village Revival Renderer',
+      substrate: 'Morning Golden Light & Matte Sage Foliage',
+      keyFeature: 'Biophilic Architectural Harmony'
+    },
+    details: [
+      'Created as the canonical visual header for village regeneration and sanctuary stewardship.',
+      'Highlights the transition from rigid industrial structures to soft, plant-integrated biomorphic forms.',
+      'Celebrates the rebirth of local autonomy centered around the community hearth.'
+    ]
+  },
+  {
+    id: 'village-avatar',
+    title: 'Phoenix Village & Botanical Sanctuary Avatar',
+    subtitle: 'The Spirit of the Hearthlands Emblem',
+    category: 'Art Piece',
+    imageUrl: '/gallery/village_avatar.png',
+    badgeColor: '#EC4899',
+    description: 'Intimate, soulful portrait profile of the village sanctuary spirit surrounded by blooming sage flowers, golden solar geometry, and terracotta clay vessels.',
+    specs: {
+      resolution: '8K Botanical Avatar & Seal',
+      engine: 'Sanctuary Persona Core',
+      substrate: 'Digital Gouache & Gold Leaf Filigree',
+      keyFeature: 'Embodiment of Sovereign Ecological Stewardship'
+    },
+    details: [
+      'Serves as the symbolic face and avatar for village stewards operating inside the Hall of Honor.',
+      'Weaves together botanical motifs with subtle clockwork and solar symbols.',
+      'A warm, welcoming presence designed to guide agents and humans alike.'
+    ]
+  },
+  {
+    id: 'village-crest',
+    title: 'Phoenix Village Crest & Botanical Hearth Seal',
+    subtitle: 'The Immutable Signet of the Living Commons',
+    category: 'Art Piece',
+    imageUrl: '/gallery/village_crest.png',
+    badgeColor: '#D4A853',
+    description: 'The formal ceremonial signet crest of Phoenix Village, featuring interlocking plant tendrils, a radiant hearth flame, and sacred geometric rings embossed on terracotta.',
+    specs: {
+      resolution: '8K Vector Signet & Botanical Seal',
+      engine: 'Village Governance & Registry Core',
+      substrate: 'Embossed Terracotta & Gold Leaf',
+      keyFeature: 'Cryptographic Guild Sign-off & Provenance Verification'
+    },
+    details: [
+      'Used as the canonical physical and digital seal across village passports and operational contracts.',
+      'Interlocking botanical tendrils symbolize mutual resilience and community interdependence.',
+      'Auditable proof of adherence to the Rules of the Hearth and warm minimalist aesthetic.'
+    ]
   }
 ];
 
