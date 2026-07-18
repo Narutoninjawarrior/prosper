@@ -199,9 +199,12 @@ interface ProjectReviewItem {
   title: string;
   status: string;
   summary: string;
+  stage: 'needs_call' | 'ready_to_convert' | 'ready_to_carry' | 'operational_cue';
   priority: 'high' | 'medium' | 'steady';
   action: string;
+  actionType?: 'seed_decision' | 'open_artifact' | 'none';
   linkedArtifactId?: string;
+  linkedDecisionId?: string;
 }
 
 interface ProjectContinuityLink {
@@ -777,7 +780,7 @@ function deriveProjectRoomObjects(
 
 function deriveProjectReviewQueue(
   project: Project | null,
-  projectMemory: DerivedProjectMemory,
+  _projectMemory: DerivedProjectMemory,
   runtimeAdvisory: DerivedRuntimeCommitmentAdvisory | null
 ): ProjectReviewItem[] {
   if (!project) return [];
@@ -787,6 +790,19 @@ function deriveProjectReviewQueue(
   const decisions = project.decisions || [];
   const commitments = project.commitments || [];
 
+  if (runtimeAdvisory) {
+    reviewItems.push({
+      id: 'review-runtime-advisory',
+      title: runtimeAdvisory.label,
+      status: 'Runtime Advisory',
+      summary: runtimeAdvisory.message,
+      stage: 'operational_cue',
+      priority: 'medium',
+      action: runtimeAdvisory.detail,
+      actionType: 'none'
+    });
+  }
+
   commitments
     .filter((commitment) => commitment.commitment_state === 'blocked')
     .forEach((commitment) => {
@@ -795,8 +811,10 @@ function deriveProjectReviewQueue(
         title: commitment.title,
         status: 'Blocked Commitment',
         summary: commitment.blocker_note || commitment.rationale,
+        stage: 'operational_cue',
         priority: 'high',
         action: `Unblock and reassess next action: ${commitment.next_action}`,
+        actionType: 'none',
         linkedArtifactId: commitment.artifact_id
       });
     });
@@ -809,23 +827,11 @@ function deriveProjectReviewQueue(
         title: commitment.title,
         status: 'Low-Confidence Exposure',
         summary: commitment.constraints || commitment.rationale,
+        stage: 'operational_cue',
         priority: 'high',
         action: 'Review against current Bellows state and project constraints.',
+        actionType: 'none',
         linkedArtifactId: commitment.artifact_id
-      });
-    });
-
-  artifacts
-    .filter((artifact) => artifact.review_signal === 'blocked' || artifact.review_signal === 'needs_attention')
-    .forEach((artifact) => {
-      reviewItems.push({
-        id: `review-artifact-${artifact.id}`,
-        title: artifact.title,
-        status: artifact.review_signal === 'blocked' ? 'Blocked Artifact' : 'Needs Attention',
-        summary: artifact.review_note || artifact.summary || 'Artifact needs operator review.',
-        priority: artifact.review_signal === 'blocked' ? 'high' : 'medium',
-        action: 'Open the artifact, review the note, and decide whether to promote or revise it.',
-        linkedArtifactId: artifact.id
       });
     });
 
@@ -837,33 +843,61 @@ function deriveProjectReviewQueue(
         title: decision.title,
         status: decision.decision_state === 'proposed' ? 'Pending Decision' : 'Deferred Decision',
         summary: decision.rationale,
-        priority: 'medium',
+        stage: 'needs_call',
+        priority: 'high',
         action: 'Resolve decision state or promote consequence into a commitment.',
-        linkedArtifactId: decision.artifact_id
+        actionType: 'none',
+        linkedDecisionId: decision.id
       });
     });
 
-  if (runtimeAdvisory) {
-    reviewItems.push({
-      id: 'review-runtime-advisory',
-      title: runtimeAdvisory.label,
-      status: 'Runtime Advisory',
-      summary: runtimeAdvisory.message,
-      priority: 'medium',
-      action: runtimeAdvisory.detail
+  artifacts
+    .filter((artifact) => artifact.review_signal === 'blocked' || artifact.review_signal === 'needs_attention')
+    .forEach((artifact) => {
+      reviewItems.push({
+        id: `review-artifact-${artifact.id}`,
+        title: artifact.title,
+        status: artifact.review_signal === 'blocked' ? 'Blocked Artifact' : 'Needs Attention',
+        summary: artifact.review_note || artifact.summary || 'Artifact needs operator review.',
+        stage: 'needs_call',
+        priority: artifact.review_signal === 'blocked' ? 'high' : 'medium',
+        action: 'Open the artifact, review the note, and decide whether to promote or revise it.',
+        actionType: 'open_artifact',
+        linkedArtifactId: artifact.id
+      });
     });
-  }
 
-  if (reviewItems.length === 0) {
-    reviewItems.push({
-      id: 'review-steady-state',
-      title: 'Steady Project State',
-      status: 'Ready for Continued Work',
-      summary: projectMemory.currentDirection,
-      priority: 'steady',
-      action: project.next_step?.trim() || 'Define the next step to keep momentum visible.'
+  artifacts
+    .filter((artifact) => artifact.review_state === 'unreviewed' && artifact.review_signal === 'clear' && artifact.source_lane !== 'projects')
+    .forEach((artifact) => {
+      reviewItems.push({
+        id: `review-convert-${artifact.id}`,
+        title: artifact.title,
+        status: 'Unreviewed Evidence',
+        summary: artifact.summary || 'Captured evidence ready to support a decision.',
+        stage: 'ready_to_convert',
+        priority: 'medium',
+        action: 'Convert to a decision or commitment.',
+        actionType: 'seed_decision',
+        linkedArtifactId: artifact.id
+      });
     });
-  }
+
+  artifacts
+    .filter((artifact) => artifact.review_state === 'reviewed' && artifact.review_signal === 'clear')
+    .forEach((artifact) => {
+      reviewItems.push({
+        id: `review-carry-${artifact.id}`,
+        title: artifact.title,
+        status: 'Reviewed Evidence',
+        summary: 'This evidence is reviewed and ready to carry forward into the handoff packet.',
+        stage: 'ready_to_carry',
+        priority: 'steady',
+        action: 'Ready for handoff.',
+        actionType: 'none',
+        linkedArtifactId: artifact.id
+      });
+    });
 
   const priorityOrder: Record<ProjectReviewItem['priority'], number> = {
     high: 0,
@@ -6859,47 +6893,78 @@ export default function ProjectsPage() {
               {projectViewMode === 'review' && (
                 <div className="flex min-h-0 flex-1 flex-col">
                   <div className="border-b border-slate-800 px-5 py-4">
-                    <h3 className="text-xs font-bold uppercase tracking-widest text-slate-300">Review Queue</h3>
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-slate-300">Review System</h3>
                     <p className="mt-1 text-xs text-slate-500">
-                      A compact review stack derived from commitments, decisions, evidence, and runtime pressure.
+                      An operational review surface to process inbox captures, make decisions, and prepare handoffs.
                     </p>
                   </div>
                   <div className="flex-1 overflow-y-auto p-5">
-                    <div className="flex flex-col gap-3">
-                      {projectReviewQueue.map((item) => {
-                        const priorityClass =
-                          item.priority === 'high'
-                            ? 'border-red-900/40 bg-red-950/10'
-                            : item.priority === 'medium'
-                              ? 'border-amber-900/40 bg-amber-950/10'
-                              : 'border-emerald-900/40 bg-emerald-950/10';
-
+                    <div className="flex flex-col gap-8">
+                      {[
+                        { stage: 'operational_cue', label: 'Operational Cues', desc: 'Runtime and systemic warnings.' },
+                        { stage: 'needs_call', label: 'Needs Call', desc: 'Items that are stuck or awaiting an active decision.' },
+                        { stage: 'ready_to_convert', label: 'Ready to Convert', desc: 'Inbox and open evidence ready to become decisions or commitments.' },
+                        { stage: 'ready_to_carry', label: 'Ready to Carry', desc: 'Reviewed artifacts clear for the handoff packet.' }
+                      ].map(stageGroup => {
+                        const items = projectReviewQueue.filter(i => i.stage === stageGroup.stage);
+                        if (items.length === 0) return null;
+                        
                         return (
-                          <div key={item.id} className={`rounded border p-4 ${priorityClass}`}>
-                            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-900/40 pb-3">
-                              <div>
-                                <div className="text-sm font-bold text-slate-100">{item.title}</div>
-                                <div className="mt-1 text-[10px] uppercase tracking-widest text-slate-500">
-                                  {item.status} | {item.priority}
+                          <div key={stageGroup.stage} className="flex flex-col gap-3">
+                            <div className="border-b border-slate-800/50 pb-2">
+                              <h4 className="text-[11px] font-bold uppercase tracking-widest text-slate-400">{stageGroup.label}</h4>
+                              <p className="mt-1 text-[10px] text-slate-500">{stageGroup.desc}</p>
+                            </div>
+                            {items.map((item) => {
+                              const priorityClass =
+                                item.priority === 'high'
+                                  ? 'border-red-900/40 bg-red-950/10'
+                                  : item.priority === 'medium'
+                                    ? 'border-amber-900/40 bg-amber-950/10'
+                                    : 'border-emerald-900/40 bg-emerald-950/10';
+      
+                              return (
+                                <div key={item.id} className={`rounded border p-4 ${priorityClass}`}>
+                                  <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-900/40 pb-3">
+                                    <div>
+                                      <div className="text-sm font-bold text-slate-100">{item.title}</div>
+                                      <div className="mt-1 text-[10px] uppercase tracking-widest text-slate-500">
+                                        {item.status} | {item.priority}
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      {item.actionType === 'seed_decision' && item.linkedArtifactId && selectedProject && (
+                                        <button
+                                          onClick={() => {
+                                            const artifact = (selectedProject.artifacts || []).find(a => a.id === item.linkedArtifactId);
+                                            if (artifact) seedDecisionFromArtifact(artifact);
+                                          }}
+                                          className="rounded border border-fuchsia-800 bg-fuchsia-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-fuchsia-300 transition-colors hover:bg-fuchsia-900/40"
+                                        >
+                                          Draft Decision
+                                        </button>
+                                      )}
+                                      {item.actionType === 'open_artifact' && item.linkedArtifactId && (
+                                        <button
+                                          onClick={() => {
+                                            setSelectedArtifactId(item.linkedArtifactId || null);
+                                            setProjectViewMode('overview');
+                                          }}
+                                          className="rounded border border-indigo-800 bg-indigo-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-indigo-300 transition-colors hover:bg-indigo-900/40"
+                                        >
+                                          Open Evidence
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="mt-3 text-sm text-slate-300">{item.summary}</div>
+                                  <div className="mt-3 rounded border border-slate-800 bg-slate-950/50 p-2.5 text-sm text-slate-200">
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Suggested Action</span>
+                                    <div className="mt-1">{item.action}</div>
+                                  </div>
                                 </div>
-                              </div>
-                              {item.linkedArtifactId && (
-                                <button
-                                  onClick={() => {
-                                    setSelectedArtifactId(item.linkedArtifactId || null);
-                                    setProjectViewMode('overview');
-                                  }}
-                                  className="rounded border border-indigo-800 bg-indigo-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-indigo-300 transition-colors hover:bg-indigo-900/40"
-                                >
-                                  Open Linked Artifact
-                                </button>
-                              )}
-                            </div>
-                            <div className="mt-3 text-sm text-slate-300">{item.summary}</div>
-                            <div className="mt-3 rounded border border-slate-800 bg-slate-950/50 p-2.5 text-sm text-slate-200">
-                              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Suggested Action</span>
-                              <div className="mt-1">{item.action}</div>
-                            </div>
+                              );
+                            })}
                           </div>
                         );
                       })}
