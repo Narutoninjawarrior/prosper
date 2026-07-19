@@ -117,6 +117,30 @@ export interface ProjectActivity {
   timestamp: string;
 }
 
+export interface ProjectReviewPacketSnapshot {
+  next_step: string | null;
+  readiness_ready: boolean;
+  readiness_blockers: string[];
+  approved_evidence_ids: string[];
+  flagged_evidence_ids: string[];
+  pending_evidence_ids: string[];
+  accepted_decision_ids: string[];
+  deferred_decision_ids: string[];
+  active_commitment_ids: string[];
+  completed_commitment_ids: string[];
+  blocked_commitment_ids: string[];
+  today_entry_ids: string[];
+  summary_line: string;
+}
+
+export interface ProjectReviewPacket {
+  id: string;
+  timestamp: string;
+  title: string;
+  markdown: string;
+  snapshot: ProjectReviewPacketSnapshot;
+}
+
 export interface ProjectContext {
   asset_id?: string;
   preset_template?: string;
@@ -141,6 +165,7 @@ export interface Project {
   decisions?: ProjectDecision[];
   commitments?: ProjectCommitment[];
   capture_items?: ProjectCaptureItem[];
+  review_packets?: ProjectReviewPacket[];
   context?: ProjectContext;
   next_step?: string;
 }
@@ -239,6 +264,32 @@ interface ProjectDailyWorkItem {
   updatedAt: string;
   accentClasses: string;
   artifactId?: string;
+}
+
+interface StewardshipJournalEntry {
+  id: string;
+  label: string;
+  title: string;
+  detail: string;
+  timestamp: string;
+  toneClasses: string;
+}
+
+interface DerivedStewardshipJournal {
+  todaySummary: string[];
+  todayEntries: StewardshipJournalEntry[];
+  recentEntries: StewardshipJournalEntry[];
+  carryForward: string[];
+  lastMeaningfulMovement: string;
+}
+
+interface DerivedReviewDelta {
+  status: 'first_packet' | 'steady' | 'changed';
+  summary: string;
+  readinessImpact: string;
+  changeLines: string[];
+  checkpointLabel: string;
+  carryForwardCue: string;
 }
 
 function formatHeartbeatFreshness(lastUpdate?: string) {
@@ -552,6 +603,303 @@ function deriveProjectDailyWorkItem(project: Project): ProjectDailyWorkItem | nu
   }
 
   return null;
+}
+
+function deriveStewardshipEntry(activity: ProjectActivity): StewardshipJournalEntry | null {
+  const lowerTitle = activity.title.toLowerCase();
+
+  if (lowerTitle.includes('inbox item promoted')) {
+    return {
+      id: activity.id,
+      label: 'Capture Promoted',
+      title: activity.title,
+      detail: activity.detail || 'Captured input moved forward into the project record.',
+      timestamp: activity.timestamp,
+      toneClasses: 'border-sky-900/30 bg-sky-950/10 text-sky-200'
+    };
+  }
+
+  if (
+    lowerTitle.includes('artifact marked reviewed') ||
+    lowerTitle.includes('artifact review started') ||
+    activity.kind === 'artifact_flagged' ||
+    activity.kind === 'artifact_blocked' ||
+    activity.kind === 'artifact_review_note_updated'
+  ) {
+    return {
+      id: activity.id,
+      label: 'Evidence Review',
+      title: activity.title,
+      detail: activity.detail || 'Evidence review changed today.',
+      timestamp: activity.timestamp,
+      toneClasses: 'border-amber-900/30 bg-amber-950/10 text-amber-200'
+    };
+  }
+
+  if (
+    activity.kind === 'decision' ||
+    activity.kind === 'decision_proposed' ||
+    activity.kind === 'decision_accepted' ||
+    activity.kind === 'decision_deferred'
+  ) {
+    return {
+      id: activity.id,
+      label: 'Decision',
+      title: activity.title,
+      detail: activity.detail || 'Decision state changed.',
+      timestamp: activity.timestamp,
+      toneClasses: 'border-indigo-900/30 bg-indigo-950/10 text-indigo-200'
+    };
+  }
+
+  if (
+    activity.kind === 'commitment_proposed' ||
+    activity.kind === 'commitment_activated' ||
+    activity.kind === 'commitment_blocked' ||
+    activity.kind === 'commitment_completed'
+  ) {
+    return {
+      id: activity.id,
+      label: 'Commitment',
+      title: activity.title,
+      detail: activity.detail || 'Commitment state changed.',
+      timestamp: activity.timestamp,
+      toneClasses: 'border-emerald-900/30 bg-emerald-950/10 text-emerald-200'
+    };
+  }
+
+  if (lowerTitle.includes('next step updated')) {
+    return {
+      id: activity.id,
+      label: 'Direction',
+      title: activity.title,
+      detail: activity.detail || 'Project direction was updated.',
+      timestamp: activity.timestamp,
+      toneClasses: 'border-cyan-900/30 bg-cyan-950/10 text-cyan-200'
+    };
+  }
+
+  if (activity.kind === 'artifact_added' || lowerTitle.includes('artifact added')) {
+    return {
+      id: activity.id,
+      label: 'Evidence Added',
+      title: activity.title,
+      detail: activity.detail || 'A new evidence item entered the project record.',
+      timestamp: activity.timestamp,
+      toneClasses: 'border-slate-800 bg-slate-950/50 text-slate-200'
+    };
+  }
+
+  if (activity.kind === 'status_update' || activity.kind === 'status') {
+    return {
+      id: activity.id,
+      label: 'Project Update',
+      title: activity.title,
+      detail: activity.detail || 'Project activity moved forward.',
+      timestamp: activity.timestamp,
+      toneClasses: 'border-slate-800 bg-slate-950/40 text-slate-300'
+    };
+  }
+
+  return null;
+}
+
+function isSameLocalDay(timestamp: string, referenceTime: number) {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return false;
+  return date.toDateString() === new Date(referenceTime).toDateString();
+}
+
+function deriveStewardshipJournal(
+  project: Project | null,
+  dailyWorkItem: ProjectDailyWorkItem | null,
+  projectMemory: DerivedProjectMemory
+): DerivedStewardshipJournal {
+  if (!project) {
+    return {
+      todaySummary: [],
+      todayEntries: [],
+      recentEntries: [],
+      carryForward: [],
+      lastMeaningfulMovement: 'No project movement recorded yet.'
+    };
+  }
+
+  const meaningfulEntries = (project.activity || [])
+    .map(deriveStewardshipEntry)
+    .filter((entry): entry is StewardshipJournalEntry => Boolean(entry))
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+  const now = Date.now();
+  const todayEntries = meaningfulEntries.filter((entry) => isSameLocalDay(entry.timestamp, now));
+  const recentEntries = meaningfulEntries.slice(0, 6);
+
+  const promotedToday = todayEntries.filter((entry) => entry.label === 'Capture Promoted').length;
+  const evidenceReviewedToday = todayEntries.filter((entry) => entry.label === 'Evidence Review').length;
+  const decisionsMovedToday = todayEntries.filter((entry) => entry.label === 'Decision').length;
+  const commitmentsMovedToday = todayEntries.filter((entry) => entry.label === 'Commitment').length;
+
+  const todaySummary = [
+    promotedToday > 0 ? `${promotedToday} capture${promotedToday === 1 ? '' : 's'} promoted` : '',
+    evidenceReviewedToday > 0 ? `${evidenceReviewedToday} evidence review update${evidenceReviewedToday === 1 ? '' : 's'}` : '',
+    decisionsMovedToday > 0 ? `${decisionsMovedToday} decision change${decisionsMovedToday === 1 ? '' : 's'}` : '',
+    commitmentsMovedToday > 0 ? `${commitmentsMovedToday} commitment change${commitmentsMovedToday === 1 ? '' : 's'}` : ''
+  ].filter(Boolean);
+
+  const carryForward: string[] = [];
+  if (dailyWorkItem) {
+    carryForward.push(`${dailyWorkItem.reason}: ${dailyWorkItem.detail}`);
+  }
+  if (project.next_step?.trim()) {
+    carryForward.push(`Next step: ${project.next_step.trim()}`);
+  }
+  if (projectMemory.openQuestion && projectMemory.openQuestion !== 'No unresolved question is currently elevated.') {
+    carryForward.push(projectMemory.openQuestion);
+  }
+  if (carryForward.length === 0) {
+    carryForward.push('No urgent carry-forward cue is active. Capture new evidence or refresh the handoff when work resumes.');
+  }
+
+  return {
+    todaySummary,
+    todayEntries,
+    recentEntries,
+    carryForward,
+    lastMeaningfulMovement: recentEntries[0]
+      ? `${recentEntries[0].title} (${formatTimestamp(recentEntries[0].timestamp)})`
+      : 'No meaningful project movement recorded yet.'
+  };
+}
+
+function diffNewIds(previousIds: string[], currentIds: string[]) {
+  const previous = new Set(previousIds);
+  return currentIds.filter((id) => !previous.has(id));
+}
+
+function labelsForIds<T extends { id: string; title: string }>(items: T[], ids: string[]) {
+  const byId = new Map(items.map((item) => [item.id, item.title]));
+  return ids.map((id) => byId.get(id)).filter((value): value is string => Boolean(value));
+}
+
+function formatDeltaLine(prefix: string, labels: string[]) {
+  if (labels.length === 0) return '';
+  const visible = labels.slice(0, 2);
+  const overflow = labels.length - visible.length;
+  return `${prefix}: ${visible.join(', ')}${overflow > 0 ? ` +${overflow} more` : ''}`;
+}
+
+function deriveReviewPacketDelta(
+  project: Project | null,
+  latestPacket: ProjectReviewPacket | null,
+  handoffReadiness: { ready: boolean; blockers: string[] },
+  stewardshipJournal: DerivedStewardshipJournal
+): DerivedReviewDelta {
+  if (!project) {
+    return {
+      status: 'steady',
+      summary: 'No project selected.',
+      readinessImpact: 'No continuity checkpoint available.',
+      changeLines: [],
+      checkpointLabel: 'No checkpoint saved yet.',
+      carryForwardCue: 'Select a project to review continuity.'
+    };
+  }
+
+  if (!latestPacket) {
+    return {
+      status: 'first_packet',
+      summary: 'No saved handoff checkpoint yet.',
+      readinessImpact: handoffReadiness.ready
+        ? 'Current handoff is ready, but there is no earlier checkpoint to compare against.'
+        : 'Current handoff still has blockers, and there is no earlier checkpoint to compare against.',
+      changeLines: [],
+      checkpointLabel: 'First checkpoint still needs to be saved.',
+      carryForwardCue: stewardshipJournal.carryForward[0] || 'Save the first handoff checkpoint once this project is in a useful state.'
+    };
+  }
+
+  const artifacts = project.artifacts || [];
+  const decisions = project.decisions || [];
+  const commitments = project.commitments || [];
+  const approvedArtifacts = artifacts.filter((artifact) => isArtifactApproved(artifact));
+  const flaggedArtifacts = artifacts.filter((artifact) => isArtifactFlagged(artifact));
+  const acceptedDecisions = decisions.filter((decision) => decision.decision_state === 'accepted');
+  const deferredDecisions = decisions.filter((decision) => decision.decision_state === 'deferred');
+  const activeCommitments = commitments.filter((commitment) => commitment.commitment_state === 'active');
+  const completedCommitments = commitments.filter((commitment) => commitment.commitment_state === 'completed');
+  const blockedCommitments = commitments.filter((commitment) => commitment.commitment_state === 'blocked');
+
+  const snapshot = latestPacket.snapshot;
+  const changeLines = [
+    formatDeltaLine(
+      'Newly approved evidence',
+      labelsForIds(artifacts, diffNewIds(snapshot.approved_evidence_ids, approvedArtifacts.map((item) => item.id)))
+    ),
+    formatDeltaLine(
+      'Newly flagged or blocked evidence',
+      labelsForIds(artifacts, diffNewIds(snapshot.flagged_evidence_ids, flaggedArtifacts.map((item) => item.id)))
+    ),
+    formatDeltaLine(
+      'Decisions accepted since last packet',
+      labelsForIds(decisions, diffNewIds(snapshot.accepted_decision_ids, acceptedDecisions.map((item) => item.id)))
+    ),
+    formatDeltaLine(
+      'Decisions deferred since last packet',
+      labelsForIds(decisions, diffNewIds(snapshot.deferred_decision_ids, deferredDecisions.map((item) => item.id)))
+    ),
+    formatDeltaLine(
+      'Commitments activated since last packet',
+      labelsForIds(commitments, diffNewIds(snapshot.active_commitment_ids, activeCommitments.map((item) => item.id)))
+    ),
+    formatDeltaLine(
+      'Commitments completed since last packet',
+      labelsForIds(commitments, diffNewIds(snapshot.completed_commitment_ids, completedCommitments.map((item) => item.id)))
+    ),
+    formatDeltaLine(
+      'Commitments blocked since last packet',
+      labelsForIds(commitments, diffNewIds(snapshot.blocked_commitment_ids, blockedCommitments.map((item) => item.id)))
+    )
+  ].filter(Boolean);
+
+  const nextStepChanged =
+    (snapshot.next_step || '') !== (project.next_step?.trim() || '');
+  if (nextStepChanged) {
+    changeLines.push(
+      `Next step changed: ${snapshot.next_step || 'No next step recorded'} -> ${project.next_step?.trim() || 'No next step recorded yet.'}`
+    );
+  }
+
+  const readinessImpact =
+    snapshot.readiness_ready === handoffReadiness.ready
+      ? handoffReadiness.ready
+        ? 'Handoff readiness is still clear since the last checkpoint.'
+        : 'Handoff blockers remain active since the last checkpoint.'
+      : handoffReadiness.ready
+        ? 'Handoff moved from blocked to ready since the last checkpoint.'
+        : 'Handoff became less ready since the last checkpoint.';
+
+  if (!handoffReadiness.ready && handoffReadiness.blockers.length > 0 && snapshot.readiness_blockers.join('|') !== handoffReadiness.blockers.join('|')) {
+    changeLines.push(`Readiness blockers changed: ${handoffReadiness.blockers.join(' | ')}`);
+  }
+
+  const todayMovementImpact =
+    stewardshipJournal.todayEntries.length === 0
+      ? 'No project movement recorded today.'
+      : stewardshipJournal.todaySummary.length > 0
+        ? `Today materially moved the handoff through ${stewardshipJournal.todaySummary.join(', ')}.`
+        : 'Today changed the project record, but no major handoff movement was derived.';
+
+  return {
+    status: changeLines.length > 0 || nextStepChanged || snapshot.readiness_ready !== handoffReadiness.ready ? 'changed' : 'steady',
+    summary:
+      changeLines.length > 0
+        ? `${changeLines.length} continuity change${changeLines.length === 1 ? '' : 's'} since the last checkpoint.`
+        : 'No material handoff change since the last saved checkpoint.',
+    readinessImpact,
+    changeLines,
+    checkpointLabel: `Last checkpoint saved ${formatTimestamp(latestPacket.timestamp)}`,
+    carryForwardCue: stewardshipJournal.carryForward[0] || todayMovementImpact
+  };
 }
 
 function deriveProjectBrief(
@@ -1520,6 +1868,57 @@ function normalizeCaptureItems(value: unknown): ProjectCaptureItem[] {
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 }
 
+function normalizeReviewPackets(value: unknown): ProjectReviewPacket[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((packet, index) => {
+      const item = packet as Partial<ProjectReviewPacket>;
+      const snapshot = item.snapshot as Partial<ProjectReviewPacketSnapshot> | undefined;
+      return {
+        id: typeof item.id === 'string' ? item.id : `review_packet_${index}`,
+        timestamp: typeof item.timestamp === 'string' ? item.timestamp : nowIso(),
+        title: typeof item.title === 'string' ? item.title : 'Saved Handoff Checkpoint',
+        markdown: typeof item.markdown === 'string' ? item.markdown : '',
+        snapshot: {
+          next_step: typeof snapshot?.next_step === 'string' ? snapshot.next_step : null,
+          readiness_ready: Boolean(snapshot?.readiness_ready),
+          readiness_blockers: Array.isArray(snapshot?.readiness_blockers)
+            ? snapshot.readiness_blockers.filter((value): value is string => typeof value === 'string')
+            : [],
+          approved_evidence_ids: Array.isArray(snapshot?.approved_evidence_ids)
+            ? snapshot.approved_evidence_ids.filter((value): value is string => typeof value === 'string')
+            : [],
+          flagged_evidence_ids: Array.isArray(snapshot?.flagged_evidence_ids)
+            ? snapshot.flagged_evidence_ids.filter((value): value is string => typeof value === 'string')
+            : [],
+          pending_evidence_ids: Array.isArray(snapshot?.pending_evidence_ids)
+            ? snapshot.pending_evidence_ids.filter((value): value is string => typeof value === 'string')
+            : [],
+          accepted_decision_ids: Array.isArray(snapshot?.accepted_decision_ids)
+            ? snapshot.accepted_decision_ids.filter((value): value is string => typeof value === 'string')
+            : [],
+          deferred_decision_ids: Array.isArray(snapshot?.deferred_decision_ids)
+            ? snapshot.deferred_decision_ids.filter((value): value is string => typeof value === 'string')
+            : [],
+          active_commitment_ids: Array.isArray(snapshot?.active_commitment_ids)
+            ? snapshot.active_commitment_ids.filter((value): value is string => typeof value === 'string')
+            : [],
+          completed_commitment_ids: Array.isArray(snapshot?.completed_commitment_ids)
+            ? snapshot.completed_commitment_ids.filter((value): value is string => typeof value === 'string')
+            : [],
+          blocked_commitment_ids: Array.isArray(snapshot?.blocked_commitment_ids)
+            ? snapshot.blocked_commitment_ids.filter((value): value is string => typeof value === 'string')
+            : [],
+          today_entry_ids: Array.isArray(snapshot?.today_entry_ids)
+            ? snapshot.today_entry_ids.filter((value): value is string => typeof value === 'string')
+            : [],
+          summary_line: typeof snapshot?.summary_line === 'string' ? snapshot.summary_line : ''
+        }
+      };
+    })
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+}
+
 function deriveActivity(
   rawActivity: unknown,
   messages: ProjectMessage[],
@@ -1582,6 +1981,7 @@ function normalizeProject(project: unknown, index: number): Project {
   const decisions = normalizeDecisions(item.decisions);
   const commitments = normalizeCommitments(item.commitments);
   const captureItems = normalizeCaptureItems(item.capture_items);
+  const reviewPackets = normalizeReviewPackets(item.review_packets);
   const updatedAt = typeof item.updated_at === 'string' ? item.updated_at : nowIso();
   return {
     id: item.id || `project_${index}`,
@@ -1596,6 +1996,7 @@ function normalizeProject(project: unknown, index: number): Project {
     decisions,
     commitments,
     capture_items: captureItems,
+    review_packets: reviewPackets,
     activity: deriveActivity(item.activity, messages, artifacts, updatedAt, typeof item.category === 'string' ? item.category : 'workbench'),
     context: item.context && typeof item.context === 'object' ? item.context : undefined,
     next_step: typeof item.next_step === 'string' ? item.next_step : ''
@@ -2177,6 +2578,7 @@ export function useProjects() {
         decisions: project.decisions || [],
         commitments: project.commitments || [],
         capture_items: project.capture_items || [],
+        review_packets: project.review_packets || [],
         activity: [
         {
           id: `activity_${Date.now()}`,
@@ -2735,6 +3137,37 @@ export function useProjects() {
     saveProjects(updated);
   };
 
+  const saveProjectReviewPacket = (projectId: string, packet: Omit<ProjectReviewPacket, 'id' | 'timestamp'>) => {
+    const timestamp = nowIso();
+    const updated = projects.map((project) => {
+      if (project.id !== projectId) return project;
+
+      const newPacket: ProjectReviewPacket = {
+        ...packet,
+        id: `review_packet_${Date.now()}`,
+        timestamp
+      };
+
+      return {
+        ...project,
+        updated_at: timestamp,
+        review_packets: [newPacket, ...(project.review_packets || [])],
+        activity: [
+          ...(project.activity || []),
+          {
+            id: `act_${Date.now()}`,
+            kind: 'handoff' as const,
+            title: 'Handoff checkpoint saved',
+            detail: `${newPacket.title} saved as the latest review packet baseline.`,
+            timestamp
+          }
+        ]
+      };
+    });
+
+    saveProjects(updated);
+  };
+
   return { 
     projects, 
     addProject, 
@@ -2750,7 +3183,8 @@ export function useProjects() {
     addProjectArtifact,
     addProjectCaptureItem,
     updateProjectCaptureState,
-    promoteCaptureToArtifact
+    promoteCaptureToArtifact,
+    saveProjectReviewPacket
   };
 }
 
@@ -2769,7 +3203,8 @@ export default function ProjectsPage() {
     addProjectArtifact,
     addProjectCaptureItem,
     updateProjectCaptureState,
-    promoteCaptureToArtifact
+    promoteCaptureToArtifact,
+    saveProjectReviewPacket
   } = useProjects();
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [commitmentFocusFilter, setCommitmentFocusFilter] = useState<'all' | 'active' | 'blocked' | 'at_risk' | 'completed'>('all');
@@ -2875,6 +3310,10 @@ export default function ProjectsPage() {
     const matchingProject = projectFromUrl ? projects.find((project) => project.id === projectFromUrl) : null;
     return matchingProject?.id || dailyWorkQueue[0]?.projectId || projects[0].id;
   }, [selectedProjectId, projects, dailyWorkQueue]);
+  const selectedProjectDailyWork = useMemo(
+    () => dailyWorkQueue.find((item) => item.projectId === effectiveSelectedProjectId) || null,
+    [dailyWorkQueue, effectiveSelectedProjectId]
+  );
 
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === effectiveSelectedProjectId) || null,
@@ -2891,6 +3330,10 @@ export default function ProjectsPage() {
   const runtimeCommitmentAdvisory = useMemo(
     () => deriveRuntimeCommitmentAdvisory(selectedProject, bellowsRuntime),
     [selectedProject, bellowsRuntime]
+  );
+  const stewardshipJournal = useMemo(
+    () => deriveStewardshipJournal(selectedProject, selectedProjectDailyWork, projectMemory),
+    [selectedProject, selectedProjectDailyWork, projectMemory]
   );
   const projectBrief = useMemo(
     () =>
@@ -3026,6 +3469,14 @@ export default function ProjectsPage() {
       blockers
     };
   }, [approvedArtifacts, selectedProject, flaggedArtifacts, pendingArtifacts, blockedCommitments]);
+  const latestReviewPacket = useMemo(
+    () => selectedProject?.review_packets?.[0] || null,
+    [selectedProject]
+  );
+  const reviewPacketDelta = useMemo(
+    () => deriveReviewPacketDelta(selectedProject, latestReviewPacket, handoffReadiness, stewardshipJournal),
+    [selectedProject, latestReviewPacket, handoffReadiness, stewardshipJournal]
+  );
 
   const sortedCommitments = useMemo(() => {
     if (!selectedProject?.commitments?.length) return [];
@@ -3734,9 +4185,24 @@ export default function ProjectsPage() {
         title: activity.title,
         detail: activity.detail || null,
         timestamp: activity.timestamp
-      }))
+      })),
+      since_last_packet: {
+        status: reviewPacketDelta.status,
+        summary: reviewPacketDelta.summary,
+        readiness_impact: reviewPacketDelta.readinessImpact,
+        checkpoint_label: reviewPacketDelta.checkpointLabel,
+        carry_forward_cue: reviewPacketDelta.carryForwardCue,
+        changes: reviewPacketDelta.changeLines
+      },
+      saved_checkpoint: latestReviewPacket
+        ? {
+            id: latestReviewPacket.id,
+            title: latestReviewPacket.title,
+            timestamp: latestReviewPacket.timestamp
+          }
+        : null
     };
-  }, [selectedProject, projectMemory, projectRelevance, bellowsRuntime, runtimeCommitmentAdvisory]);
+  }, [selectedProject, projectMemory, projectRelevance, bellowsRuntime, runtimeCommitmentAdvisory, reviewPacketDelta, latestReviewPacket]);
 
   const buildProjectHandoffMarkdown = useCallback(() => {
     if (!selectedProject) return '';
@@ -3819,6 +4285,31 @@ export default function ProjectsPage() {
       lines.push('- Advisory: No runtime advisory is currently changing this handoff.');
     }
 
+    lines.push('', '## Since Last Packet', '');
+    lines.push(`- ${reviewPacketDelta.checkpointLabel}`);
+    lines.push(`- ${reviewPacketDelta.summary}`);
+    lines.push(`- ${reviewPacketDelta.readinessImpact}`);
+    if (reviewPacketDelta.changeLines.length === 0) {
+      lines.push('- No material delta is currently recorded.');
+    } else {
+      reviewPacketDelta.changeLines.forEach((line) => lines.push(`- ${line}`));
+    }
+
+    lines.push('', '## Daily Note', '');
+    if (stewardshipJournal.todayEntries.length === 0) {
+      lines.push('- No movement recorded today.');
+    } else {
+      stewardshipJournal.todayEntries.forEach((entry) => {
+        lines.push(`- ${entry.title}`);
+        lines.push(`  - Detail: ${entry.detail}`);
+      });
+    }
+
+    lines.push('', '## Carry Forward', '');
+    stewardshipJournal.carryForward.forEach((line) => {
+      lines.push(`- ${line}`);
+    });
+
     lines.push(
       '',
       '## Truth Boundary',
@@ -3837,14 +4328,96 @@ export default function ProjectsPage() {
     pendingArtifacts,
     sortedCommitments,
     bellowsRuntime,
-    runtimeCommitmentAdvisory
+    runtimeCommitmentAdvisory,
+    stewardshipJournal,
+    reviewPacketDelta
   ]);
+
+  const buildProjectDailyNote = useCallback(() => {
+    if (!selectedProject) return '';
+
+    const lines: string[] = [
+      `# Daily Note - ${selectedProject.title}`,
+      '',
+      `- Date: ${new Date().toLocaleDateString()}`,
+      `- Status: ${selectedProject.status}`,
+      `- Last meaningful movement: ${stewardshipJournal.lastMeaningfulMovement}`,
+      '',
+      '## Today',
+      ''
+    ];
+
+    if (stewardshipJournal.todaySummary.length > 0) {
+      stewardshipJournal.todaySummary.forEach((summary) => lines.push(`- ${summary}`));
+      lines.push('');
+    }
+
+    if (stewardshipJournal.todayEntries.length === 0) {
+      lines.push('- No movement recorded today.');
+    } else {
+      stewardshipJournal.todayEntries.forEach((entry) => {
+        lines.push(`- ${entry.title}`);
+        lines.push(`  - ${entry.detail}`);
+      });
+    }
+
+    lines.push('', '## Recent Movement', '');
+    if (stewardshipJournal.recentEntries.length === 0) {
+      lines.push('- No meaningful project movement recorded yet.');
+    } else {
+      stewardshipJournal.recentEntries.slice(0, 4).forEach((entry) => {
+        lines.push(`- ${entry.title} (${formatTimestamp(entry.timestamp)})`);
+        lines.push(`  - ${entry.detail}`);
+      });
+    }
+
+    lines.push('', '## Carry Forward', '');
+    stewardshipJournal.carryForward.forEach((line) => lines.push(`- ${line}`));
+
+    lines.push(
+      '',
+      '## Note Boundary',
+      '',
+      'Derived from current project activity, evidence state, decisions, commitments, and next-step data already stored in this project.'
+    );
+
+    return lines.join('\n');
+  }, [selectedProject, stewardshipJournal]);
 
   const handleExportProjectHandoff = () => {
     const packet = buildProjectHandoffPacket();
     if (!packet || !selectedProject) return;
     downloadJsonArtifact(`project-handoff-${selectedProject.id}.json`, packet);
   };
+
+  const buildProjectReviewPacketSnapshot = useCallback((): ProjectReviewPacketSnapshot | null => {
+    if (!selectedProject) return null;
+    return {
+      next_step: selectedProject.next_step?.trim() || null,
+      readiness_ready: handoffReadiness.ready,
+      readiness_blockers: [...handoffReadiness.blockers],
+      approved_evidence_ids: approvedArtifacts.map((artifact) => artifact.id),
+      flagged_evidence_ids: flaggedArtifacts.map((artifact) => artifact.id),
+      pending_evidence_ids: pendingArtifacts.map((artifact) => artifact.id),
+      accepted_decision_ids: (selectedProject.decisions || [])
+        .filter((decision) => decision.decision_state === 'accepted')
+        .map((decision) => decision.id),
+      deferred_decision_ids: (selectedProject.decisions || [])
+        .filter((decision) => decision.decision_state === 'deferred')
+        .map((decision) => decision.id),
+      active_commitment_ids: (selectedProject.commitments || [])
+        .filter((commitment) => commitment.commitment_state === 'active')
+        .map((commitment) => commitment.id),
+      completed_commitment_ids: (selectedProject.commitments || [])
+        .filter((commitment) => commitment.commitment_state === 'completed')
+        .map((commitment) => commitment.id),
+      blocked_commitment_ids: (selectedProject.commitments || [])
+        .filter((commitment) => commitment.commitment_state === 'blocked')
+        .map((commitment) => commitment.id),
+      today_entry_ids: stewardshipJournal.todayEntries.map((entry) => entry.id),
+      summary_line: reviewPacketDelta.summary
+    };
+  }, [selectedProject, handoffReadiness, approvedArtifacts, flaggedArtifacts, pendingArtifacts, stewardshipJournal, reviewPacketDelta]);
 
   const handleSaveProjectHandoffArtifact = () => {
     if (!selectedProject) return;
@@ -3857,6 +4430,14 @@ export default function ProjectsPage() {
       review_signal: 'clear',
       review_note: 'Compiled from reviewed evidence, decisions, commitments, and current next step.'
     });
+    const snapshot = buildProjectReviewPacketSnapshot();
+    if (snapshot) {
+      saveProjectReviewPacket(selectedProject.id, {
+        title: `Handoff Checkpoint - ${selectedProject.title}`,
+        markdown: buildProjectHandoffMarkdown(),
+        snapshot
+      });
+    }
   };
 
   const handleExportProjectHandoffMarkdown = () => {
@@ -3903,6 +4484,34 @@ export default function ProjectsPage() {
     } catch {
       downloadTextArtifact('project-handoff-copy-fallback.md', markdown, 'text/markdown;charset=utf-8');
     }
+  };
+
+  const handleCopyDailyNote = async () => {
+    const markdown = buildProjectDailyNote();
+    if (!markdown) return;
+    try {
+      await navigator.clipboard.writeText(markdown);
+    } catch {
+      downloadTextArtifact('project-daily-note-copy-fallback.md', markdown, 'text/markdown;charset=utf-8');
+    }
+  };
+
+  const handleExportDailyNote = () => {
+    if (!selectedProject) return;
+    downloadTextArtifact(`project-daily-note-${selectedProject.id}.md`, buildProjectDailyNote(), 'text/markdown;charset=utf-8');
+  };
+
+  const handleSaveDailyNoteArtifact = () => {
+    if (!selectedProject) return;
+    addProjectArtifact(selectedProject.id, {
+      type: 'daily_note',
+      title: `Daily Note - ${selectedProject.title}`,
+      summary: stewardshipJournal.carryForward[0] || stewardshipJournal.lastMeaningfulMovement,
+      source_lane: 'projects',
+      review_state: 'reviewed',
+      review_signal: 'clear',
+      review_note: 'Daily continuity note compiled from project activity, evidence review, decisions, commitments, and next-step state.'
+    });
   };
 
   const handlePrintProjectHandoff = () => {
@@ -5209,7 +5818,7 @@ export default function ProjectsPage() {
                         onClick={handleSaveProjectHandoffArtifact}
                         className="rounded border border-cyan-800 bg-cyan-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-cyan-300 transition-colors hover:bg-cyan-900/40"
                       >
-                        Save Handoff
+                        Save Checkpoint
                       </button>
                       <button
                         onClick={handlePrintProjectHandoff}
@@ -5379,28 +5988,117 @@ export default function ProjectsPage() {
                       <div className="rounded border border-slate-800 bg-slate-950/40 p-5">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                           <div>
-                            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Recent Movement</div>
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Stewardship Journal</div>
                             <div className="mt-1 text-xs text-slate-500">
-                              The latest changes to the project record, so a returning person can recover context fast.
+                              A daily continuity layer showing what moved, what changed, and what should carry forward next.
                             </div>
                           </div>
-                          <button
-                            onClick={() => setProjectViewMode('overview')}
-                            className="rounded border border-slate-700 bg-slate-950/60 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-300 transition-colors hover:bg-slate-900/70"
-                          >
-                            Open Timeline
-                          </button>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              onClick={handleCopyDailyNote}
+                              className="rounded border border-slate-700 bg-slate-950/60 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-300 transition-colors hover:bg-slate-900/70"
+                            >
+                              Copy Daily Note
+                            </button>
+                            <button
+                              onClick={handleExportDailyNote}
+                              className="rounded border border-fuchsia-800 bg-fuchsia-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-fuchsia-300 transition-colors hover:bg-fuchsia-900/40"
+                            >
+                              Export Daily Note
+                            </button>
+                            <button
+                              onClick={handleSaveDailyNoteArtifact}
+                              className="rounded border border-cyan-800 bg-cyan-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-cyan-300 transition-colors hover:bg-cyan-900/40"
+                            >
+                              Save Daily Note
+                            </button>
+                          </div>
                         </div>
-                        <div className="mt-4 flex flex-col gap-3">
-                          {(selectedProject.activity || []).slice(-4).reverse().map((activity) => (
-                            <div key={`desk-activity-${activity.id}`} className="rounded border border-slate-800 bg-slate-950/60 p-3">
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <div className="text-sm font-bold text-slate-100">{activity.title}</div>
-                                <div className="text-[10px] uppercase tracking-widest text-slate-500">{formatTimestamp(activity.timestamp)}</div>
-                              </div>
-                              {activity.detail && <div className="mt-2 text-sm text-slate-300">{activity.detail}</div>}
+                        <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr),minmax(0,1fr),minmax(260px,0.9fr)]">
+                          <div className="rounded border border-slate-800 bg-slate-950/60 p-4">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Today</div>
+                              <div className="text-[10px] uppercase tracking-widest text-slate-500">{new Date().toLocaleDateString()}</div>
                             </div>
-                          ))}
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {stewardshipJournal.todaySummary.length > 0 ? (
+                                stewardshipJournal.todaySummary.map((summary) => (
+                                  <span key={summary} className="rounded border border-sky-900/30 bg-sky-950/10 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-sky-200">
+                                    {summary}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="rounded border border-slate-800 bg-slate-950/50 px-2 py-1 text-[10px] uppercase tracking-widest text-slate-500">
+                                  No movement recorded today
+                                </span>
+                              )}
+                            </div>
+                            <div className="mt-4 flex flex-col gap-3">
+                              {stewardshipJournal.todayEntries.length === 0 ? (
+                                <div className="rounded border border-dashed border-slate-800 px-3 py-4 text-sm text-slate-500">
+                                  No movement recorded today. The last meaningful movement was {stewardshipJournal.lastMeaningfulMovement}
+                                </div>
+                              ) : (
+                                stewardshipJournal.todayEntries.map((entry) => (
+                                  <div key={`journal-today-${entry.id}`} className={`rounded border p-3 ${entry.toneClasses}`}>
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                      <div className="text-[10px] font-bold uppercase tracking-widest">{entry.label}</div>
+                                      <div className="text-[10px] uppercase tracking-widest text-slate-500">{formatTimestamp(entry.timestamp)}</div>
+                                    </div>
+                                    <div className="mt-2 text-sm font-bold text-slate-100">{entry.title}</div>
+                                    <div className="mt-2 text-sm text-slate-300">{entry.detail}</div>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="rounded border border-slate-800 bg-slate-950/60 p-4">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Recent Movement</div>
+                              <button
+                                onClick={() => setProjectViewMode('overview')}
+                                className="rounded border border-slate-700 bg-slate-950/60 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-300 transition-colors hover:bg-slate-900/70"
+                              >
+                                Open Timeline
+                              </button>
+                            </div>
+                            <div className="mt-4 flex flex-col gap-3">
+                              {stewardshipJournal.recentEntries.length === 0 ? (
+                                <div className="rounded border border-dashed border-slate-800 px-3 py-4 text-sm text-slate-500">
+                                  No meaningful movement has been recorded yet.
+                                </div>
+                              ) : (
+                                stewardshipJournal.recentEntries.map((entry) => (
+                                  <div key={`journal-recent-${entry.id}`} className="rounded border border-slate-800 bg-slate-950/50 p-3">
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                      <div className="text-sm font-bold text-slate-100">{entry.title}</div>
+                                      <div className="text-[10px] uppercase tracking-widest text-slate-500">{formatTimestamp(entry.timestamp)}</div>
+                                    </div>
+                                    <div className="mt-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">{entry.label}</div>
+                                    <div className="mt-2 text-sm text-slate-300">{entry.detail}</div>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="rounded border border-emerald-900/30 bg-emerald-950/10 p-4">
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-300">Carry Forward</div>
+                            <div className="mt-2 text-sm text-slate-300">
+                              The next useful cues for resuming this project without rereading the full record.
+                            </div>
+                            <div className="mt-4 flex flex-col gap-3">
+                              {stewardshipJournal.carryForward.map((line) => (
+                                <div key={line} className="rounded border border-emerald-900/20 bg-slate-950/30 px-3 py-3 text-sm text-slate-200">
+                                  {line}
+                                </div>
+                              ))}
+                            </div>
+                            <div className="mt-4 rounded border border-slate-800 bg-slate-950/50 px-3 py-3 text-sm text-slate-400">
+                              Last meaningful movement: {stewardshipJournal.lastMeaningfulMovement}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -5438,6 +6136,37 @@ export default function ProjectsPage() {
                               </div>
                             ))
                           )}
+                        </div>
+                      </div>
+
+                      <div className={`rounded border p-4 ${reviewPacketDelta.status === 'changed' ? 'border-indigo-900/30 bg-indigo-950/10' : reviewPacketDelta.status === 'first_packet' ? 'border-slate-800 bg-slate-950/40' : 'border-emerald-900/30 bg-emerald-950/10'}`}>
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">What Changed Since Last Packet</div>
+                            <div className="mt-1 text-sm font-bold text-slate-100">{reviewPacketDelta.summary}</div>
+                          </div>
+                          <span className="rounded border border-slate-700 bg-slate-950/60 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-300">
+                            {reviewPacketDelta.checkpointLabel}
+                          </span>
+                        </div>
+                        <div className="mt-3 rounded border border-slate-800 bg-slate-950/40 px-3 py-3 text-sm text-slate-300">
+                          {reviewPacketDelta.readinessImpact}
+                        </div>
+                        <div className="mt-3 space-y-2 text-sm text-slate-300">
+                          {reviewPacketDelta.changeLines.length === 0 ? (
+                            <div className="rounded border border-slate-800 bg-slate-950/40 px-3 py-3">
+                              No new review delta is recorded yet.
+                            </div>
+                          ) : (
+                            reviewPacketDelta.changeLines.map((line) => (
+                              <div key={line} className="rounded border border-slate-800 bg-slate-950/40 px-3 py-3">
+                                {line}
+                              </div>
+                            ))
+                          )}
+                        </div>
+                        <div className="mt-3 text-sm text-slate-400">
+                          Carry forward cue: {reviewPacketDelta.carryForwardCue}
                         </div>
                       </div>
 
@@ -6334,6 +7063,11 @@ export default function ProjectsPage() {
                               <div className="text-[10px] uppercase tracking-widest text-slate-500">Review Focus</div>
                               <div className="mt-1 text-slate-200">{agentSummary.suggestedReviewFocus[0] || 'No special review focus is active.'}</div>
                             </div>
+                            <div className="rounded border border-slate-800 bg-slate-950/60 p-3">
+                              <div className="text-[10px] uppercase tracking-widest text-slate-500">Since Last Packet</div>
+                              <div className="mt-1 text-slate-200">{reviewPacketDelta.summary}</div>
+                              <div className="mt-2 text-xs text-slate-400">{reviewPacketDelta.checkpointLabel}</div>
+                            </div>
                           </div>
                         </div>
 
@@ -6357,6 +7091,34 @@ export default function ProjectsPage() {
                               </div>
                             )}
                           </div>
+                        </div>
+                      </div>
+
+                      <div className="rounded border border-slate-800 bg-slate-950/40 p-5">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Since Last Packet</div>
+                            <div className="mt-1 text-xs text-slate-500">
+                              The continuity delta between the latest saved checkpoint and the current handoff state.
+                            </div>
+                          </div>
+                          <div className="text-[10px] uppercase tracking-widest text-slate-500">{reviewPacketDelta.checkpointLabel}</div>
+                        </div>
+                        <div className="mt-4 rounded border border-slate-800 bg-slate-950/60 p-3 text-sm text-slate-300">
+                          {reviewPacketDelta.readinessImpact}
+                        </div>
+                        <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                          {reviewPacketDelta.changeLines.length === 0 ? (
+                            <div className="rounded border border-dashed border-slate-800 p-4 text-sm text-slate-500 lg:col-span-2">
+                              No material handoff delta is recorded since the last saved checkpoint.
+                            </div>
+                          ) : (
+                            reviewPacketDelta.changeLines.map((line) => (
+                              <div key={`handoff-delta-${line}`} className="rounded border border-indigo-900/30 bg-indigo-950/10 p-4 text-sm text-slate-200">
+                                {line}
+                              </div>
+                            ))
+                          )}
                         </div>
                       </div>
 
