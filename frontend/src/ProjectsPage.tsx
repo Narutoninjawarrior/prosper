@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 
 export type MessageTag = 'useful' | 'question' | 'warning' | 'none';
 export type ProjectActivityKind = 
@@ -290,6 +290,43 @@ interface DerivedReviewDelta {
   changeLines: string[];
   checkpointLabel: string;
   carryForwardCue: string;
+}
+
+interface DeskNextAction {
+  title: string;
+  explanation: string;
+  actionLabel: string;
+  secondaryActionLabel?: string;
+  targetView: ProjectViewMode;
+  targetElementId?: string;
+  artifactId?: string;
+  actionKind:
+    | 'save_checkpoint'
+    | 'open_handoff'
+    | 'review_evidence'
+    | 'resolve_decision'
+    | 'define_next_step'
+    | 'resume_commitment'
+    | 'open_inbox'
+    | 'start_project';
+}
+
+type ProjectTemplateKey = 'indie_build' | 'client_deliverable' | 'research_sprint';
+
+interface ProjectTemplateDefinition {
+  key: ProjectTemplateKey;
+  label: string;
+  description: string;
+  category: string;
+  evidenceTitle: string;
+  evidenceSummary: string;
+  decisionTitle: string;
+  decisionRationale: string;
+  commitmentTitle: string;
+  commitmentRationale: string;
+  commitmentNextAction: string;
+  commitmentDoneWhen: string;
+  nextStep: string;
 }
 
 function formatHeartbeatFreshness(lastUpdate?: string) {
@@ -899,6 +936,138 @@ function deriveReviewPacketDelta(
     changeLines,
     checkpointLabel: `Last checkpoint saved ${formatTimestamp(latestPacket.timestamp)}`,
     carryForwardCue: stewardshipJournal.carryForward[0] || todayMovementImpact
+  };
+}
+
+function deriveDeskNextAction(
+  project: Project | null,
+  latestReviewPacket: ProjectReviewPacket | null,
+  handoffReadiness: { ready: boolean; blockers: string[] }
+): DeskNextAction | null {
+  if (!project) return null;
+
+  const captures = (project.capture_items || []).filter((item) => item.capture_state === 'inbox');
+  const artifacts = project.artifacts || [];
+  const flaggedArtifacts = artifacts.filter((artifact) => isArtifactFlagged(artifact));
+  const pendingArtifacts = artifacts.filter((artifact) => !isArtifactApproved(artifact) && !isArtifactFlagged(artifact));
+  const openDecisions = (project.decisions || []).filter(
+    (decision) => decision.decision_state === 'proposed' || decision.decision_state === 'deferred'
+  );
+  const blockedCommitments = (project.commitments || []).filter((commitment) => commitment.commitment_state === 'blocked');
+  const activeCommitments = (project.commitments || []).filter((commitment) => commitment.commitment_state === 'active');
+  const hasCoreObjects =
+    captures.length > 0 ||
+    artifacts.length > 0 ||
+    openDecisions.length > 0 ||
+    (project.commitments || []).length > 0 ||
+    Boolean(project.next_step?.trim());
+
+  if (!hasCoreObjects) {
+    return {
+      title: 'Start the project loop',
+      explanation: 'This project is still empty. Add one captured input so the evidence, decision, and handoff flow has something real to work with.',
+      actionLabel: 'Open Inbox',
+      targetView: 'overview',
+      targetElementId: 'project-capture-inbox',
+      actionKind: 'start_project'
+    };
+  }
+
+  if (blockedCommitments.length > 0) {
+    return {
+      title: blockedCommitments[0].title,
+      explanation: blockedCommitments[0].blocker_note || 'A blocked commitment is the strongest thing holding the project back right now.',
+      actionLabel: 'Resume Commitment',
+      secondaryActionLabel: 'Open Handoff',
+      targetView: 'overview',
+      targetElementId: 'project-commitments',
+      actionKind: 'resume_commitment'
+    };
+  }
+
+  if (flaggedArtifacts.length > 0 || pendingArtifacts.length > 0) {
+    const artifact = flaggedArtifacts[0] || pendingArtifacts[0];
+    return {
+      title: artifact.title,
+      explanation:
+        artifact.review_note ||
+        artifact.summary ||
+        'This evidence still needs a review call before the project can move cleanly forward.',
+      actionLabel: 'Review Evidence',
+      secondaryActionLabel: 'Open Handoff',
+      targetView: 'overview',
+      targetElementId: 'project-evidence-review',
+      artifactId: artifact.id,
+      actionKind: 'review_evidence'
+    };
+  }
+
+  if (openDecisions.length > 0) {
+    return {
+      title: openDecisions[0].title,
+      explanation: 'A decision is still open. Resolving it will tighten the next move and reduce drift in the project record.',
+      actionLabel: 'Resolve Decision',
+      secondaryActionLabel: 'Open Handoff',
+      targetView: 'overview',
+      targetElementId: 'project-decisions',
+      actionKind: 'resolve_decision'
+    };
+  }
+
+  if (captures.length > 0) {
+    return {
+      title: captures[0].title,
+      explanation: `${captures.length} inbox item${captures.length === 1 ? '' : 's'} are waiting to be turned into usable project evidence or a decision draft.`,
+      actionLabel: 'Open Inbox',
+      targetView: 'overview',
+      targetElementId: 'project-capture-inbox',
+      actionKind: 'open_inbox'
+    };
+  }
+
+  if (!project.next_step?.trim()) {
+    return {
+      title: 'Define the next step',
+      explanation: 'The project has useful material, but it still does not say what should happen next.',
+      actionLabel: 'Define Next Step',
+      secondaryActionLabel: 'Open Handoff',
+      targetView: 'overview',
+      targetElementId: 'project-next-step',
+      actionKind: 'define_next_step'
+    };
+  }
+
+  if (activeCommitments.length > 0) {
+    return {
+      title: activeCommitments[0].title,
+      explanation: 'There is an active commitment in force. Re-enter there first so the project keeps moving without reconstruction.',
+      actionLabel: 'Resume Commitment',
+      secondaryActionLabel: 'Open Handoff',
+      targetView: 'overview',
+      targetElementId: 'project-commitments',
+      actionKind: 'resume_commitment'
+    };
+  }
+
+  if (handoffReadiness.ready && !latestReviewPacket) {
+    return {
+      title: 'Save the first checkpoint',
+      explanation: 'The handoff is in good shape, but there is no saved checkpoint yet. Save one now so future deltas have a real baseline.',
+      actionLabel: 'Save Checkpoint',
+      secondaryActionLabel: 'Open Handoff',
+      targetView: 'handoff',
+      targetElementId: 'project-handoff-root',
+      actionKind: 'save_checkpoint'
+    };
+  }
+
+  return {
+    title: 'Open the latest handoff',
+    explanation: 'The project is stable enough to review or carry forward. Open the latest handoff and decide whether to save a new checkpoint.',
+    actionLabel: 'Open Handoff',
+    targetView: 'handoff',
+    targetElementId: 'project-handoff-root',
+    actionKind: 'open_handoff'
   };
 }
 
@@ -1664,6 +1833,102 @@ function escapeHtml(value: string) {
 }
 
 const nowIso = () => new Date().toISOString();
+
+const PROJECT_TEMPLATES: Record<ProjectTemplateKey, ProjectTemplateDefinition> = {
+  indie_build: {
+    key: 'indie_build',
+    label: 'Indie Build',
+    description: 'A fast product loop for a solo builder shipping and refining one practical idea.',
+    category: 'workbench',
+    evidenceTitle: 'Initial product signal',
+    evidenceSummary: 'Collected early demand notes, workflow friction, and one concrete user scenario worth testing.',
+    decisionTitle: 'Narrow the first release',
+    decisionRationale: 'Keep the first release focused on one repeatable pain point so the project can ship before it sprawls.',
+    commitmentTitle: 'Ship one usable first cut',
+    commitmentRationale: 'Turn the strongest evidence into a small but real release that can be shown, tested, and revised quickly.',
+    commitmentNextAction: 'Review the evidence and turn it into one concrete shipping slice.',
+    commitmentDoneWhen: 'A first usable release is captured in evidence and the next test is clearly defined.',
+    nextStep: 'Review the starting evidence and lock the first shipping slice.'
+  },
+  client_deliverable: {
+    key: 'client_deliverable',
+    label: 'Client Deliverable',
+    description: 'A clearer handoff loop for client work that needs evidence, decisions, and a ready-to-share brief.',
+    category: 'operations',
+    evidenceTitle: 'Client request summary',
+    evidenceSummary: 'Captured the requested outcome, constraints, and the most important review criteria for the deliverable.',
+    decisionTitle: 'Confirm delivery shape',
+    decisionRationale: 'Agree on what will actually be delivered so review and handoff stay grounded in the same scope.',
+    commitmentTitle: 'Prepare the delivery package',
+    commitmentRationale: 'Move from request capture into a reviewable package that can be approved and carried forward without re-explaining it.',
+    commitmentNextAction: 'Review the request summary and define the first draft that should be assembled.',
+    commitmentDoneWhen: 'The delivery package is reviewable, scoped, and ready for a clean client handoff.',
+    nextStep: 'Confirm the first delivery draft and the review criteria.'
+  },
+  research_sprint: {
+    key: 'research_sprint',
+    label: 'Research Sprint',
+    description: 'A compact structure for gathering signals, making a call, and packaging the result into a useful brief.',
+    category: 'stewardship',
+    evidenceTitle: 'Research starting signal',
+    evidenceSummary: 'Stored the primary question, a few initial findings, and the evidence that should shape the sprint decision.',
+    decisionTitle: 'Choose the research direction',
+    decisionRationale: 'Pick the most useful thread to pursue so the sprint accumulates knowledge instead of drifting into collection.',
+    commitmentTitle: 'Complete the first review pass',
+    commitmentRationale: 'Convert raw findings into reviewed evidence and a clear next question worth carrying forward.',
+    commitmentNextAction: 'Review the current findings and decide which thread deserves the next pass.',
+    commitmentDoneWhen: 'The sprint has a reviewable brief, a clear decision, and the next research move is defined.',
+    nextStep: 'Review the evidence and choose the next research thread to pursue.'
+  }
+};
+
+function createProjectTemplateSeed(templateKey: ProjectTemplateKey) {
+  const template = PROJECT_TEMPLATES[templateKey];
+  const timestamp = nowIso();
+  const seedId = `${templateKey}_${Date.now()}`;
+
+  return {
+    category: template.category,
+    next_step: template.nextStep,
+    artifacts: [
+      {
+        id: `artifact_${seedId}`,
+        type: 'seed_evidence',
+        title: template.evidenceTitle,
+        timestamp,
+        summary: template.evidenceSummary,
+        source_lane: 'projects',
+        review_state: 'unreviewed' as const,
+        review_signal: 'clear' as const,
+        review_note: 'Seeded from a guided project template.'
+      }
+    ],
+    decisions: [
+      {
+        id: `decision_${seedId}`,
+        timestamp,
+        title: template.decisionTitle,
+        rationale: template.decisionRationale,
+        decision_state: 'proposed' as const,
+        impact_note: 'Template starting point. Adjust once evidence becomes specific.'
+      }
+    ],
+    commitments: [
+      {
+        id: `commitment_${seedId}`,
+        timestamp,
+        title: template.commitmentTitle,
+        commitment_state: 'active' as const,
+        rationale: template.commitmentRationale,
+        next_action: template.commitmentNextAction,
+        done_when: template.commitmentDoneWhen,
+        confidence: 'medium' as const,
+        work_package: `${template.label} Setup`,
+        constraints: 'Template starter content should be replaced with project-specific evidence as work begins.'
+      }
+    ]
+  };
+}
 
 const DEFAULT_PROJECTS: Project[] = [
   {
@@ -3168,6 +3433,38 @@ export function useProjects() {
     saveProjects(updated);
   };
 
+  const applyProjectTemplate = (projectId: string, templateKey: ProjectTemplateKey) => {
+    const timestamp = nowIso();
+    const seed = createProjectTemplateSeed(templateKey);
+    const template = PROJECT_TEMPLATES[templateKey];
+
+    const updated = projects.map((project) => {
+      if (project.id !== projectId) return project;
+
+      return {
+        ...project,
+        updated_at: timestamp,
+        category: project.category || seed.category,
+        next_step: project.next_step?.trim() ? project.next_step : seed.next_step,
+        artifacts: [...(project.artifacts || []), ...seed.artifacts],
+        decisions: [...(project.decisions || []), ...seed.decisions],
+        commitments: [...(project.commitments || []), ...seed.commitments],
+        activity: [
+          ...(project.activity || []),
+          {
+            id: `act_${Date.now()}`,
+            kind: 'status_update' as const,
+            title: 'Project template applied',
+            detail: `${template.label} seeded the project with starter evidence, a draft decision, and an active commitment.`,
+            timestamp
+          }
+        ]
+      };
+    });
+
+    saveProjects(updated);
+  };
+
   return { 
     projects, 
     addProject, 
@@ -3184,7 +3481,8 @@ export function useProjects() {
     addProjectCaptureItem,
     updateProjectCaptureState,
     promoteCaptureToArtifact,
-    saveProjectReviewPacket
+    saveProjectReviewPacket,
+    applyProjectTemplate
   };
 }
 
@@ -3204,7 +3502,8 @@ export default function ProjectsPage() {
     addProjectCaptureItem,
     updateProjectCaptureState,
     promoteCaptureToArtifact,
-    saveProjectReviewPacket
+    saveProjectReviewPacket,
+    applyProjectTemplate
   } = useProjects();
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [commitmentFocusFilter, setCommitmentFocusFilter] = useState<'all' | 'active' | 'blocked' | 'at_risk' | 'completed'>('all');
@@ -3240,6 +3539,7 @@ export default function ProjectsPage() {
   const [newCategory, setNewCategory] = useState('operations');
   const [newPinned, setNewPinned] = useState('');
   const [newNextStep, setNewNextStep] = useState('');
+  const [newProjectTemplate, setNewProjectTemplate] = useState<ProjectTemplateKey | 'blank'>('blank');
   const [editingNextStep, setEditingNextStep] = useState(false);
   const [activeNextStepInput, setActiveNextStepInput] = useState('');
   const [selectedArtifactId, setSelectedArtifactId] = useState<string | null>(null);
@@ -3262,6 +3562,7 @@ export default function ProjectsPage() {
   const [captureNote, setCaptureNote] = useState('');
   const [selectedFrameId, setSelectedFrameId] = useState<ProjectRoomFrame['id'] | null>('next_moves');
   const [selectedRoomObjectId, setSelectedRoomObjectId] = useState<string | null>(null);
+  const nextActionCardRef = useRef<HTMLDivElement | null>(null);
 
   const isProjectMatchingFilter = useCallback((project: Project) => {
     if (commitmentFocusFilter === 'all') return true;
@@ -3442,13 +3743,6 @@ export default function ProjectsPage() {
     () => (selectedProject?.decisions || []).filter((decision) => decision.decision_state === 'accepted'),
     [selectedProject]
   );
-  const openDecisions = useMemo(
-    () =>
-      (selectedProject?.decisions || []).filter(
-        (decision) => decision.decision_state === 'proposed' || decision.decision_state === 'deferred'
-      ),
-    [selectedProject]
-  );
   const activeCommitments = useMemo(
     () => (selectedProject?.commitments || []).filter((commitment) => commitment.commitment_state === 'active'),
     [selectedProject]
@@ -3477,6 +3771,19 @@ export default function ProjectsPage() {
     () => deriveReviewPacketDelta(selectedProject, latestReviewPacket, handoffReadiness, stewardshipJournal),
     [selectedProject, latestReviewPacket, handoffReadiness, stewardshipJournal]
   );
+  const deskNextAction = useMemo(
+    () => deriveDeskNextAction(selectedProject, latestReviewPacket, handoffReadiness),
+    [selectedProject, latestReviewPacket, handoffReadiness]
+  );
+  const isEarlyProject = useMemo(() => {
+    if (!selectedProject) return false;
+    return (
+      (selectedProject.capture_items || []).length === 0 &&
+      (selectedProject.artifacts || []).length === 0 &&
+      (selectedProject.decisions || []).length === 0 &&
+      (selectedProject.commitments || []).length === 0
+    );
+  }, [selectedProject]);
 
   const sortedCommitments = useMemo(() => {
     if (!selectedProject?.commitments?.length) return [];
@@ -3596,6 +3903,44 @@ export default function ProjectsPage() {
     }
   }, []);
 
+  const scrollToTarget = useCallback((targetElementId?: string) => {
+    if (!targetElementId) return;
+    window.setTimeout(() => {
+      document.getElementById(targetElementId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 80);
+  }, []);
+
+  const handleDeskNextAction = useCallback(
+    (action: DeskNextAction | null) => {
+      if (!action || !selectedProject) return;
+
+      if (action.artifactId) {
+        setSelectedArtifactId(action.artifactId);
+      }
+
+      if (action.actionKind === 'save_checkpoint') {
+        handleSaveProjectHandoffArtifact();
+        setProjectViewMode('handoff');
+        scrollToTarget('project-handoff-root');
+        return;
+      }
+
+      setProjectViewMode(action.targetView);
+      scrollToTarget(action.targetElementId);
+    },
+    [selectedProject, scrollToTarget]
+  );
+
+  const handleDeskSecondaryAction = useCallback(() => {
+    setProjectViewMode('handoff');
+    scrollToTarget('project-handoff-root');
+  }, [scrollToTarget]);
+
+  const handleResumeDesk = useCallback(() => {
+    nextActionCardRef.current?.focus();
+    handleDeskNextAction(deskNextAction);
+  }, [deskNextAction, handleDeskNextAction]);
+
   const resetCaptureComposer = () => {
     setCaptureType('text_note');
     setCaptureTitle('');
@@ -3687,13 +4032,17 @@ export default function ProjectsPage() {
 
   const handleCreateProject = () => {
     if (!newTitle.trim()) return;
+    const templateSeed = newProjectTemplate === 'blank' ? null : createProjectTemplateSeed(newProjectTemplate);
     const newId = addProject({
       title: newTitle,
       description: newDesc,
-      category: newCategory,
+      category: templateSeed?.category || newCategory,
       status: 'PLANNING',
       pinned_note: newPinned,
-      next_step: newNextStep
+      next_step: newNextStep || templateSeed?.next_step || '',
+      artifacts: templateSeed?.artifacts || [],
+      decisions: templateSeed?.decisions || [],
+      commitments: templateSeed?.commitments || []
     });
     setSelectedProjectId(newId);
     setIsCreating(false);
@@ -3701,7 +4050,20 @@ export default function ProjectsPage() {
     setNewDesc('');
     setNewPinned('');
     setNewNextStep('');
+    setNewProjectTemplate('blank');
   };
+
+  const handleApplyProjectTemplate = useCallback(
+    (templateKey: ProjectTemplateKey) => {
+      if (!selectedProject) return;
+      applyProjectTemplate(selectedProject.id, templateKey);
+      setProjectViewMode('desk');
+      window.setTimeout(() => {
+        nextActionCardRef.current?.focus();
+      }, 120);
+    },
+    [applyProjectTemplate, selectedProject]
+  );
 
   const resetCommitmentComposer = () => {
     setCommitmentTitle('');
@@ -4111,14 +4473,15 @@ export default function ProjectsPage() {
         status: selectedProject.status,
         updated_at: selectedProject.updated_at,
         pinned_note: selectedProject.pinned_note,
-        next_step: selectedProject.next_step || null,
         context: selectedProject.context || null
       },
-      handoff: {
-        current_direction: projectMemory.currentDirection,
+      current_direction: {
+        summary: projectMemory.currentDirection,
         return_focus: projectRelevance.returnFocus,
         open_question: projectMemory.openQuestion,
         next_step: selectedProject.next_step?.trim() || null,
+        readiness: handoffReadiness.ready ? 'ready' : 'needs_review',
+        readiness_blockers: handoffReadiness.blockers,
         runtime_condition: bellowsRuntime.label,
         runtime_detail: bellowsRuntime.detail,
         runtime_advisory: runtimeCommitmentAdvisory
@@ -4127,34 +4490,45 @@ export default function ProjectsPage() {
               message: runtimeCommitmentAdvisory.message,
               detail: runtimeCommitmentAdvisory.detail
             }
-          : null
+          : null,
+        daily_note_summary: stewardshipJournal.carryForward[0] || stewardshipJournal.lastMeaningfulMovement
       },
+      next_action: deskNextAction
+        ? {
+            title: deskNextAction.title,
+            explanation: deskNextAction.explanation,
+            action_label: deskNextAction.actionLabel,
+            action_kind: deskNextAction.actionKind,
+            target_view: deskNextAction.targetView,
+            target_element_id: deskNextAction.targetElementId || null
+          }
+        : null,
       evidence_summary: {
         total: artifacts.length,
         approved: approved.length,
         flagged: flagged.length,
-        needs_review: pending.length
+        needs_review: pending.length,
+        ready_to_carry: approved.map((artifact) => ({
+          id: artifact.id,
+          title: artifact.title,
+          type: artifact.type,
+          timestamp: artifact.timestamp,
+          source_lane: artifact.source_lane || selectedProject.category,
+          summary: artifact.summary || null,
+          review_note: artifact.review_note || null,
+          review_outcome: getArtifactReviewOutcomeLabel(artifact)
+        })),
+        needs_review_items: [...flagged, ...pending].map((artifact) => ({
+          id: artifact.id,
+          title: artifact.title,
+          type: artifact.type,
+          timestamp: artifact.timestamp,
+          source_lane: artifact.source_lane || selectedProject.category,
+          summary: artifact.summary || null,
+          review_note: artifact.review_note || null,
+          review_outcome: getArtifactReviewOutcomeLabel(artifact)
+        }))
       },
-      approved_evidence: approved.map((artifact) => ({
-        id: artifact.id,
-        title: artifact.title,
-        type: artifact.type,
-        timestamp: artifact.timestamp,
-        source_lane: artifact.source_lane || selectedProject.category,
-        summary: artifact.summary || null,
-        review_note: artifact.review_note || null,
-        review_outcome: getArtifactReviewOutcomeLabel(artifact)
-      })),
-      evidence_needing_review: [...flagged, ...pending].map((artifact) => ({
-        id: artifact.id,
-        title: artifact.title,
-        type: artifact.type,
-        timestamp: artifact.timestamp,
-        source_lane: artifact.source_lane || selectedProject.category,
-        summary: artifact.summary || null,
-        review_note: artifact.review_note || null,
-        review_outcome: getArtifactReviewOutcomeLabel(artifact)
-      })),
       decisions: decisions.map((decision) => ({
         id: decision.id,
         title: decision.title,
@@ -4194,15 +4568,27 @@ export default function ProjectsPage() {
         carry_forward_cue: reviewPacketDelta.carryForwardCue,
         changes: reviewPacketDelta.changeLines
       },
-      saved_checkpoint: latestReviewPacket
+      checkpoint: latestReviewPacket
         ? {
             id: latestReviewPacket.id,
             title: latestReviewPacket.title,
-            timestamp: latestReviewPacket.timestamp
+            timestamp: latestReviewPacket.timestamp,
+            summary_line: latestReviewPacket.snapshot.summary_line
           }
         : null
     };
-  }, [selectedProject, projectMemory, projectRelevance, bellowsRuntime, runtimeCommitmentAdvisory, reviewPacketDelta, latestReviewPacket]);
+  }, [
+    selectedProject,
+    projectMemory,
+    projectRelevance,
+    bellowsRuntime,
+    runtimeCommitmentAdvisory,
+    reviewPacketDelta,
+    latestReviewPacket,
+    handoffReadiness,
+    stewardshipJournal,
+    deskNextAction
+  ]);
 
   const buildProjectHandoffMarkdown = useCallback(() => {
     if (!selectedProject) return '';
@@ -4388,6 +4774,17 @@ export default function ProjectsPage() {
     const packet = buildProjectHandoffPacket();
     if (!packet || !selectedProject) return;
     downloadJsonArtifact(`project-handoff-${selectedProject.id}.json`, packet);
+  };
+
+  const handleCopyProjectHandoffJson = async () => {
+    const packet = buildProjectHandoffPacket();
+    if (!packet) return;
+    const json = JSON.stringify(packet, null, 2);
+    try {
+      await navigator.clipboard.writeText(json);
+    } catch {
+      downloadTextArtifact('project-handoff-copy-fallback.json', json, 'application/json;charset=utf-8');
+    }
   };
 
   const buildProjectReviewPacketSnapshot = useCallback((): ProjectReviewPacketSnapshot | null => {
@@ -4841,10 +5238,43 @@ export default function ProjectsPage() {
               onChange={(event) => setNewNextStep(event.target.value)}
               className="rounded border border-slate-700 bg-slate-900 p-2 text-slate-200 md:col-span-2"
             />
+            <div className="md:col-span-2">
+              <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-indigo-200">Starter Template</div>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                <button
+                  onClick={() => setNewProjectTemplate('blank')}
+                  className={`rounded border p-3 text-left transition-colors ${
+                    newProjectTemplate === 'blank'
+                      ? 'border-indigo-700 bg-indigo-900/30 text-indigo-100'
+                      : 'border-slate-700 bg-slate-900/60 text-slate-300 hover:border-slate-500'
+                  }`}
+                >
+                  <div className="text-xs font-bold uppercase tracking-widest">Blank</div>
+                  <div className="mt-2 text-xs text-slate-400">Start with an empty desk and shape the loop yourself.</div>
+                </button>
+                {Object.values(PROJECT_TEMPLATES).map((template) => (
+                  <button
+                    key={template.key}
+                    onClick={() => setNewProjectTemplate(template.key)}
+                    className={`rounded border p-3 text-left transition-colors ${
+                      newProjectTemplate === template.key
+                        ? 'border-indigo-700 bg-indigo-900/30 text-indigo-100'
+                        : 'border-slate-700 bg-slate-900/60 text-slate-300 hover:border-slate-500'
+                    }`}
+                  >
+                    <div className="text-xs font-bold uppercase tracking-widest">{template.label}</div>
+                    <div className="mt-2 text-xs text-slate-400">{template.description}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
           <div className="mt-2 flex justify-end gap-3">
             <button
-              onClick={() => setIsCreating(false)}
+              onClick={() => {
+                setIsCreating(false);
+                setNewProjectTemplate('blank');
+              }}
               className="px-4 py-2 text-xs font-bold uppercase tracking-widest text-slate-400 hover:text-slate-200"
             >
               Cancel
@@ -5306,7 +5736,7 @@ export default function ProjectsPage() {
                     )}
                   </div>
                   {!editingNextStep ? (
-                    <div className="text-sm text-emerald-100/90">{selectedProject.next_step || <span className="italic text-emerald-900/60">No next step defined.</span>}</div>
+                <div id="project-next-step" className="text-sm text-emerald-100/90">{selectedProject.next_step || <span className="italic text-emerald-900/60">No next step defined.</span>}</div>
                   ) : (
                     <input 
                       type="text"
@@ -5327,7 +5757,7 @@ export default function ProjectsPage() {
                   )}
                 </div>
 
-                <div className="mt-4 rounded border border-sky-900/40 bg-sky-950/10 p-4">
+                <div id="project-capture-inbox" className="mt-4 rounded border border-sky-900/40 bg-sky-950/10 p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3 border-b border-sky-900/30 pb-3">
                     <div>
                       <div className="text-[10px] font-bold uppercase tracking-widest text-sky-400">Capture Inbox</div>
@@ -5860,139 +6290,152 @@ export default function ProjectsPage() {
                   <div className="border-b border-slate-800 px-5 py-4">
                     <h3 className="text-xs font-bold uppercase tracking-widest text-slate-300">Project Desk</h3>
                     <p className="mt-1 text-xs text-slate-500">
-                      The working surface for what needs a call now, what is ready to move, and what can already be handed off.
+                      Open the project, see what changed, and take the next useful action without hunting.
                     </p>
                   </div>
                   <div className="flex-1 overflow-y-auto p-5">
                     <div className="flex flex-col gap-5">
-                      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                        <div className="rounded border border-sky-900/30 bg-sky-950/10 p-4">
-                          <div className="text-[10px] font-bold uppercase tracking-widest text-sky-400">Inbox</div>
-                          <div className="mt-2 text-2xl font-bold text-slate-100">{captureInboxItems.length}</div>
-                          <div className="mt-2 text-sm text-slate-300">
-                            {captureInboxItems.length === 0
-                              ? 'No loose inputs are waiting right now.'
-                              : `${captureInboxItems.length} captured item${captureInboxItems.length === 1 ? '' : 's'} still need to be sorted into project evidence or decisions.`}
+                      <div className="rounded border border-slate-800 bg-slate-950/40 p-5">
+                        <div className="flex flex-wrap items-start justify-between gap-4">
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Last Checkpoint</div>
+                            <div className="mt-1 text-sm font-bold text-slate-100">{latestReviewPacket ? formatTimestamp(latestReviewPacket.timestamp) : 'No checkpoint saved yet.'}</div>
+                            <div className="mt-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Current Goal</div>
+                            <div className="mt-1 text-sm text-slate-300">
+                              {selectedProject?.next_step?.trim() || selectedProject?.description || 'No goal recorded yet.'}
+                            </div>
                           </div>
-                          <button
-                            onClick={() => setProjectViewMode('overview')}
-                            className="mt-4 rounded border border-sky-800 bg-sky-950/30 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-sky-300 transition-colors hover:bg-sky-900/40"
-                          >
-                            Open Inbox
-                          </button>
+                          <div className="flex flex-wrap gap-2">
+                            {!latestReviewPacket && handoffReadiness.ready && (
+                              <button
+                                onClick={handleSaveProjectHandoffArtifact}
+                                className="rounded border border-cyan-800 bg-cyan-950/30 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-cyan-300 transition-colors hover:bg-cyan-900/40"
+                              >
+                                Save First Checkpoint
+                              </button>
+                            )}
+                            <button
+                              onClick={handleResumeDesk}
+                              className="rounded border border-indigo-800 bg-indigo-950/30 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-indigo-300 transition-colors hover:bg-indigo-900/40"
+                            >
+                              Resume
+                            </button>
+                          </div>
                         </div>
-                        <div className="rounded border border-amber-900/30 bg-amber-950/10 p-4">
-                          <div className="text-[10px] font-bold uppercase tracking-widest text-amber-400">Needs Review</div>
-                          <div className="mt-2 text-2xl font-bold text-slate-100">{flaggedArtifacts.length + pendingArtifacts.length}</div>
-                          <div className="mt-2 text-sm text-slate-300">
-                            {flaggedArtifacts.length + pendingArtifacts.length === 0
-                              ? 'Evidence review is currently clear.'
-                              : `${flaggedArtifacts.length} flagged and ${pendingArtifacts.length} still waiting on a review call.`}
-                          </div>
-                          <button
-                            onClick={() => {
-                              setProjectViewMode('overview');
-                              if ((flaggedArtifacts[0] || pendingArtifacts[0])?.id) {
-                                setSelectedArtifactId((flaggedArtifacts[0] || pendingArtifacts[0]).id);
-                              }
-                            }}
-                            className="mt-4 rounded border border-amber-800 bg-amber-950/30 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-amber-300 transition-colors hover:bg-amber-900/40"
-                          >
-                            Review Evidence
-                          </button>
-                        </div>
-                        <div className="rounded border border-emerald-900/30 bg-emerald-950/10 p-4">
-                          <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-400">Ready to Carry</div>
-                          <div className="mt-2 text-2xl font-bold text-slate-100">{approvedArtifacts.length + acceptedDecisions.length + activeCommitments.length}</div>
-                          <div className="mt-2 text-sm text-slate-300">
-                            {approvedArtifacts.length} approved evidence, {acceptedDecisions.length} accepted decision{acceptedDecisions.length === 1 ? '' : 's'}, and {activeCommitments.length} active commitment{activeCommitments.length === 1 ? '' : 's'} can feed the next handoff.
-                          </div>
-                          <button
-                            onClick={() => setProjectViewMode('handoff')}
-                            className="mt-4 rounded border border-emerald-800 bg-emerald-950/30 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-emerald-300 transition-colors hover:bg-emerald-900/40"
-                          >
-                            Open Handoff
-                          </button>
+                        <div className="mt-4 rounded border border-slate-800 bg-slate-950/50 p-4">
+                          <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">What Changed Since Last Packet</div>
+                          <div className="mt-2 text-sm text-slate-200">{reviewPacketDelta.summary}</div>
+                          <ul className="mt-3 space-y-2 text-sm text-slate-300">
+                            {(reviewPacketDelta.changeLines.length > 0
+                              ? reviewPacketDelta.changeLines.slice(0, 5)
+                              : [reviewPacketDelta.readinessImpact]
+                            ).map((line) => (
+                              <li key={line} className="rounded border border-slate-800 bg-slate-950/40 px-3 py-2">
+                                {line}
+                              </li>
+                            ))}
+                          </ul>
                         </div>
                       </div>
 
-                      <div className="rounded border border-slate-800 bg-slate-950/40 p-5">
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div>
-                            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Work That Needs a Call</div>
-                            <div className="mt-1 text-xs text-slate-500">
-                              These are the places where the project still needs review, a decision, or a clearer next move.
+                      <div
+                        ref={nextActionCardRef}
+                        tabIndex={-1}
+                        className="rounded border border-indigo-900/40 bg-indigo-950/10 p-5 outline-none focus:ring-2 focus:ring-indigo-500/40"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-4">
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-indigo-300">Next Action</div>
+                            <div className="mt-2 text-lg font-bold text-slate-100">
+                              {deskNextAction?.title || 'No next action derived yet.'}
+                            </div>
+                            <div className="mt-3 text-sm leading-6 text-slate-300">
+                              {deskNextAction?.explanation || 'Capture a project input or record a next step to get the loop moving.'}
                             </div>
                           </div>
-                          <button
-                            onClick={() => setProjectViewMode('review')}
-                            className="rounded border border-slate-700 bg-slate-950/60 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-300 transition-colors hover:bg-slate-900/70"
-                          >
-                            Open Review Queue
-                          </button>
+                          <div className="flex flex-wrap gap-2">
+                            {deskNextAction && (
+                              <button
+                                onClick={() => handleDeskNextAction(deskNextAction)}
+                                className="rounded border border-indigo-700 bg-indigo-900/40 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-indigo-100 transition-colors hover:bg-indigo-800/50"
+                              >
+                                {deskNextAction.actionLabel}
+                              </button>
+                            )}
+                            {deskNextAction?.secondaryActionLabel && (
+                              <button
+                                onClick={handleDeskSecondaryAction}
+                                className="rounded border border-slate-700 bg-slate-950/60 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-300 transition-colors hover:bg-slate-900/70"
+                              >
+                                {deskNextAction.secondaryActionLabel}
+                              </button>
+                            )}
+                          </div>
                         </div>
-                        <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
-                          {blockedCommitments.slice(0, 2).map((commitment) => (
-                            <div key={`desk-blocked-${commitment.id}`} className="rounded border border-red-900/30 bg-red-950/10 p-4">
-                              <div className="text-[10px] font-bold uppercase tracking-widest text-red-300">Blocked Commitment</div>
-                              <div className="mt-2 text-sm font-bold text-slate-100">{commitment.title}</div>
-                              <div className="mt-2 text-sm text-slate-300">{commitment.blocker_note || commitment.rationale}</div>
-                            </div>
-                          ))}
-                          {openDecisions.slice(0, 2).map((decision) => (
-                            <div key={`desk-decision-${decision.id}`} className="rounded border border-indigo-900/30 bg-indigo-950/10 p-4">
-                              <div className="text-[10px] font-bold uppercase tracking-widest text-indigo-300">Open Decision</div>
-                              <div className="mt-2 text-sm font-bold text-slate-100">{decision.title}</div>
-                              <div className="mt-2 text-sm text-slate-300">{decision.rationale}</div>
-                            </div>
-                          ))}
-                          {[...flaggedArtifacts, ...pendingArtifacts].slice(0, 2).map((artifact) => (
-                            <div key={`desk-artifact-${artifact.id}`} className="rounded border border-amber-900/30 bg-amber-950/10 p-4">
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <div className="text-[10px] font-bold uppercase tracking-widest text-amber-300">Evidence Review</div>
-                                  <div className="mt-2 text-sm font-bold text-slate-100">{artifact.title}</div>
-                                </div>
-                                <span className={`inline-flex rounded border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest ${getArtifactReviewOutcomeClasses(artifact)}`}>
-                                  {getArtifactReviewOutcomeLabel(artifact)}
-                                </span>
-                              </div>
-                              <div className="mt-2 text-sm text-slate-300">{artifact.review_note || artifact.summary || getArtifactReviewOutcomeDetail(artifact)}</div>
-                              <div className="mt-3 flex flex-wrap gap-2">
-                                <button
-                                  onClick={() => {
-                                    setProjectViewMode('overview');
-                                    setSelectedArtifactId(artifact.id);
-                                  }}
-                                  className="rounded border border-amber-800 bg-amber-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-amber-300 transition-colors hover:bg-amber-900/40"
-                                >
-                                  Open Review
-                                </button>
-                                <button
-                                  onClick={() => seedDecisionFromArtifact(artifact)}
-                                  className="rounded border border-indigo-800 bg-indigo-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-indigo-300 transition-colors hover:bg-indigo-900/40"
-                                >
-                                  Draft Decision
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                          {blockedCommitments.length === 0 && openDecisions.length === 0 && flaggedArtifacts.length + pendingArtifacts.length === 0 && (
-                            <div className="rounded border border-dashed border-slate-800 p-4 text-sm text-slate-500 lg:col-span-2">
-                              This project is calm right now. The fastest next move is to refresh the handoff draft or capture new evidence.
-                            </div>
-                          )}
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <span className="rounded border border-sky-900/30 bg-sky-950/10 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-sky-200">
+                            Inbox {captureInboxItems.length}
+                          </span>
+                          <span className="rounded border border-amber-900/30 bg-amber-950/10 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-amber-200">
+                            Needs Review {flaggedArtifacts.length + pendingArtifacts.length}
+                          </span>
+                          <span className="rounded border border-emerald-900/30 bg-emerald-950/10 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-emerald-200">
+                            Ready {approvedArtifacts.length + acceptedDecisions.length + activeCommitments.length}
+                          </span>
                         </div>
                       </div>
 
-                      <div className="rounded border border-slate-800 bg-slate-950/40 p-5">
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div>
-                            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Stewardship Journal</div>
-                            <div className="mt-1 text-xs text-slate-500">
-                              A daily continuity layer showing what moved, what changed, and what should carry forward next.
+                      {isEarlyProject && (
+                        <div className="rounded border border-sky-900/30 bg-sky-950/10 p-5">
+                          <div className="text-[10px] font-bold uppercase tracking-widest text-sky-300">Quick Start</div>
+                          <div className="mt-2 text-sm text-slate-200">
+                            A useful project usually starts with one captured input, one reviewed evidence item, one decision, and one commitment.
+                          </div>
+                          <div className="mt-4">
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-sky-300">Guided Templates</div>
+                            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                              {Object.values(PROJECT_TEMPLATES).map((template) => (
+                                <button
+                                  key={template.key}
+                                  onClick={() => handleApplyProjectTemplate(template.key)}
+                                  className="rounded border border-sky-900/20 bg-slate-950/40 px-3 py-3 text-left transition-colors hover:border-sky-700/40 hover:bg-sky-950/10"
+                                >
+                                  <div className="text-xs font-bold uppercase tracking-widest text-sky-200">{template.label}</div>
+                                  <div className="mt-2 text-sm text-slate-300">{template.description}</div>
+                                </button>
+                              ))}
                             </div>
                           </div>
+                          <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                            {[
+                              'Capture one note, link, file reference, or snippet.',
+                              'Review that evidence and mark it approved or flagged.',
+                              'Record one decision based on the evidence.',
+                              'Turn the decision into one commitment and save a checkpoint.'
+                            ].map((line) => (
+                              <div key={line} className="rounded border border-sky-900/20 bg-slate-950/40 px-3 py-3 text-sm text-slate-300">
+                                {line}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <details className="rounded border border-slate-800 bg-slate-950/40 p-5">
+                        <summary className="cursor-pointer list-none">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Details</div>
+                              <div className="mt-1 text-xs text-slate-500">
+                                Journal notes, daily note actions, and secondary project context.
+                              </div>
+                            </div>
+                            <div className="text-[10px] uppercase tracking-widest text-slate-500">
+                              Open only when you need more context
+                            </div>
+                          </div>
+                        </summary>
+                        <div className="mt-4 flex flex-col gap-4">
                           <div className="flex flex-wrap gap-2">
                             <button
                               onClick={handleCopyDailyNote}
@@ -6013,103 +6456,55 @@ export default function ProjectsPage() {
                               Save Daily Note
                             </button>
                           </div>
-                        </div>
-                        <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr),minmax(0,1fr),minmax(260px,0.9fr)]">
-                          <div className="rounded border border-slate-800 bg-slate-950/60 p-4">
-                            <div className="flex items-center justify-between gap-2">
+
+                          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr),minmax(280px,0.9fr)]">
+                            <div className="rounded border border-slate-800 bg-slate-950/50 p-4">
                               <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Today</div>
-                              <div className="text-[10px] uppercase tracking-widest text-slate-500">{new Date().toLocaleDateString()}</div>
-                            </div>
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {stewardshipJournal.todaySummary.length > 0 ? (
-                                stewardshipJournal.todaySummary.map((summary) => (
-                                  <span key={summary} className="rounded border border-sky-900/30 bg-sky-950/10 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-sky-200">
-                                    {summary}
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                {stewardshipJournal.todaySummary.length > 0 ? (
+                                  stewardshipJournal.todaySummary.map((summary) => (
+                                    <span key={summary} className="rounded border border-sky-900/30 bg-sky-950/10 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-sky-200">
+                                      {summary}
+                                    </span>
+                                  ))
+                                ) : (
+                                  <span className="rounded border border-slate-800 bg-slate-950/50 px-2 py-1 text-[10px] uppercase tracking-widest text-slate-500">
+                                    No movement recorded today
                                   </span>
-                                ))
-                              ) : (
-                                <span className="rounded border border-slate-800 bg-slate-950/50 px-2 py-1 text-[10px] uppercase tracking-widest text-slate-500">
-                                  No movement recorded today
-                                </span>
-                              )}
-                            </div>
-                            <div className="mt-4 flex flex-col gap-3">
-                              {stewardshipJournal.todayEntries.length === 0 ? (
-                                <div className="rounded border border-dashed border-slate-800 px-3 py-4 text-sm text-slate-500">
-                                  No movement recorded today. The last meaningful movement was {stewardshipJournal.lastMeaningfulMovement}
-                                </div>
-                              ) : (
-                                stewardshipJournal.todayEntries.map((entry) => (
-                                  <div key={`journal-today-${entry.id}`} className={`rounded border p-3 ${entry.toneClasses}`}>
-                                    <div className="flex flex-wrap items-center justify-between gap-2">
-                                      <div className="text-[10px] font-bold uppercase tracking-widest">{entry.label}</div>
-                                      <div className="text-[10px] uppercase tracking-widest text-slate-500">{formatTimestamp(entry.timestamp)}</div>
-                                    </div>
-                                    <div className="mt-2 text-sm font-bold text-slate-100">{entry.title}</div>
-                                    <div className="mt-2 text-sm text-slate-300">{entry.detail}</div>
+                                )}
+                              </div>
+                              <div className="mt-3 space-y-2">
+                                {stewardshipJournal.recentEntries.slice(0, 3).map((entry) => (
+                                  <div key={entry.id} className="rounded border border-slate-800 bg-slate-950/40 px-3 py-3 text-sm text-slate-300">
+                                    <div className="font-bold text-slate-200">{entry.title}</div>
+                                    <div className="mt-1">{entry.detail}</div>
                                   </div>
-                                ))
-                              )}
+                                ))}
+                              </div>
                             </div>
-                          </div>
 
-                          <div className="rounded border border-slate-800 bg-slate-950/60 p-4">
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Recent Movement</div>
-                              <button
-                                onClick={() => setProjectViewMode('overview')}
-                                className="rounded border border-slate-700 bg-slate-950/60 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-300 transition-colors hover:bg-slate-900/70"
-                              >
-                                Open Timeline
-                              </button>
-                            </div>
-                            <div className="mt-4 flex flex-col gap-3">
-                              {stewardshipJournal.recentEntries.length === 0 ? (
-                                <div className="rounded border border-dashed border-slate-800 px-3 py-4 text-sm text-slate-500">
-                                  No meaningful movement has been recorded yet.
-                                </div>
-                              ) : (
-                                stewardshipJournal.recentEntries.map((entry) => (
-                                  <div key={`journal-recent-${entry.id}`} className="rounded border border-slate-800 bg-slate-950/50 p-3">
-                                    <div className="flex flex-wrap items-center justify-between gap-2">
-                                      <div className="text-sm font-bold text-slate-100">{entry.title}</div>
-                                      <div className="text-[10px] uppercase tracking-widest text-slate-500">{formatTimestamp(entry.timestamp)}</div>
-                                    </div>
-                                    <div className="mt-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">{entry.label}</div>
-                                    <div className="mt-2 text-sm text-slate-300">{entry.detail}</div>
+                            <div className="rounded border border-emerald-900/30 bg-emerald-950/10 p-4">
+                              <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-300">Next Steps</div>
+                              <div className="mt-3 space-y-2">
+                                {stewardshipJournal.carryForward.map((line) => (
+                                  <div key={line} className="rounded border border-emerald-900/20 bg-slate-950/30 px-3 py-3 text-sm text-slate-200">
+                                    {line}
                                   </div>
-                                ))
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="rounded border border-emerald-900/30 bg-emerald-950/10 p-4">
-                            <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-300">Carry Forward</div>
-                            <div className="mt-2 text-sm text-slate-300">
-                              The next useful cues for resuming this project without rereading the full record.
-                            </div>
-                            <div className="mt-4 flex flex-col gap-3">
-                              {stewardshipJournal.carryForward.map((line) => (
-                                <div key={line} className="rounded border border-emerald-900/20 bg-slate-950/30 px-3 py-3 text-sm text-slate-200">
-                                  {line}
-                                </div>
-                              ))}
-                            </div>
-                            <div className="mt-4 rounded border border-slate-800 bg-slate-950/50 px-3 py-3 text-sm text-slate-400">
-                              Last meaningful movement: {stewardshipJournal.lastMeaningfulMovement}
+                                ))}
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
+                      </details>
                     </div>
                   </div>
                 </div>
 
                 <div className="flex min-h-0 flex-col">
                   <div className="border-b border-slate-800 px-5 py-4">
-                    <h3 className="text-xs font-bold uppercase tracking-widest text-slate-300">Auto-Draft Handoff</h3>
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-slate-300">Handoff</h3>
                     <p className="mt-1 text-xs text-slate-500">
-                      A markdown-ready handoff draft compiled from the project record, ready to copy, export, or save.
+                      Save checkpoints, compile the latest handoff, and copy the current project summary forward.
                     </p>
                   </div>
                   <div className="flex-1 overflow-y-auto p-5">
@@ -6139,65 +6534,61 @@ export default function ProjectsPage() {
                         </div>
                       </div>
 
-                      <div className={`rounded border p-4 ${reviewPacketDelta.status === 'changed' ? 'border-indigo-900/30 bg-indigo-950/10' : reviewPacketDelta.status === 'first_packet' ? 'border-slate-800 bg-slate-950/40' : 'border-emerald-900/30 bg-emerald-950/10'}`}>
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div>
-                            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">What Changed Since Last Packet</div>
-                            <div className="mt-1 text-sm font-bold text-slate-100">{reviewPacketDelta.summary}</div>
-                          </div>
-                          <span className="rounded border border-slate-700 bg-slate-950/60 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-300">
-                            {reviewPacketDelta.checkpointLabel}
-                          </span>
-                        </div>
-                        <div className="mt-3 rounded border border-slate-800 bg-slate-950/40 px-3 py-3 text-sm text-slate-300">
-                          {reviewPacketDelta.readinessImpact}
-                        </div>
-                        <div className="mt-3 space-y-2 text-sm text-slate-300">
-                          {reviewPacketDelta.changeLines.length === 0 ? (
-                            <div className="rounded border border-slate-800 bg-slate-950/40 px-3 py-3">
-                              No new review delta is recorded yet.
-                            </div>
-                          ) : (
-                            reviewPacketDelta.changeLines.map((line) => (
-                              <div key={line} className="rounded border border-slate-800 bg-slate-950/40 px-3 py-3">
-                                {line}
-                              </div>
-                            ))
-                          )}
-                        </div>
-                        <div className="mt-3 text-sm text-slate-400">
-                          Carry forward cue: {reviewPacketDelta.carryForwardCue}
-                        </div>
-                      </div>
-
                       <div className="rounded border border-slate-800 bg-slate-950/40 p-4">
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Draft Output</div>
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              onClick={handleCopyProjectHandoffMarkdown}
-                              className="rounded border border-slate-700 bg-slate-950/60 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-200 transition-colors hover:bg-slate-900/70"
-                            >
-                              Copy Markdown
-                            </button>
-                            <button
-                              onClick={handleExportProjectHandoffMarkdown}
-                              className="rounded border border-fuchsia-800 bg-fuchsia-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-fuchsia-300 transition-colors hover:bg-fuchsia-900/40"
-                            >
-                              Export Markdown
-                            </button>
-                            <button
-                              onClick={handleSaveProjectHandoffMarkdownArtifact}
-                              className="rounded border border-cyan-800 bg-cyan-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-cyan-300 transition-colors hover:bg-cyan-900/40"
-                            >
-                              Save Draft
-                            </button>
-                            <button
-                              onClick={handleGenerateShareableDossier}
-                              className="rounded border border-emerald-800 bg-emerald-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-emerald-300 transition-colors hover:bg-emerald-900/40"
-                            >
-                              Copy Shareable Link
-                            </button>
+                          <div>
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Dual Export</div>
+                            <div className="mt-1 text-xs text-slate-500">Use Markdown for people and JSON for agents from the same checkpoint-ready handoff.</div>
+                          </div>
+                        </div>
+                        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                          <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Markdown</div>
+                            <div className="mt-2 text-xs text-slate-500">Readable handoff for review, copy/paste, and printing.</div>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <button
+                                onClick={handleCopyProjectHandoffMarkdown}
+                                className="rounded border border-slate-700 bg-slate-950/60 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-200 transition-colors hover:bg-slate-900/70"
+                              >
+                                Copy Markdown
+                              </button>
+                              <button
+                                onClick={handleExportProjectHandoffMarkdown}
+                                className="rounded border border-fuchsia-800 bg-fuchsia-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-fuchsia-300 transition-colors hover:bg-fuchsia-900/40"
+                              >
+                                Export Markdown
+                              </button>
+                              <button
+                                onClick={handleSaveProjectHandoffMarkdownArtifact}
+                                className="rounded border border-cyan-800 bg-cyan-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-cyan-300 transition-colors hover:bg-cyan-900/40"
+                              >
+                                Save Draft
+                              </button>
+                            </div>
+                          </div>
+                          <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">JSON</div>
+                            <div className="mt-2 text-xs text-slate-500">Stable agent-readable export with project state, next action, evidence summary, and checkpoint delta.</div>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <button
+                                onClick={handleCopyProjectHandoffJson}
+                                className="rounded border border-slate-700 bg-slate-950/60 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-200 transition-colors hover:bg-slate-900/70"
+                              >
+                                Copy JSON
+                              </button>
+                              <button
+                                onClick={handleExportProjectHandoff}
+                                className="rounded border border-emerald-800 bg-emerald-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-emerald-300 transition-colors hover:bg-emerald-900/40"
+                              >
+                                Export JSON
+                              </button>
+                              <button
+                                onClick={handleGenerateShareableDossier}
+                                className="rounded border border-indigo-800 bg-indigo-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-indigo-300 transition-colors hover:bg-indigo-900/40"
+                              >
+                                Copy Share Link
+                              </button>
+                            </div>
                           </div>
                         </div>
                         <pre className="mt-4 max-h-[740px] overflow-auto whitespace-pre-wrap rounded border border-slate-800 bg-[#06090b] p-4 text-[12px] leading-6 text-slate-300">{buildProjectHandoffMarkdown()}</pre>
@@ -6266,7 +6657,7 @@ export default function ProjectsPage() {
                         </div>
                       )}
 
-                      <div>
+                      <div id="project-evidence-review">
                         <h4 className="mb-3 border-b border-slate-800/50 pb-1 text-[10px] uppercase tracking-widest text-slate-500">
                           Evidence Review
                         </h4>
@@ -6464,7 +6855,7 @@ export default function ProjectsPage() {
                       </div>
 
                       {/* Decisions Section */}
-                      <div>
+                      <div id="project-decisions">
                         <div className="mb-3 flex items-center justify-between border-b border-slate-800/50 pb-1">
                           <h4 className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">
                             Decisions
@@ -6546,7 +6937,7 @@ export default function ProjectsPage() {
                         )}
                       </div>
 
-                      <div>
+                      <div id="project-commitments">
                         <div className="mb-3 flex items-center justify-between border-b border-slate-800/50 pb-1">
                           <h4 className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">
                             Active Commitments
@@ -7009,7 +7400,7 @@ export default function ProjectsPage() {
               )}
 
               {projectViewMode === 'handoff' && (
-                <div className="flex min-h-0 flex-1 flex-col">
+                <div id="project-handoff-root" className="flex min-h-0 flex-1 flex-col">
                   <div className="border-b border-slate-800 px-5 py-4">
                     <h3 className="text-xs font-bold uppercase tracking-widest text-slate-300">Project Handoff</h3>
                     <p className="mt-1 text-xs text-slate-500">
