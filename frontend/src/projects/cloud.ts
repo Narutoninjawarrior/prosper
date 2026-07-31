@@ -69,11 +69,25 @@ export interface ProjectRoomComment {
   project_id: string;
   parent_type: ProjectRoomCommentParent;
   parent_id: string;
+  parent_comment_id?: string;
   body: string;
   author_uid: string;
   author_label: string;
   created_at: string;
   resolved: boolean;
+  optimistic?: boolean;
+}
+
+export interface ProjectRoomEvent {
+  id: string;
+  actor_uid: string;
+  actor_label: string;
+  action: string;
+  object_type: string;
+  object_id: string;
+  summary: string;
+  timestamp: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface PublishedHandoff {
@@ -413,6 +427,7 @@ export async function addProjectRoomComment(
   parentId: string,
   body: string,
   user: User,
+  parentCommentId?: string,
 ): Promise<CloudResult<string>> {
   const dbResult = getDbOrError();
   if (!dbResult.ok || !dbResult.value) return cloudError<string>(dbResult.error);
@@ -421,6 +436,7 @@ export async function addProjectRoomComment(
     project_id: roomId,
     parent_type: parentType,
     parent_id: parentId,
+    parent_comment_id: parentCommentId || null,
     body: body.trim(),
     author_uid: user.uid,
     author_label: userLabel(user),
@@ -431,9 +447,9 @@ export async function addProjectRoomComment(
     actor_uid: user.uid,
     actor_label: userLabel(user),
     action: 'comment_added',
-    object_type: parentType,
-    object_id: parentId,
-    summary: `${userLabel(user)} commented on ${parentType}.`,
+    object_type: parentCommentId ? 'comment' : parentType,
+    object_id: parentCommentId || parentId,
+    summary: parentCommentId ? `${userLabel(user)} replied to a comment.` : `${userLabel(user)} commented on ${parentType}.`,
     timestamp: createdAt,
   });
   return { ok: true, value: ref.id };
@@ -449,6 +465,21 @@ export function listenToProjectRoomComments(roomId: string, onComments: (comment
     query(collection(dbResult.value, 'project_rooms', roomId, 'comments'), orderBy('created_at', 'desc'), limit(50)),
     (snapshot) => {
       onComments(snapshot.docs.map((commentDoc) => ({ id: commentDoc.id, ...(commentDoc.data() as Omit<ProjectRoomComment, 'id'>) })));
+    },
+    (error) => onError(error.message),
+  );
+}
+
+export function listenToProjectRoomEvents(roomId: string, onEvents: (events: ProjectRoomEvent[]) => void, onError: (message: string) => void): Unsubscribe | null {
+  const dbResult = getDbOrError();
+  if (!dbResult.ok || !dbResult.value) {
+    onError(dbResult.error || 'Events are unavailable.');
+    return null;
+  }
+  return onSnapshot(
+    query(collection(dbResult.value, 'project_rooms', roomId, 'events'), orderBy('timestamp', 'desc'), limit(75)),
+    (snapshot) => {
+      onEvents(snapshot.docs.map((eventDoc) => ({ id: eventDoc.id, ...(eventDoc.data() as Omit<ProjectRoomEvent, 'id'>) })));
     },
     (error) => onError(error.message),
   );

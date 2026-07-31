@@ -138,6 +138,12 @@ service cloud.firestore {
         inviteDoc(token).data.expires_at_ms > request.time.toMillis();
     }
 
+    function validCommentParent(roomId) {
+      return !('parent_comment_id' in request.resource.data) ||
+        request.resource.data.parent_comment_id == null ||
+        exists(/databases/$(database)/documents/project_rooms/$(roomId)/comments/$(request.resource.data.parent_comment_id));
+    }
+
     match /project_rooms/{roomId} {
       allow read: if isProjectRoomMember(roomId);
       allow create: if signedIn() &&
@@ -182,7 +188,8 @@ service cloud.firestore {
         allow read: if isProjectRoomMember(roomId);
         allow create: if canReviewProjectRoom(roomId) &&
           request.resource.data.author_uid == request.auth.uid &&
-          request.resource.data.project_id == roomId;
+          request.resource.data.project_id == roomId &&
+          validCommentParent(roomId);
         allow update: if canReviewProjectRoom(roomId);
         allow delete: if canManageProjectRoom(roomId);
       }

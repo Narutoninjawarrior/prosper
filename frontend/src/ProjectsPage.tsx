@@ -15,6 +15,7 @@ import {
   fetchProjectInviteByToken,
   importLocalProjectRoom,
   listenToHostedProjectRooms,
+  listenToProjectRoomEvents,
   listenToProjectRoomComments,
   listProjectRoomInvites,
   permissionsForRole,
@@ -25,6 +26,7 @@ import {
   type CloudProjectRoom,
   type ProjectInvitePreview,
   type ProjectRoomComment,
+  type ProjectRoomEvent,
   type ProjectRoomInvite,
   type ProjectRoomRole,
 } from './projects/cloud';
@@ -3920,7 +3922,10 @@ export default function ProjectsPage() {
   const [inviteRole, setInviteRole] = useState<Exclude<ProjectRoomRole, 'owner'>>('reviewer');
   const [roomInvites, setRoomInvites] = useState<ProjectRoomInvite[]>([]);
   const [roomComments, setRoomComments] = useState<ProjectRoomComment[]>([]);
+  const [roomEvents, setRoomEvents] = useState<ProjectRoomEvent[]>([]);
   const [roomCommentBody, setRoomCommentBody] = useState('');
+  const [replyingToCommentId, setReplyingToCommentId] = useState<string | null>(null);
+  const [replyBody, setReplyBody] = useState('');
   const [lastPublishedHandoffUrl, setLastPublishedHandoffUrl] = useState('');
   const [inviteToken] = useState(() => new URLSearchParams(window.location.search).get('invite') || '');
   const [invitePreview, setInvitePreview] = useState<ProjectInvitePreview | null>(null);
@@ -4325,6 +4330,44 @@ export default function ProjectsPage() {
     () => deriveDeskNextAction(selectedProject, latestReviewPacket, handoffReadiness),
     [selectedProject, latestReviewPacket, handoffReadiness]
   );
+  const rootRoomComments = useMemo(
+    () => roomComments.filter((comment) => !comment.parent_comment_id),
+    [roomComments]
+  );
+  const roomRepliesByParent = useMemo(() => {
+    const grouped: Record<string, ProjectRoomComment[]> = {};
+    roomComments
+      .filter((comment) => Boolean(comment.parent_comment_id))
+      .forEach((comment) => {
+        const parentId = comment.parent_comment_id as string;
+        grouped[parentId] = [...(grouped[parentId] || []), comment];
+      });
+    Object.keys(grouped).forEach((parentId) => {
+      grouped[parentId] = grouped[parentId].sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at));
+    });
+    return grouped;
+  }, [roomComments]);
+  const roomTimeline = useMemo(() => {
+    const commentRows = roomComments.map((comment) => ({
+      id: `comment-${comment.id}`,
+      kind: 'comment' as const,
+      timestamp: comment.created_at,
+      title: comment.parent_comment_id ? `${comment.author_label} replied` : `${comment.author_label} commented`,
+      detail: comment.body,
+      accent: comment.optimistic ? 'border-indigo-900/40 bg-indigo-950/20 text-indigo-100' : 'border-slate-800 bg-slate-950/50 text-slate-300',
+    }));
+    const eventRows = roomEvents
+      .filter((event) => event.action !== 'comment_added')
+      .map((event) => ({
+        id: `event-${event.id}`,
+        kind: 'event' as const,
+        timestamp: event.timestamp,
+        title: event.action.replace(/_/g, ' '),
+        detail: event.summary,
+        accent: 'border-emerald-900/30 bg-emerald-950/10 text-emerald-100',
+      }));
+    return [...commentRows, ...eventRows].sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp));
+  }, [roomComments, roomEvents]);
   const isEarlyProject = useMemo(() => {
     if (!selectedProject) return false;
     return (
@@ -4404,6 +4447,21 @@ export default function ProjectsPage() {
       selectedHostedRoom.id,
       setRoomComments,
       (message) => setCloudActionMessage(`Comments unavailable: ${message}`),
+    );
+    return () => {
+      unsubscribe?.();
+    };
+  }, [authState.status, selectedHostedRoom]);
+
+  useEffect(() => {
+    if (!selectedHostedRoom || authState.status !== 'signed_in') {
+      window.setTimeout(() => setRoomEvents([]), 0);
+      return;
+    }
+    const unsubscribe = listenToProjectRoomEvents(
+      selectedHostedRoom.id,
+      setRoomEvents,
+      (message) => setCloudActionMessage(`Timeline unavailable: ${message}`),
     );
     return () => {
       unsubscribe?.();
@@ -4627,12 +4685,69 @@ export default function ProjectsPage() {
 
   const handlePostRoomComment = async () => {
     if (!selectedHostedRoom || !currentUser || !roomCommentBody.trim()) return;
-    const result = await addProjectRoomComment(selectedHostedRoom.id, 'project', selectedHostedRoom.id, roomCommentBody, currentUser);
+    const optimisticId = `optimistic_${Date.now()}`;
+    const optimisticComment: ProjectRoomComment = {
+      id: optimisticId,
+      project_id: selectedHostedRoom.id,
+      parent_type: 'project',
+      parent_id: selectedHostedRoom.id,
+      body: roomCommentBody.trim(),
+      author_uid: currentUser.uid,
+      author_label: currentUser.displayName || currentUser.email || currentUser.uid,
+      created_at: nowIso(),
+      resolved: false,
+      optimistic: true,
+    };
+    setRoomComments((current) => [optimisticComment, ...current]);
+    const submittedBody = roomCommentBody;
+    setRoomCommentBody('');
+    const result = await addProjectRoomComment(selectedHostedRoom.id, 'project', selectedHostedRoom.id, submittedBody, currentUser);
     if (result.ok) {
-      setRoomCommentBody('');
+      setRoomComments((current) => current.filter((comment) => comment.id !== optimisticId));
       setCloudActionMessage('Comment added to the hosted room.');
     } else {
+      setRoomComments((current) => current.filter((comment) => comment.id !== optimisticId));
+      setRoomCommentBody(submittedBody);
       setCloudActionMessage(result.error || 'Comment failed.');
+    }
+  };
+
+  const handlePostRoomReply = async (parentComment: ProjectRoomComment) => {
+    if (!selectedHostedRoom || !currentUser || !replyBody.trim()) return;
+    const optimisticId = `optimistic_reply_${Date.now()}`;
+    const optimisticReply: ProjectRoomComment = {
+      id: optimisticId,
+      project_id: selectedHostedRoom.id,
+      parent_type: parentComment.parent_type,
+      parent_id: parentComment.parent_id,
+      parent_comment_id: parentComment.id,
+      body: replyBody.trim(),
+      author_uid: currentUser.uid,
+      author_label: currentUser.displayName || currentUser.email || currentUser.uid,
+      created_at: nowIso(),
+      resolved: false,
+      optimistic: true,
+    };
+    setRoomComments((current) => [optimisticReply, ...current]);
+    const submittedBody = replyBody;
+    setReplyBody('');
+    setReplyingToCommentId(null);
+    const result = await addProjectRoomComment(
+      selectedHostedRoom.id,
+      parentComment.parent_type,
+      parentComment.parent_id,
+      submittedBody,
+      currentUser,
+      parentComment.id,
+    );
+    if (result.ok) {
+      setRoomComments((current) => current.filter((comment) => comment.id !== optimisticId));
+      setCloudActionMessage('Reply added to the hosted room.');
+    } else {
+      setRoomComments((current) => current.filter((comment) => comment.id !== optimisticId));
+      setReplyBody(submittedBody);
+      setReplyingToCommentId(parentComment.id);
+      setCloudActionMessage(result.error || 'Reply failed.');
     }
   };
 
@@ -6411,10 +6526,10 @@ export default function ProjectsPage() {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Client Review</div>
-                  <div className="mt-1 text-sm font-bold text-slate-100">Invites and comments</div>
+                  <div className="mt-1 text-sm font-bold text-slate-100">Invites, threads, and timeline</div>
                 </div>
                 <span className="rounded border border-slate-800 px-2 py-1 text-[10px] uppercase tracking-widest text-slate-400">
-                  {roomComments.length} comment{roomComments.length === 1 ? '' : 's'}
+                  {rootRoomComments.length} thread{rootRoomComments.length === 1 ? '' : 's'}
                 </span>
               </div>
               {selectedHostedRoom ? (
@@ -6461,25 +6576,118 @@ export default function ProjectsPage() {
                     <input
                       value={roomCommentBody}
                       onChange={(event) => setRoomCommentBody(event.target.value)}
-                      placeholder="Add a room comment for reviewers..."
+                      placeholder="Start a review thread..."
                       className="rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-500"
                     />
                     <button
                       onClick={handlePostRoomComment}
-                      disabled={!selectedRoomPermissions.canComment}
+                      disabled={!selectedRoomPermissions.canComment || !roomCommentBody.trim()}
                       className="rounded border border-slate-700 bg-slate-900 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
                     >
-                      Comment
+                      Start Thread
                     </button>
                   </div>
-                  {roomComments.length > 0 && (
-                    <div className="mt-3 max-h-24 overflow-y-auto rounded border border-slate-800 bg-slate-950/50">
-                      {roomComments.slice(0, 4).map((comment) => (
-                        <div key={comment.id} className="border-b border-slate-800/70 px-3 py-2 text-xs last:border-b-0">
-                          <div className="font-bold text-slate-200">{comment.author_label}</div>
-                          <div className="mt-1 text-slate-400">{comment.body}</div>
-                        </div>
-                      ))}
+                  {rootRoomComments.length > 0 && (
+                    <div className="mt-3 rounded border border-slate-800 bg-slate-950/50">
+                      <div className="border-b border-slate-800 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                        Review Threads
+                      </div>
+                      <div className="max-h-52 overflow-y-auto">
+                        {rootRoomComments.slice(0, 5).map((comment) => (
+                          <div key={comment.id} className="border-b border-slate-800/70 px-3 py-2 text-xs last:border-b-0">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="font-bold text-slate-200">{comment.author_label}</div>
+                              <div className="text-[10px] uppercase tracking-widest text-slate-500">
+                                {new Date(comment.created_at).toLocaleString()}
+                              </div>
+                            </div>
+                            <div className="mt-1 whitespace-pre-wrap text-slate-400">{comment.body}</div>
+                            {comment.optimistic && (
+                              <div className="mt-1 text-[10px] font-bold uppercase tracking-widest text-indigo-300">Sending...</div>
+                            )}
+                            {(roomRepliesByParent[comment.id] || []).length > 0 && (
+                              <div className="mt-2 space-y-2 border-l border-slate-800 pl-3">
+                                {(roomRepliesByParent[comment.id] || []).map((reply) => (
+                                  <div key={reply.id} className="rounded border border-slate-800/80 bg-slate-900/40 px-2 py-1.5">
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                      <div className="font-bold text-slate-300">{reply.author_label}</div>
+                                      <div className="text-[10px] uppercase tracking-widest text-slate-500">
+                                        {new Date(reply.created_at).toLocaleString()}
+                                      </div>
+                                    </div>
+                                    <div className="mt-1 whitespace-pre-wrap text-slate-400">{reply.body}</div>
+                                    {reply.optimistic && (
+                                      <div className="mt-1 text-[10px] font-bold uppercase tracking-widest text-indigo-300">Sending...</div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {replyingToCommentId === comment.id ? (
+                              <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr),auto,auto]">
+                                <input
+                                  value={replyBody}
+                                  onChange={(event) => setReplyBody(event.target.value)}
+                                  placeholder="Reply to this thread..."
+                                  className="rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-100 outline-none focus:border-emerald-500"
+                                />
+                                <button
+                                  onClick={() => handlePostRoomReply(comment)}
+                                  disabled={!selectedRoomPermissions.canComment || !replyBody.trim()}
+                                  className="rounded border border-emerald-900/60 bg-emerald-950/20 px-2 py-1.5 text-[10px] font-bold uppercase tracking-widest text-emerald-200 hover:bg-emerald-950/40 disabled:cursor-not-allowed disabled:opacity-40"
+                                >
+                                  Reply
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setReplyingToCommentId(null);
+                                    setReplyBody('');
+                                  }}
+                                  className="rounded border border-slate-700 px-2 py-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-slate-200"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => {
+                                  setReplyingToCommentId(comment.id);
+                                  setReplyBody('');
+                                }}
+                                disabled={!selectedRoomPermissions.canComment}
+                                className="mt-2 text-[10px] font-bold uppercase tracking-widest text-emerald-300 hover:text-emerald-200 disabled:cursor-not-allowed disabled:opacity-40"
+                              >
+                                Reply
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {roomTimeline.length > 0 && (
+                    <div className="mt-3 rounded border border-slate-800 bg-slate-950/50">
+                      <div className="border-b border-slate-800 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                        Room Timeline
+                      </div>
+                      <div className="max-h-40 overflow-y-auto">
+                        {roomTimeline.slice(0, 8).map((item) => (
+                          <div key={item.id} className={`border-b px-3 py-2 text-xs last:border-b-0 ${item.accent}`}>
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="font-bold capitalize">{item.title}</div>
+                              <div className="text-[10px] uppercase tracking-widest opacity-70">
+                                {new Date(item.timestamp).toLocaleString()}
+                              </div>
+                            </div>
+                            <div className="mt-1 whitespace-pre-wrap opacity-80">{item.detail}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {rootRoomComments.length === 0 && roomTimeline.length === 0 && (
+                    <div className="mt-3 rounded border border-dashed border-slate-800 px-3 py-4 text-xs text-slate-500">
+                      No review threads or room events yet. Start a thread when a reviewer needs context.
                     </div>
                   )}
                 </>
