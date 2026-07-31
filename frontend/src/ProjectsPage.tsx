@@ -18,18 +18,21 @@ import {
   listenToProjectRoomMembers,
   listenToProjectRoomEvents,
   listenToProjectRoomComments,
+  listenToProjectRoomPresence,
   listProjectRoomInvites,
   permissionsForRole,
   publishProjectHandoff,
   revokeProjectRoomInvite,
   revokePublishedHandoff,
   syncProjectRoom,
+  writeProjectRoomPresence,
   type CloudProjectRoom,
   type ProjectInvitePreview,
   type ProjectRoomComment,
   type ProjectRoomEvent,
   type ProjectRoomInvite,
   type ProjectRoomMember,
+  type ProjectRoomPresence,
   type ProjectRoomRole,
 } from './projects/cloud';
 
@@ -1910,6 +1913,8 @@ type ResolvedRoomIdentity = {
   role?: ProjectRoomRole;
   honorTier?: string;
   skillTags: string[];
+  presenceStatus?: 'online' | 'recent' | 'offline';
+  lastActiveMs?: number;
 };
 
 const identityInitials = (label: string) => {
@@ -1922,11 +1927,15 @@ const identityInitials = (label: string) => {
 const resolveRoomIdentity = (
   uidValue: string,
   fallbackLabel: string,
-  membersByUid: Record<string, ProjectRoomMember>
+  membersByUid: Record<string, ProjectRoomMember>,
+  presenceByUid: Record<string, ProjectRoomPresence> = {}
 ): ResolvedRoomIdentity => {
   const member = membersByUid[uidValue];
+  const presence = presenceByUid[uidValue];
+  const isOnline = Boolean(presence && presence.status === 'online' && Date.now() - presence.last_active_ms < 90000);
+  const isRecent = Boolean(presence && presence.status === 'online' && Date.now() - presence.last_active_ms < 5 * 60 * 1000);
   const handle = member?.moltbook_handle?.trim() || undefined;
-  const displayName = member?.display_name?.trim() || fallbackLabel?.trim() || uidValue || 'Member';
+  const displayName = member?.display_name?.trim() || presence?.display_name?.trim() || fallbackLabel?.trim() || uidValue || 'Member';
   const label = handle ? `@${handle.replace(/^@/, '')}` : displayName;
   return {
     uid: uidValue,
@@ -1937,6 +1946,8 @@ const resolveRoomIdentity = (
     role: member?.role,
     honorTier: member?.honor_tier?.trim() || undefined,
     skillTags: member?.skill_tags || [],
+    presenceStatus: isOnline ? 'online' : isRecent ? 'recent' : presence ? 'offline' : undefined,
+    lastActiveMs: presence?.last_active_ms,
   };
 };
 
@@ -1947,6 +1958,9 @@ function RoomIdentityBadge({ identity }: { identity: ResolvedRoomIdentity }) {
         <span className="flex h-6 w-6 items-center justify-center rounded-full border border-emerald-900/60 bg-emerald-950/30 text-[10px] uppercase tracking-widest text-emerald-200">
           {identity.initials}
         </span>
+        {identity.presenceStatus === 'online' && (
+          <span className="-ml-3 mt-4 h-2.5 w-2.5 rounded-full border border-slate-950 bg-emerald-400" aria-label="Online" />
+        )}
         <span>{identity.label}</span>
         {identity.role && (
           <span className="rounded-full border border-slate-800 px-1.5 py-0.5 text-[9px] uppercase tracking-widest text-slate-500">
@@ -1959,6 +1973,16 @@ function RoomIdentityBadge({ identity }: { identity: ResolvedRoomIdentity }) {
         <div className="mt-1 text-[10px] uppercase tracking-widest text-slate-500">
           {identity.role ? `${identity.role} member` : 'Room member'}
         </div>
+        {identity.presenceStatus && (
+          <div className="mt-2 text-slate-300">
+            <span className="text-slate-500">Presence:</span> {identity.presenceStatus === 'online' ? 'Here now' : identity.presenceStatus === 'recent' ? 'Recently active' : 'Offline'}
+          </div>
+        )}
+        {identity.lastActiveMs ? (
+          <div className="mt-1 text-[10px] text-slate-500">
+            Last active {new Date(identity.lastActiveMs).toLocaleString()}
+          </div>
+        ) : null}
         {identity.honorTier && (
           <div className="mt-2 text-slate-300">
             <span className="text-slate-500">Honor tier:</span> {identity.honorTier}
@@ -4013,6 +4037,7 @@ export default function ProjectsPage() {
   const [roomMembers, setRoomMembers] = useState<ProjectRoomMember[]>([]);
   const [roomComments, setRoomComments] = useState<ProjectRoomComment[]>([]);
   const [roomEvents, setRoomEvents] = useState<ProjectRoomEvent[]>([]);
+  const [roomPresence, setRoomPresence] = useState<ProjectRoomPresence[]>([]);
   const [roomCommentBody, setRoomCommentBody] = useState('');
   const [replyingToCommentId, setReplyingToCommentId] = useState<string | null>(null);
   const [replyBody, setReplyBody] = useState('');
@@ -4270,6 +4295,28 @@ export default function ProjectsPage() {
         return acc;
       }, {}),
     [roomMembers]
+  );
+  const roomPresenceByUid = useMemo(
+    () =>
+      roomPresence.reduce<Record<string, ProjectRoomPresence>>((acc, presence) => {
+        acc[presence.uid] = presence;
+        return acc;
+      }, {}),
+    [roomPresence]
+  );
+  const activeRoomPresence = useMemo(
+    () =>
+      roomPresence
+        .filter((presence) => presence.status === 'online' && Date.now() - presence.last_active_ms < 90 * 1000)
+        .sort((a, b) => b.last_active_ms - a.last_active_ms),
+    [roomPresence]
+  );
+  const recentRoomPresence = useMemo(
+    () =>
+      roomPresence
+        .filter((presence) => presence.status === 'online' && Date.now() - presence.last_active_ms >= 90 * 1000 && Date.now() - presence.last_active_ms < 5 * 60 * 1000)
+        .sort((a, b) => b.last_active_ms - a.last_active_ms),
+    [roomPresence]
   );
   const currentRoomMember = useMemo(
     () => (authState.status === 'signed_in' ? roomMembersByUid[authState.user.uid] || null : null),
@@ -4591,6 +4638,58 @@ export default function ProjectsPage() {
       unsubscribe?.();
     };
   }, [authState.status, selectedHostedRoom]);
+
+  useEffect(() => {
+    if (!selectedHostedRoom || authState.status !== 'signed_in') {
+      window.setTimeout(() => setRoomPresence([]), 0);
+      return;
+    }
+    const unsubscribe = listenToProjectRoomPresence(
+      selectedHostedRoom.id,
+      setRoomPresence,
+      (message) => setCloudActionMessage(`Presence unavailable: ${message}`),
+    );
+    return () => {
+      unsubscribe?.();
+    };
+  }, [authState.status, selectedHostedRoom]);
+
+  useEffect(() => {
+    if (!selectedHostedRoom || authState.status !== 'signed_in') return;
+    let closed = false;
+    const roomId = selectedHostedRoom.id;
+    const user = authState.user;
+    const markOnline = () => {
+      if (!closed && document.visibilityState !== 'hidden') {
+        void writeProjectRoomPresence(roomId, user, 'online');
+      }
+    };
+    const markOffline = () => {
+      void writeProjectRoomPresence(roomId, user, 'offline');
+    };
+
+    markOnline();
+    const interval = window.setInterval(markOnline, 30000);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        markOffline();
+      } else {
+        markOnline();
+      }
+    };
+    window.addEventListener('pagehide', markOffline);
+    window.addEventListener('beforeunload', markOffline);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      closed = true;
+      window.clearInterval(interval);
+      window.removeEventListener('pagehide', markOffline);
+      window.removeEventListener('beforeunload', markOffline);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      markOffline();
+    };
+  }, [authState, selectedHostedRoom]);
 
   useEffect(() => {
     if (!selectedProject) {
@@ -6633,6 +6732,43 @@ export default function ProjectsPage() {
               <div className="mt-3 text-xs leading-5 text-slate-400">
                 Browser projects stay on this device until you import them. Hosted rooms preserve a cloud copy for client review, comments, and published handoff links.
               </div>
+              {selectedHostedRoom && (
+                <div className="mt-3 rounded border border-slate-800 bg-slate-950/50 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Who's Here</div>
+                      <div className="mt-1 text-xs text-slate-400">
+                        {activeRoomPresence.length > 0
+                          ? `${activeRoomPresence.length} member${activeRoomPresence.length === 1 ? '' : 's'} active now`
+                          : recentRoomPresence.length > 0
+                            ? `${recentRoomPresence.length} member${recentRoomPresence.length === 1 ? '' : 's'} recently active`
+                            : 'No active room presence yet.'}
+                      </div>
+                    </div>
+                    <div className="flex -space-x-2">
+                      {(activeRoomPresence.length > 0 ? activeRoomPresence : recentRoomPresence).slice(0, 6).map((presence) => {
+                        const identity = resolveRoomIdentity(presence.uid, presence.display_name, roomMembersByUid, roomPresenceByUid);
+                        return (
+                          <div
+                            key={presence.uid}
+                            className={`flex h-9 w-9 items-center justify-center rounded-full border bg-slate-950 text-[10px] font-bold uppercase tracking-widest ${
+                              identity.presenceStatus === 'online'
+                                ? 'border-emerald-500 text-emerald-200'
+                                : 'border-slate-700 text-slate-400'
+                            }`}
+                            title={`${identity.label} - ${identity.presenceStatus === 'online' ? 'here now' : 'recently active'}`}
+                          >
+                            {identity.initials}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="mt-2 text-[10px] leading-4 text-slate-500">
+                    Firestore presence is freshness-based: active under 90 seconds, recently active under 5 minutes. Hard disconnect cleanup requires a later Realtime Database presence bridge.
+                  </div>
+                </div>
+              )}
               {(lastPublishedHandoffUrl || selectedHostedRoom?.current_handoff_token) && (
                 <div className="mt-3 rounded border border-indigo-900/40 bg-indigo-950/20 p-2 text-xs text-indigo-100">
                   <div className="font-bold uppercase tracking-widest text-indigo-300">Current Handoff Link</div>
@@ -6718,7 +6854,7 @@ export default function ProjectsPage() {
                       </div>
                       <div className="max-h-52 overflow-y-auto">
                         {rootRoomComments.slice(0, 5).map((comment) => {
-                          const identity = resolveRoomIdentity(comment.author_uid, comment.author_label, roomMembersByUid);
+                          const identity = resolveRoomIdentity(comment.author_uid, comment.author_label, roomMembersByUid, roomPresenceByUid);
                           return (
                             <div key={comment.id} className="border-b border-slate-800/70 px-3 py-2 text-xs last:border-b-0">
                               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -6734,7 +6870,7 @@ export default function ProjectsPage() {
                               {(roomRepliesByParent[comment.id] || []).length > 0 && (
                                 <div className="mt-2 space-y-2 border-l border-slate-800 pl-3">
                                   {(roomRepliesByParent[comment.id] || []).map((reply) => {
-                                    const replyIdentity = resolveRoomIdentity(reply.author_uid, reply.author_label, roomMembersByUid);
+                                    const replyIdentity = resolveRoomIdentity(reply.author_uid, reply.author_label, roomMembersByUid, roomPresenceByUid);
                                     return (
                                       <div key={reply.id} className="rounded border border-slate-800/80 bg-slate-900/40 px-2 py-1.5">
                                         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -6802,7 +6938,7 @@ export default function ProjectsPage() {
                       </div>
                       <div className="max-h-40 overflow-y-auto">
                         {roomTimeline.slice(0, 8).map((item) => {
-                          const identity = resolveRoomIdentity(item.actorUid, item.fallbackLabel, roomMembersByUid);
+                          const identity = resolveRoomIdentity(item.actorUid, item.fallbackLabel, roomMembersByUid, roomPresenceByUid);
                           return (
                             <div key={item.id} className={`border-b px-3 py-2 text-xs last:border-b-0 ${item.accent}`}>
                               <div className="flex flex-wrap items-center justify-between gap-2">

@@ -176,6 +176,20 @@ service cloud.firestore {
         ]);
     }
 
+    function validPresenceShape(memberId) {
+      return request.resource.data.keys().hasOnly([
+        'uid',
+        'display_name',
+        'status',
+        'last_active_ms',
+        'updated_at'
+      ]) &&
+      memberId == request.auth.uid &&
+      request.resource.data.uid == request.auth.uid &&
+      request.resource.data.status in ['online', 'offline'] &&
+      request.resource.data.last_active_ms is number;
+    }
+
     match /project_rooms/{roomId} {
       allow read: if isProjectRoomMember(roomId);
       allow create: if signedIn() &&
@@ -235,6 +249,12 @@ service cloud.firestore {
         allow read: if isProjectRoomMember(roomId);
         allow create: if canReviewProjectRoom(roomId);
         allow update, delete: if false;
+      }
+
+      match /presence/{memberId} {
+        allow read: if isProjectRoomMember(roomId);
+        allow create, update: if isProjectRoomMember(roomId) && validPresenceShape(memberId);
+        allow delete: if canManageProjectRoom(roomId) || (signedIn() && memberId == request.auth.uid);
       }
     }
 

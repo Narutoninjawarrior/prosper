@@ -94,6 +94,13 @@ export interface ProjectRoomEvent {
   metadata?: Record<string, unknown>;
 }
 
+export interface ProjectRoomPresence {
+  uid: string;
+  display_name: string;
+  status: 'online' | 'offline';
+  last_active_ms: number;
+}
+
 export interface PublishedHandoff {
   token: string;
   project_id: string;
@@ -524,6 +531,46 @@ export function listenToProjectRoomEvents(roomId: string, onEvents: (events: Pro
     },
     (error) => onError(error.message),
   );
+}
+
+export function listenToProjectRoomPresence(roomId: string, onPresence: (presence: ProjectRoomPresence[]) => void, onError: (message: string) => void): Unsubscribe | null {
+  const dbResult = getDbOrError();
+  if (!dbResult.ok || !dbResult.value) {
+    onError(dbResult.error || 'Presence is unavailable.');
+    return null;
+  }
+  return onSnapshot(
+    query(collection(dbResult.value, 'project_rooms', roomId, 'presence'), orderBy('last_active_ms', 'desc'), limit(50)),
+    (snapshot) => {
+      onPresence(snapshot.docs.map((presenceDoc) => {
+        const data = presenceDoc.data() as Partial<ProjectRoomPresence>;
+        return {
+          uid: typeof data.uid === 'string' ? data.uid : presenceDoc.id,
+          display_name: typeof data.display_name === 'string' ? data.display_name : presenceDoc.id,
+          status: data.status === 'offline' ? 'offline' : 'online',
+          last_active_ms: typeof data.last_active_ms === 'number' ? data.last_active_ms : 0,
+        };
+      }));
+    },
+    (error) => onError(error.message),
+  );
+}
+
+export async function writeProjectRoomPresence(roomId: string, user: User, status: 'online' | 'offline' = 'online'): Promise<CloudResult<string>> {
+  const dbResult = getDbOrError();
+  if (!dbResult.ok || !dbResult.value) return cloudError<string>(dbResult.error);
+  await setDoc(
+    doc(dbResult.value, 'project_rooms', roomId, 'presence', user.uid),
+    {
+      uid: user.uid,
+      display_name: userLabel(user),
+      status,
+      last_active_ms: Date.now(),
+      updated_at: serverTimestamp(),
+    },
+    { merge: true },
+  );
+  return { ok: true, value: user.uid };
 }
 
 export async function publishProjectHandoff(
