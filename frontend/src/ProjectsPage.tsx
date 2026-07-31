@@ -1,4 +1,30 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import type { User } from 'firebase/auth';
+import {
+  createProjectRoomAccount,
+  listenToProjectAuth,
+  signInProjectRoom,
+  signInProjectRoomWithGoogle,
+  signOutProjectRoom,
+  type ProjectAuthState,
+} from './projects/auth';
+import {
+  addProjectRoomComment,
+  createProjectRoomInvite,
+  importLocalProjectRoom,
+  listenToHostedProjectRooms,
+  listenToProjectRoomComments,
+  listProjectRoomInvites,
+  permissionsForRole,
+  publishProjectHandoff,
+  revokeProjectRoomInvite,
+  revokePublishedHandoff,
+  syncProjectRoom,
+  type CloudProjectRoom,
+  type ProjectRoomComment,
+  type ProjectRoomInvite,
+  type ProjectRoomRole,
+} from './projects/cloud';
 
 export type MessageTag = 'useful' | 'question' | 'warning' | 'none';
 export type ProjectActivityKind = 
@@ -71,6 +97,8 @@ export interface ProjectArtifact {
   review_state?: ArtifactReviewState;
   review_signal?: ArtifactReviewSignal;
   review_note?: string;
+  signed_by?: string;
+  signature?: string;
 }
 
 export interface ProjectDecision {
@@ -81,6 +109,8 @@ export interface ProjectDecision {
   decision_state: DecisionState;
   artifact_id?: string;
   impact_note?: string;
+  signed_by?: string;
+  signature?: string;
 }
 
 export interface ProjectCommitment {
@@ -97,6 +127,8 @@ export interface ProjectCommitment {
   confidence?: 'high' | 'medium' | 'low';
   work_package?: string;
   constraints?: string;
+  signed_by?: string;
+  signature?: string;
 }
 
 export interface ProjectCaptureItem {
@@ -139,6 +171,9 @@ export interface ProjectReviewPacket {
   title: string;
   markdown: string;
   snapshot: ProjectReviewPacketSnapshot;
+  why_it_changed?: string;
+  signer_handle?: string;
+  signer_signature?: string;
 }
 
 export interface ProjectContext {
@@ -149,6 +184,30 @@ export interface ProjectContext {
   footprint?: string;
   maximum_reach_m?: number;
   validation_status?: string;
+}
+
+export type ProjectContextType = 'constraint' | 'decision' | 'assumption' | 'requirement' | 'warning' | 'working_note';
+export type ProjectContextState = 'proposed' | 'accepted' | 'rejected' | 'superseded';
+
+export interface ProjectContextItem {
+  id: string;
+  project_id: string;
+  title: string;
+  body: string;
+  context_type: ProjectContextType;
+  context_state: ProjectContextState;
+  created_at: string;
+  updated_at: string;
+  actor_type: 'user' | 'agent' | 'system' | string;
+  actor_name?: string;
+  source_type: 'evidence' | 'decision' | 'commitment' | 'capture' | 'feedback' | 'working_change' | string;
+  source_id?: string;
+  evidence_ids?: string[];
+  supersedes_id?: string;
+  review_note?: string;
+  reviewed_at?: string;
+  signed_by?: string;
+  signature?: string;
 }
 
 export interface Project {
@@ -167,6 +226,7 @@ export interface Project {
   capture_items?: ProjectCaptureItem[];
   review_packets?: ProjectReviewPacket[];
   context?: ProjectContext;
+  context_items?: ProjectContextItem[];
   next_step?: string;
 }
 
@@ -205,7 +265,7 @@ interface DerivedProjectBrief {
   artifactReadiness: string[];
 }
 
-type ProjectViewMode = 'desk' | 'overview' | 'frames' | 'room' | 'review' | 'handoff';
+type ProjectViewMode = 'desk' | 'overview' | 'frames' | 'room' | 'review' | 'handoff' | 'context';
 
 interface ProjectRoomObject {
   id: string;
@@ -2239,6 +2299,32 @@ function deriveActivity(
   return derived.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 }
 
+function normalizeContextItems(contextItems: unknown): ProjectContextItem[] {
+  if (!Array.isArray(contextItems)) return [];
+  return contextItems.map((item: any, idx: number) => {
+    return {
+      id: item.id || `context_${idx}_${Date.now()}`,
+      project_id: item.project_id || '',
+      title: item.title || '',
+      body: item.body || '',
+      context_type: item.context_type || 'working_note',
+      context_state: item.context_state || 'proposed',
+      created_at: item.created_at || nowIso(),
+      updated_at: item.updated_at || nowIso(),
+      actor_type: item.actor_type || 'system',
+      actor_name: item.actor_name,
+      source_type: item.source_type || 'capture',
+      source_id: item.source_id,
+      evidence_ids: Array.isArray(item.evidence_ids) ? item.evidence_ids : [],
+      supersedes_id: item.supersedes_id,
+      review_note: item.review_note,
+      reviewed_at: item.reviewed_at,
+      signed_by: item.signed_by,
+      signature: item.signature
+    };
+  });
+}
+
 function normalizeProject(project: unknown, index: number): Project {
   const item = project as Partial<Project>;
   const artifacts = normalizeArtifacts(item.artifacts);
@@ -2247,6 +2333,7 @@ function normalizeProject(project: unknown, index: number): Project {
   const commitments = normalizeCommitments(item.commitments);
   const captureItems = normalizeCaptureItems(item.capture_items);
   const reviewPackets = normalizeReviewPackets(item.review_packets);
+  const contextItems = normalizeContextItems(item.context_items);
   const updatedAt = typeof item.updated_at === 'string' ? item.updated_at : nowIso();
   return {
     id: item.id || `project_${index}`,
@@ -2262,6 +2349,7 @@ function normalizeProject(project: unknown, index: number): Project {
     commitments,
     capture_items: captureItems,
     review_packets: reviewPackets,
+    context_items: contextItems,
     activity: deriveActivity(item.activity, messages, artifacts, updatedAt, typeof item.category === 'string' ? item.category : 'workbench'),
     context: item.context && typeof item.context === 'object' ? item.context : undefined,
     next_step: typeof item.next_step === 'string' ? item.next_step : ''
@@ -3093,7 +3181,9 @@ export function useProjects() {
     rationale: string,
     decisionState: DecisionState,
     artifactId?: string,
-    impactNote?: string
+    impactNote?: string,
+    signedBy?: string,
+    signature?: string
   ) => {
     const timestamp = nowIso();
     const updated = projects.map((project) => {
@@ -3106,7 +3196,9 @@ export function useProjects() {
         rationale,
         decision_state: decisionState,
         artifact_id: artifactId || undefined,
-        impact_note: impactNote || undefined
+        impact_note: impactNote || undefined,
+        signed_by: signedBy,
+        signature: signature
       };
 
       // Determine activity kind
@@ -3357,7 +3449,34 @@ export function useProjects() {
     saveProjects(updated);
   };
 
-  const promoteCaptureToArtifact = (projectId: string, captureId: string) => {
+  const promoteCapture = (
+    projectId: string,
+    captureId: string,
+    targetType: 'artifact' | 'decision' | 'commitment' | 'context',
+    metadata: {
+      signedBy: string;
+      signature: string;
+      artifactType?: string;
+      artifactTitle?: string;
+      artifactSummary?: string;
+      decisionTitle?: string;
+      decisionRationale?: string;
+      decisionState?: DecisionState;
+      decisionImpact?: string;
+      commitmentTitle?: string;
+      commitmentRationale?: string;
+      commitmentNextAction?: string;
+      commitmentDoneWhen?: string;
+      commitmentState?: CommitmentState;
+      commitmentConfidence?: 'high' | 'medium' | 'low';
+      commitmentBlockerNote?: string;
+      commitmentWorkPackage?: string;
+      commitmentConstraints?: string;
+      contextTitle?: string;
+      contextBody?: string;
+      contextType?: ProjectContextType;
+    }
+  ) => {
     const timestamp = nowIso();
     const updated = projects.map((project) => {
       if (project.id !== projectId) return project;
@@ -3367,39 +3486,127 @@ export function useProjects() {
         return project;
       }
 
-      const newArtifact: ProjectArtifact = {
-        id: `artifact_${Date.now()}`,
-        type: currentCapture.capture_type,
-        title: currentCapture.title,
-        summary: currentCapture.note || currentCapture.content,
-        source_lane: 'projects',
-        review_state: 'unreviewed',
-        review_signal: 'clear',
-        review_note: currentCapture.note,
-        timestamp
-      };
+      let updatedProject = { ...project };
 
-      return {
-        ...project,
-        updated_at: timestamp,
-        artifacts: [...(project.artifacts || []), newArtifact],
-        capture_items: (project.capture_items || []).map((capture) =>
-          capture.id === captureId ? { ...capture, capture_state: 'promoted' as const } : capture
-        ),
-        activity: [
+      if (targetType === 'artifact') {
+        const newArtifact: ProjectArtifact = {
+          id: `artifact_${Date.now()}`,
+          type: metadata.artifactType || currentCapture.capture_type,
+          title: metadata.artifactTitle || currentCapture.title,
+          summary: metadata.artifactSummary || currentCapture.note || currentCapture.content,
+          source_lane: 'projects',
+          review_state: 'unreviewed',
+          review_signal: 'clear',
+          review_note: currentCapture.note,
+          signed_by: metadata.signedBy,
+          signature: metadata.signature,
+          timestamp
+        };
+        updatedProject.artifacts = [...(project.artifacts || []), newArtifact];
+        updatedProject.activity = [
           ...(project.activity || []),
           {
             id: `act_${Date.now()}`,
             kind: 'artifact_added' as const,
-            title: 'Inbox item promoted',
-            detail: `${currentCapture.title} promoted to artifact.`,
+            title: 'Artifact Promoted (Signed)',
+            detail: `${newArtifact.title} promoted from capture, signed by ${metadata.signedBy}.`,
             timestamp
           }
-        ]
-      };
+        ];
+      } else if (targetType === 'decision') {
+        const newDecision: ProjectDecision = {
+          id: `dec_${Date.now()}`,
+          timestamp,
+          title: metadata.decisionTitle || currentCapture.title,
+          rationale: metadata.decisionRationale || currentCapture.content,
+          decision_state: metadata.decisionState || 'accepted',
+          impact_note: metadata.decisionImpact || undefined,
+          signed_by: metadata.signedBy,
+          signature: metadata.signature
+        };
+        updatedProject.decisions = [...(project.decisions || []), newDecision];
+        updatedProject.activity = [
+          ...(project.activity || []),
+          {
+            id: `act_${Date.now()}`,
+            kind: (metadata.decisionState === 'accepted' ? 'decision_accepted' : 'decision_proposed') as ProjectActivityKind,
+            title: `Decision Promoted & ${metadata.decisionState || 'accepted'} (Signed)`,
+            detail: `${newDecision.title} promoted from capture, signed by ${metadata.signedBy}.`,
+            timestamp
+          }
+        ];
+      } else if (targetType === 'commitment') {
+        const newCommitment: ProjectCommitment = {
+          id: `commitment_${Date.now()}`,
+          title: metadata.commitmentTitle || currentCapture.title,
+          timestamp,
+          commitment_state: metadata.commitmentState || 'active',
+          rationale: metadata.commitmentRationale || currentCapture.content,
+          next_action: metadata.commitmentNextAction || '',
+          done_when: metadata.commitmentDoneWhen || '',
+          confidence: metadata.commitmentConfidence || 'medium',
+          blocker_note: metadata.commitmentBlockerNote || undefined,
+          work_package: metadata.commitmentWorkPackage || undefined,
+          constraints: metadata.commitmentConstraints || undefined,
+          signed_by: metadata.signedBy,
+          signature: metadata.signature
+        };
+        updatedProject.commitments = [...(project.commitments || []), newCommitment];
+        updatedProject.activity = [
+          ...(project.activity || []),
+          {
+            id: `act_${Date.now()}`,
+            kind: (metadata.commitmentState === 'active' ? 'commitment_activated' : 'commitment_proposed') as ProjectActivityKind,
+            title: `Commitment Promoted & ${metadata.commitmentState || 'activated'} (Signed)`,
+            detail: `${newCommitment.title} promoted from capture, signed by ${metadata.signedBy}.`,
+            timestamp
+          }
+        ];
+      } else if (targetType === 'context') {
+        const newContextItem: ProjectContextItem = {
+          id: `context_${Date.now()}`,
+          project_id: projectId,
+          title: metadata.contextTitle || currentCapture.title,
+          body: metadata.contextBody || currentCapture.note || currentCapture.content,
+          context_type: metadata.contextType || 'working_note',
+          context_state: 'proposed',
+          created_at: timestamp,
+          updated_at: timestamp,
+          actor_type: 'operator',
+          actor_name: metadata.signedBy,
+          source_type: 'capture',
+          source_id: captureId,
+          evidence_ids: [captureId]
+        };
+        updatedProject.context_items = [...(project.context_items || []), newContextItem];
+        updatedProject.activity = [
+          ...(project.activity || []),
+          {
+            id: `act_${Date.now()}`,
+            kind: 'status_update' as const,
+            title: `Capture Promoted to Context Proposal`,
+            detail: `"${newContextItem.title}" proposed as context item, carrying capture evidence.`,
+            timestamp
+          }
+        ];
+      }
+
+      updatedProject.capture_items = (project.capture_items || []).map((capture) =>
+        capture.id === captureId ? { ...capture, capture_state: 'promoted' as const } : capture
+      );
+      updatedProject.updated_at = timestamp;
+
+      return updatedProject;
     });
 
     saveProjects(updated);
+  };
+
+  const promoteCaptureToArtifact = (projectId: string, captureId: string) => {
+    promoteCapture(projectId, captureId, 'artifact', {
+      signedBy: 'System',
+      signature: 'auto-signed'
+    });
   };
 
   const saveProjectReviewPacket = (projectId: string, packet: Omit<ProjectReviewPacket, 'id' | 'timestamp'>) => {
@@ -3413,6 +3620,9 @@ export function useProjects() {
         timestamp
       };
 
+      const signerDetail = packet.signer_handle ? ` signed by ${packet.signer_handle}` : '';
+      const whyDetail = packet.why_it_changed ? `. Context: "${packet.why_it_changed}"` : '';
+
       return {
         ...project,
         updated_at: timestamp,
@@ -3423,13 +3633,190 @@ export function useProjects() {
             id: `act_${Date.now()}`,
             kind: 'handoff' as const,
             title: 'Handoff checkpoint saved',
-            detail: `${newPacket.title} saved as the latest review packet baseline.`,
+            detail: `${newPacket.title} saved as the latest review packet baseline${signerDetail}${whyDetail}.`,
             timestamp
           }
         ]
       };
     });
 
+    saveProjects(updated);
+  };
+
+  const addProjectContextItem = (
+    projectId: string,
+    item: Omit<ProjectContextItem, 'id' | 'created_at' | 'updated_at'>
+  ) => {
+    const timestamp = nowIso();
+    const newItem: ProjectContextItem = {
+      ...item,
+      id: `context_${Date.now()}`,
+      created_at: timestamp,
+      updated_at: timestamp
+    };
+    const updated = projects.map((project) => {
+      if (project.id !== projectId) return project;
+      return {
+        ...project,
+        updated_at: timestamp,
+        context_items: [...(project.context_items || []), newItem],
+        activity: [
+          ...(project.activity || []),
+          {
+            id: `act_${Date.now()}`,
+            kind: 'status_update' as const,
+            title: `Context Item Proposed: ${newItem.title}`,
+            detail: `Type: ${newItem.context_type}, Actor: ${newItem.actor_name || newItem.actor_type}`,
+            timestamp
+          }
+        ]
+      };
+    });
+    saveProjects(updated);
+    return newItem.id;
+  };
+
+  const updateProjectContextState = (
+    projectId: string,
+    itemId: string,
+    newState: ProjectContextState,
+    reviewNote?: string,
+    signedBy?: string,
+    signature?: string,
+    supersedesId?: string
+  ) => {
+    const timestamp = nowIso();
+    const updated = projects.map((project) => {
+      if (project.id !== projectId) return project;
+      let targetTitle = '';
+      const updatedContextItems = (project.context_items || []).map((cItem) => {
+        if (cItem.id !== itemId) return cItem;
+        targetTitle = cItem.title;
+        return {
+          ...cItem,
+          context_state: newState,
+          review_note: reviewNote !== undefined ? reviewNote : cItem.review_note,
+          reviewed_at: timestamp,
+          updated_at: timestamp,
+          signed_by: signedBy || cItem.signed_by,
+          signature: signature || cItem.signature,
+          supersedes_id: supersedesId || cItem.supersedes_id
+        };
+      });
+      return {
+        ...project,
+        updated_at: timestamp,
+        context_items: updatedContextItems,
+        activity: [
+          ...(project.activity || []),
+          {
+            id: `act_${Date.now()}`,
+            kind: 'status' as const,
+            title: `Context Item: ${targetTitle} -> ${newState}`,
+            detail: `State changed to ${newState}.${reviewNote ? ` Note: "${reviewNote}"` : ''}${signedBy ? ` Signed by ${signedBy}.` : ''}`,
+            timestamp
+          }
+        ]
+      };
+    });
+    saveProjects(updated);
+  };
+
+  const supersedeProjectContext = (
+    projectId: string,
+    oldItemId: string,
+    replacement: Omit<ProjectContextItem, 'id' | 'project_id' | 'context_state' | 'created_at' | 'updated_at' | 'supersedes_id'>,
+    reviewNote?: string,
+    signedBy?: string,
+    signature?: string
+  ) => {
+    const timestamp = nowIso();
+    const replacementId = `context_${Date.now()}`;
+    const newCItem: ProjectContextItem = {
+      ...replacement,
+      id: replacementId,
+      project_id: projectId,
+      context_state: 'accepted',
+      created_at: timestamp,
+      updated_at: timestamp,
+      supersedes_id: oldItemId,
+      signed_by: signedBy,
+      signature: signature
+    };
+
+    const updated = projects.map((project) => {
+      if (project.id !== projectId) return project;
+      let oldTitle = '';
+      const updatedContextItems = (project.context_items || []).map((cItem) => {
+        if (cItem.id !== oldItemId) return cItem;
+        oldTitle = cItem.title;
+        return {
+          ...cItem,
+          context_state: 'superseded' as const,
+          review_note: reviewNote || `Superseded by: ${replacement.title}`,
+          reviewed_at: timestamp,
+          updated_at: timestamp
+        };
+      });
+      return {
+        ...project,
+        updated_at: timestamp,
+        context_items: [...updatedContextItems, newCItem],
+        activity: [
+          ...(project.activity || []),
+          {
+            id: `act_${Date.now()}`,
+            kind: 'status' as const,
+            title: `Context Superseded: ${oldTitle}`,
+            detail: `Superseded by new context: "${newCItem.title}". Signed by ${signedBy || 'operator'}.`,
+            timestamp
+          }
+        ]
+      };
+    });
+    saveProjects(updated);
+    return replacementId;
+  };
+
+  const promoteDecisionToContext = (projectId: string, decisionId: string, contextType: ProjectContextType) => {
+    const timestamp = nowIso();
+    const updated = projects.map((project) => {
+      if (project.id !== projectId) return project;
+      const decision = project.decisions?.find((d) => d.id === decisionId);
+      if (!decision) return project;
+
+      const newContextItem: ProjectContextItem = {
+        id: `context_${Date.now()}`,
+        project_id: projectId,
+        title: `Decision: ${decision.title}`,
+        body: decision.rationale,
+        context_type: contextType,
+        context_state: 'proposed',
+        created_at: timestamp,
+        updated_at: timestamp,
+        actor_type: 'operator',
+        actor_name: decision.signed_by || 'operator',
+        source_type: 'decision',
+        source_id: decisionId,
+        evidence_ids: decision.artifact_id ? [decision.artifact_id] : []
+      };
+
+      return {
+        ...project,
+        updated_at: timestamp,
+        context_items: [...(project.context_items || []), newContextItem],
+        activity: [
+          ...(project.activity || []),
+          {
+            id: `act_${Date.now()}`,
+            kind: 'status_update' as const,
+            title: `Decision Promoted to Context Proposal`,
+            detail: `Proposed context item "${newContextItem.title}" from decision ${decision.title}.`,
+            timestamp
+          }
+        ]
+      };
+    });
     saveProjects(updated);
   };
 
@@ -3480,9 +3867,14 @@ export function useProjects() {
     addProjectArtifact,
     addProjectCaptureItem,
     updateProjectCaptureState,
+    promoteCapture,
     promoteCaptureToArtifact,
     saveProjectReviewPacket,
-    applyProjectTemplate
+    applyProjectTemplate,
+    addProjectContextItem,
+    updateProjectContextState,
+    supersedeProjectContext,
+    promoteDecisionToContext
   };
 }
 
@@ -3501,15 +3893,32 @@ export default function ProjectsPage() {
     addProjectArtifact,
     addProjectCaptureItem,
     updateProjectCaptureState,
-    promoteCaptureToArtifact,
+    promoteCapture,
     saveProjectReviewPacket,
-    applyProjectTemplate
+    applyProjectTemplate,
+    addProjectContextItem,
+    updateProjectContextState,
+    supersedeProjectContext,
+    promoteDecisionToContext
   } = useProjects();
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [commitmentFocusFilter, setCommitmentFocusFilter] = useState<'all' | 'active' | 'blocked' | 'at_risk' | 'completed'>('all');
   const [reflections, setReflections] = useState<PeerReflection[]>([]);
   const [bellowsState, setBellowsState] = useState<BellowsStateSnapshot | null>(null);
   const [bellowsStateError, setBellowsStateError] = useState<string | null>(null);
+  const [authState, setAuthState] = useState<ProjectAuthState>({ status: 'checking', user: null, error: null });
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authMessage, setAuthMessage] = useState('');
+  const [hostedRooms, setHostedRooms] = useState<CloudProjectRoom[]>([]);
+  const [hostedRoomError, setHostedRoomError] = useState<string | null>(null);
+  const [cloudActionMessage, setCloudActionMessage] = useState('');
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<Exclude<ProjectRoomRole, 'owner'>>('reviewer');
+  const [roomInvites, setRoomInvites] = useState<ProjectRoomInvite[]>([]);
+  const [roomComments, setRoomComments] = useState<ProjectRoomComment[]>([]);
+  const [roomCommentBody, setRoomCommentBody] = useState('');
+  const [lastPublishedHandoffUrl, setLastPublishedHandoffUrl] = useState('');
 
   useEffect(() => {
     fetch('/__hearth/hearth_data')
@@ -3526,6 +3935,45 @@ export default function ProjectsPage() {
         setBellowsStateError('Bellows details are unavailable right now.');
       });
   }, []);
+
+  useEffect(() => {
+    let unsubscribe: (() => void) | null = null;
+    let cancelled = false;
+    listenToProjectAuth((nextState) => {
+      if (!cancelled) setAuthState(nextState);
+    }).then((nextUnsubscribe) => {
+      if (cancelled) {
+        nextUnsubscribe?.();
+        return;
+      }
+      unsubscribe = nextUnsubscribe;
+    });
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (authState.status !== 'signed_in') {
+      window.setTimeout(() => {
+        setHostedRooms([]);
+        setHostedRoomError(null);
+      }, 0);
+      return;
+    }
+    const unsubscribe = listenToHostedProjectRooms(
+      authState.user,
+      (rooms) => {
+        setHostedRooms(rooms);
+        setHostedRoomError(null);
+      },
+      setHostedRoomError,
+    );
+    return () => {
+      unsubscribe?.();
+    };
+  }, [authState]);
   const [newMessage, setNewMessage] = useState('');
   const [updateType, setUpdateType] = useState<StructuredUpdateType>('status_update');
   const [associatedArtifactId, setAssociatedArtifactId] = useState<string>('');
@@ -3563,6 +4011,74 @@ export default function ProjectsPage() {
   const [selectedFrameId, setSelectedFrameId] = useState<ProjectRoomFrame['id'] | null>('next_moves');
   const [selectedRoomObjectId, setSelectedRoomObjectId] = useState<string | null>(null);
   const nextActionCardRef = useRef<HTMLDivElement | null>(null);
+
+  // Vessel members for human-in-the-loop signing
+  const [vesselMembers, setVesselMembers] = useState<string[]>(['Malaky', 'Agentic Knights of Chivalry', 'Builder-01']);
+  useEffect(() => {
+    fetch('/vessel_members.json')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && Array.isArray(data.members)) {
+          const handles = data.members.map((m: any) => m.handle);
+          setVesselMembers(handles);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load vessel members:', err);
+      });
+  }, []);
+
+  // Inline Capture Promotion States
+  const [promotingCaptureId, setPromotingCaptureId] = useState<string | null>(null);
+  const [promotingTargetType, setPromotingTargetType] = useState<'artifact' | 'decision' | 'commitment' | 'context' | null>(null);
+  const [promotingSigner, setPromotingSigner] = useState<string>('Malaky');
+  const [promotingArtifactType, setPromotingArtifactType] = useState<string>('text_note');
+  const [promotingArtifactTitle, setPromotingArtifactTitle] = useState<string>('');
+  const [promotingArtifactSummary, setPromotingArtifactSummary] = useState<string>('');
+  const [promotingDecisionTitle, setPromotingDecisionTitle] = useState<string>('');
+  const [promotingDecisionRationale, setPromotingDecisionRationale] = useState<string>('');
+  const [promotingDecisionState, setPromotingDecisionState] = useState<DecisionState>('accepted');
+  const [promotingDecisionImpact, setPromotingDecisionImpact] = useState<string>('');
+  const [promotingCommitmentTitle, setPromotingCommitmentTitle] = useState<string>('');
+  const [promotingCommitmentRationale, setPromotingCommitmentRationale] = useState<string>('');
+  const [promotingCommitmentNextAction, setPromotingCommitmentNextAction] = useState<string>('');
+  const [promotingCommitmentDoneWhen, setPromotingCommitmentDoneWhen] = useState<string>('');
+  const [promotingCommitmentState, setPromotingCommitmentState] = useState<CommitmentState>('active');
+  const [promotingCommitmentConfidence, setPromotingCommitmentConfidence] = useState<'high' | 'medium' | 'low'>('medium');
+  const [promotingCommitmentBlockerNote, setPromotingCommitmentBlockerNote] = useState<string>('');
+  const [promotingCommitmentWorkPackage, setPromotingCommitmentWorkPackage] = useState<string>('');
+  const [promotingCommitmentConstraints, setPromotingCommitmentConstraints] = useState<string>('');
+  const [promotingContextTitle, setPromotingContextTitle] = useState<string>('');
+  const [promotingContextBody, setPromotingContextBody] = useState<string>('');
+  const [promotingContextType, setPromotingContextType] = useState<ProjectContextType>('working_note');
+
+  // Inline Decision promotion state
+  const [promotingDecisionId, setPromotingDecisionId] = useState<string | null>(null);
+  const [promotingDecisionContextType, setPromotingDecisionContextType] = useState<ProjectContextType>('decision');
+
+  // Context Curation Panel States
+  const [isCreatingContext, setIsCreatingContext] = useState<boolean>(false);
+  const [newContextTitle, setNewContextTitle] = useState<string>('');
+  const [newContextBody, setNewContextBody] = useState<string>('');
+  const [newContextType, setNewContextType] = useState<ProjectContextType>('working_note');
+  const [newContextSigner, setNewContextSigner] = useState<string>('Malaky');
+
+  const [isSupersedingItemId, setIsSupersedingItemId] = useState<string | null>(null);
+  const [supersedingContextTitle, setSupersedingContextTitle] = useState<string>('');
+  const [supersedingContextBody, setSupersedingContextBody] = useState<string>('');
+  const [supersedingContextType, setSupersedingContextType] = useState<ProjectContextType>('working_note');
+  const [supersedingReviewNote, setSupersedingReviewNote] = useState<string>('');
+  const [supersedingSigner, setSupersedingSigner] = useState<string>('Malaky');
+
+  const [activeSignerForProposalId, setActiveSignerForProposalId] = useState<Record<string, string>>({});
+  const [rejectReasonForProposalId, setRejectReasonForProposalId] = useState<Record<string, string>>({});
+  const [isRejectingProposalId, setIsRejectingProposalId] = useState<string | null>(null);
+
+  // Checkpointing States
+  const [isSavingCheckpoint, setIsSavingCheckpoint] = useState<boolean>(false);
+  const [checkpointMessage, setCheckpointMessage] = useState<string>('');
+  const [checkpointWhyItChanged, setCheckpointWhyItChanged] = useState<string>('');
+  const [checkpointSigner, setCheckpointSigner] = useState<string>('Malaky');
 
   const isProjectMatchingFilter = useCallback((project: Project) => {
     if (commitmentFocusFilter === 'all') return true;
@@ -3620,6 +4136,15 @@ export default function ProjectsPage() {
     () => projects.find((project) => project.id === effectiveSelectedProjectId) || null,
     [projects, effectiveSelectedProjectId]
   );
+  const selectedHostedRoom = useMemo(
+    () =>
+      selectedProject
+        ? hostedRooms.find((room) => room.legacy_project_id === selectedProject.id || room.project.id === selectedProject.id || room.id === `room_${selectedProject.id}`) || null
+        : null,
+    [hostedRooms, selectedProject]
+  );
+  const selectedRoomRole: ProjectRoomRole = selectedHostedRoom && authState.status === 'signed_in' && selectedHostedRoom.owner_uid === authState.user.uid ? 'owner' : 'editor';
+  const selectedRoomPermissions = useMemo(() => permissionsForRole(selectedRoomRole), [selectedRoomRole]);
   const agentSummary = useMemo(() => deriveAgentSummary(selectedProject), [selectedProject]);
   const projectRelevance = useMemo(() => deriveProjectRelevance(selectedProject), [selectedProject]);
   const latestReflection = useMemo(() => reflections[reflections.length - 1] || null, [reflections]);
@@ -3836,6 +4361,31 @@ export default function ProjectsPage() {
   }, [selectedArtifact]);
 
   useEffect(() => {
+    if (!selectedHostedRoom || authState.status !== 'signed_in') {
+      window.setTimeout(() => setRoomInvites([]), 0);
+      return;
+    }
+    listProjectRoomInvites(selectedHostedRoom.id).then((result) => {
+      if (result.ok && result.value) setRoomInvites(result.value);
+    });
+  }, [authState.status, selectedHostedRoom]);
+
+  useEffect(() => {
+    if (!selectedHostedRoom || authState.status !== 'signed_in') {
+      window.setTimeout(() => setRoomComments([]), 0);
+      return;
+    }
+    const unsubscribe = listenToProjectRoomComments(
+      selectedHostedRoom.id,
+      setRoomComments,
+      (message) => setCloudActionMessage(`Comments unavailable: ${message}`),
+    );
+    return () => {
+      unsubscribe?.();
+    };
+  }, [authState.status, selectedHostedRoom]);
+
+  useEffect(() => {
     if (!selectedProject) {
       setSelectedFrameId(null);
       setSelectedRoomObjectId(null);
@@ -3941,6 +4491,136 @@ export default function ProjectsPage() {
     handleDeskNextAction(deskNextAction);
   }, [deskNextAction, handleDeskNextAction]);
 
+  const currentUser: User | null = authState.status === 'signed_in' ? authState.user : null;
+
+  const handleEmailAuth = async (mode: 'sign_in' | 'create') => {
+    if (!authEmail.trim() || !authPassword.trim()) {
+      setAuthMessage('Enter an email and password to continue.');
+      return;
+    }
+    try {
+      setAuthMessage(mode === 'sign_in' ? 'Signing in...' : 'Creating account...');
+      if (mode === 'sign_in') {
+        await signInProjectRoom(authEmail, authPassword);
+      } else {
+        await createProjectRoomAccount(authEmail, authPassword);
+      }
+      setAuthPassword('');
+      setAuthMessage('');
+    } catch (error) {
+      setAuthMessage(error instanceof Error ? error.message : 'Authentication failed.');
+    }
+  };
+
+  const handleGoogleAuth = async () => {
+    try {
+      setAuthMessage('Opening Google sign-in...');
+      await signInProjectRoomWithGoogle();
+      setAuthMessage('');
+    } catch (error) {
+      setAuthMessage(error instanceof Error ? error.message : 'Google sign-in failed.');
+    }
+  };
+
+  const handleImportSelectedProject = async () => {
+    if (!selectedProject || !currentUser) return;
+    setCloudActionMessage('Importing selected project...');
+    const result = await importLocalProjectRoom(selectedProject, currentUser);
+    setCloudActionMessage(result.ok ? 'Project imported into hosted rooms.' : result.error || 'Import failed.');
+  };
+
+  const handleImportAllProjects = async () => {
+    if (!currentUser) return;
+    setCloudActionMessage(`Importing ${projects.length} projects...`);
+    const results = await Promise.all(projects.map((project) => importLocalProjectRoom(project, currentUser)));
+    const imported = results.filter((result) => result.ok).length;
+    const failed = results.length - imported;
+    setCloudActionMessage(failed === 0 ? `Imported ${imported} projects.` : `Imported ${imported}; ${failed} need another attempt.`);
+  };
+
+  const handleSyncSelectedProject = async () => {
+    if (!selectedProject || !selectedHostedRoom || !currentUser) return;
+    setCloudActionMessage('Syncing selected room...');
+    const result = await syncProjectRoom(selectedProject, selectedHostedRoom.id, currentUser);
+    setCloudActionMessage(result.ok ? 'Hosted room updated from this Desk.' : result.error || 'Sync failed.');
+  };
+
+  const handleCreateInvite = async () => {
+    if (!selectedHostedRoom || !inviteEmail.trim() || !currentUser) return;
+    const result = await createProjectRoomInvite(selectedHostedRoom.id, inviteEmail, inviteRole, currentUser);
+    if (result.ok && result.value) {
+      setInviteEmail('');
+      setRoomInvites((current) => [result.value as ProjectRoomInvite, ...current]);
+      const inviteUrl = `${window.location.origin}/projects?invite=${encodeURIComponent(result.value.token)}`;
+      try {
+        await navigator.clipboard.writeText(inviteUrl);
+        setCloudActionMessage('Invitation link copied. Email delivery is not configured yet.');
+      } catch {
+        setCloudActionMessage(`Invitation created. Copy this link: ${inviteUrl}`);
+      }
+    } else {
+      setCloudActionMessage(result.error || 'Invite creation failed.');
+    }
+  };
+
+  const handleRevokeInvite = async (inviteId: string) => {
+    if (!selectedHostedRoom) return;
+    const result = await revokeProjectRoomInvite(selectedHostedRoom.id, inviteId);
+    if (result.ok) {
+      setRoomInvites((current) => current.map((invite) => (invite.id === inviteId ? { ...invite, status: 'revoked' } : invite)));
+      setCloudActionMessage('Invitation revoked.');
+    } else {
+      setCloudActionMessage(result.error || 'Invite revoke failed.');
+    }
+  };
+
+  const handlePostRoomComment = async () => {
+    if (!selectedHostedRoom || !currentUser || !roomCommentBody.trim()) return;
+    const result = await addProjectRoomComment(selectedHostedRoom.id, 'project', selectedHostedRoom.id, roomCommentBody, currentUser);
+    if (result.ok) {
+      setRoomCommentBody('');
+      setCloudActionMessage('Comment added to the hosted room.');
+    } else {
+      setCloudActionMessage(result.error || 'Comment failed.');
+    }
+  };
+
+  const handlePublishHostedHandoff = async () => {
+    if (!selectedProject || !selectedHostedRoom || !currentUser) return;
+    const packet = buildProjectHandoffPacket();
+    if (!packet) return;
+    const result = await publishProjectHandoff(
+      selectedHostedRoom.id,
+      selectedProject,
+      buildProjectHandoffMarkdown(),
+      packet,
+      currentUser,
+    );
+    if (result.ok && result.value) {
+      const url = `${window.location.origin}/handoff/${encodeURIComponent(result.value.token)}`;
+      setLastPublishedHandoffUrl(url);
+      try {
+        await navigator.clipboard.writeText(url);
+        setCloudActionMessage('Published handoff link copied.');
+      } catch {
+        setCloudActionMessage(`Published handoff: ${url}`);
+      }
+    } else {
+      setCloudActionMessage(result.error || 'Publish failed.');
+    }
+  };
+
+  const handleRevokeHostedHandoff = async () => {
+    if (!selectedHostedRoom?.current_handoff_token || !currentUser) return;
+    const result = await revokePublishedHandoff(selectedHostedRoom.id, selectedHostedRoom.current_handoff_token, currentUser);
+    if (result.ok) {
+      setLastPublishedHandoffUrl('');
+      setCloudActionMessage('Published handoff link revoked.');
+    } else {
+      setCloudActionMessage(result.error || 'Revoke failed.');
+    }
+  };
+
   const resetCaptureComposer = () => {
     setCaptureType('text_note');
     setCaptureTitle('');
@@ -3976,58 +4656,214 @@ export default function ProjectsPage() {
     resetCaptureComposer();
   };
 
+  const generateSimulatedSignature = (signer: string, payload: string) => {
+    let hash = 0;
+    const combined = `${signer}:${payload}:${Date.now()}`;
+    for (let i = 0; i < combined.length; i++) {
+      const char = combined.charCodeAt(i);
+      hash = (hash << 5) - hash + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    return `hearth_sig_2026_${Math.abs(hash).toString(16)}`;
+  };
+
+  const startPromotingCapture = (capture: ProjectCaptureItem, targetType: 'artifact' | 'decision' | 'commitment' | 'context') => {
+    setPromotingCaptureId(capture.id);
+    setPromotingTargetType(targetType);
+    setPromotingSigner(vesselMembers[0] || 'Malaky');
+    
+    if (targetType === 'artifact') {
+      setPromotingArtifactTitle(capture.title);
+      setPromotingArtifactSummary(capture.note || capture.content);
+      setPromotingArtifactType(capture.capture_type);
+    } else if (targetType === 'decision') {
+      setPromotingDecisionTitle(capture.title);
+      setPromotingDecisionRationale(capture.content);
+      setPromotingDecisionState('accepted');
+      setPromotingDecisionImpact('');
+    } else if (targetType === 'commitment') {
+      setPromotingCommitmentTitle(capture.title);
+      setPromotingCommitmentRationale(capture.content);
+      setPromotingCommitmentNextAction('');
+      setPromotingCommitmentDoneWhen('');
+      setPromotingCommitmentState('active');
+      setPromotingCommitmentConfidence('medium');
+      setPromotingCommitmentBlockerNote('');
+      setPromotingCommitmentWorkPackage('');
+      setPromotingCommitmentConstraints('');
+    } else if (targetType === 'context') {
+      setPromotingContextTitle(capture.title);
+      setPromotingContextBody(capture.content);
+      setPromotingContextType('working_note');
+    }
+  };
+
   const handlePromoteCaptureToArtifact = (capture: ProjectCaptureItem) => {
-    if (!selectedProject) return;
-    promoteCaptureToArtifact(selectedProject.id, capture.id);
+    startPromotingCapture(capture, 'artifact');
   };
 
   const handlePromoteCaptureToDecisionDraft = (capture: ProjectCaptureItem) => {
-    if (!selectedProject) return;
-
-    setProjectViewMode('overview');
-    setUpdateType('decision');
-    setDecisionTitle(capture.title);
-    setDecisionState('proposed');
-    setDecisionImpact('');
-    setAssociatedArtifactId('');
-    setNewMessage(capture.note?.trim() || capture.content);
-
-    updateProjectCaptureState(
-      selectedProject.id,
-      capture.id,
-      'promoted',
-      `${capture.title} promoted to a decision draft in the project workspace.`
-    );
+    startPromotingCapture(capture, 'decision');
   };
 
   const handlePromoteCaptureToCommitmentDraft = (capture: ProjectCaptureItem) => {
-    if (!selectedProject) return;
+    startPromotingCapture(capture, 'commitment');
+  };
 
-    setProjectViewMode('overview');
-    setIsCreatingCommitment(true);
-    setCommitmentTitle(capture.title);
-    setCommitmentRationale(capture.note?.trim() || capture.content);
-    setCommitmentNextAction(`Review and act on: ${capture.title}`);
-    setCommitmentDoneWhen('Captured work is reviewed, clarified, and moved into an active commitment.');
-    setCommitmentState('proposed');
-    setCommitmentBlockerNote('');
-    setCommitmentArtifactId('');
-    setCommitmentDecisionId('');
-    setCommitmentConfidence('medium');
-    setCommitmentWorkPackage('Inbox Review');
-    setCommitmentConstraints('Captured quickly and may need verification before activation.');
+  const handlePromoteCaptureToContext = (capture: ProjectCaptureItem) => {
+    startPromotingCapture(capture, 'context');
+  };
 
-    updateProjectCaptureState(
-      selectedProject.id,
-      capture.id,
-      'promoted',
-      `${capture.title} promoted to a commitment draft in the project workspace.`
-    );
+  const handleConfirmSignedPromotion = (captureId: string) => {
+    if (!selectedProject || !promotingTargetType) return;
+
+    const signaturePayload = `${promotingTargetType}:${Date.now()}:${captureId}`;
+    const generatedSignature = generateSimulatedSignature(promotingSigner, signaturePayload);
+
+    promoteCapture(selectedProject.id, captureId, promotingTargetType, {
+      signedBy: promotingSigner,
+      signature: generatedSignature,
+      artifactType: promotingArtifactType,
+      artifactTitle: promotingArtifactTitle,
+      artifactSummary: promotingArtifactSummary,
+      decisionTitle: promotingDecisionTitle,
+      decisionRationale: promotingDecisionRationale,
+      decisionState: promotingDecisionState,
+      decisionImpact: promotingDecisionImpact,
+      commitmentTitle: promotingCommitmentTitle,
+      commitmentRationale: promotingCommitmentRationale,
+      commitmentNextAction: promotingCommitmentNextAction,
+      commitmentDoneWhen: promotingCommitmentDoneWhen,
+      commitmentState: promotingCommitmentState,
+      commitmentConfidence: promotingCommitmentConfidence,
+      commitmentBlockerNote: promotingCommitmentBlockerNote || undefined,
+      commitmentWorkPackage: promotingCommitmentWorkPackage || undefined,
+      commitmentConstraints: promotingCommitmentConstraints || undefined,
+      contextTitle: promotingContextTitle,
+      contextBody: promotingContextBody,
+      contextType: promotingContextType
+    });
+
+    setPromotingCaptureId(null);
+    setPromotingTargetType(null);
   };
 
   const handleDismissCaptureItem = (capture: ProjectCaptureItem) => {
     if (!selectedProject) return;
     updateProjectCaptureState(selectedProject.id, capture.id, 'dismissed', `${capture.title} dismissed from the inbox.`);
+  };
+
+  const handlePromoteDecisionToContextPrompt = (decisionId: string) => {
+    setPromotingDecisionId(decisionId);
+    setPromotingDecisionContextType('decision');
+  };
+
+  const handleConfirmPromoteDecisionToContext = (decisionId: string) => {
+    if (!selectedProject) return;
+    promoteDecisionToContext(selectedProject.id, decisionId, promotingDecisionContextType);
+    setPromotingDecisionId(null);
+  };
+
+  const getContextTypeBadgeStyle = (type: ProjectContextType) => {
+    switch (type) {
+      case 'working_note':
+        return 'border-slate-800 bg-slate-950/60 text-slate-300';
+      case 'constraint':
+        return 'border-amber-800 bg-amber-950/30 text-amber-400';
+      case 'decision':
+        return 'border-emerald-800 bg-emerald-950/30 text-emerald-400';
+      case 'assumption':
+        return 'border-indigo-800 bg-indigo-950/30 text-indigo-400';
+      case 'warning':
+        return 'border-red-800 bg-red-950/30 text-red-400';
+      case 'requirement':
+        return 'border-fuchsia-800 bg-fuchsia-950/30 text-fuchsia-400';
+      default:
+        return 'border-slate-800 bg-slate-950/60 text-slate-300';
+    }
+  };
+
+  const handleCreateContext = () => {
+    if (!selectedProject || !newContextTitle.trim() || !newContextBody.trim()) return;
+    
+    const signaturePayload = `context:${Date.now()}:manual`;
+    const signature = generateSimulatedSignature(newContextSigner, signaturePayload);
+    
+    addProjectContextItem(selectedProject.id, {
+      project_id: selectedProject.id,
+      title: newContextTitle,
+      body: newContextBody,
+      context_type: newContextType,
+      context_state: 'proposed',
+      actor_type: 'operator',
+      actor_name: newContextSigner,
+      source_type: 'manual',
+      signed_by: newContextSigner,
+      signature: signature
+    });
+    
+    setNewContextTitle('');
+    setNewContextBody('');
+    setNewContextType('working_note');
+    setIsCreatingContext(false);
+  };
+
+  const handleAcceptContextProposal = (itemId: string) => {
+    if (!selectedProject) return;
+    const signer = activeSignerForProposalId[itemId] || vesselMembers[0] || 'Malaky';
+    const signaturePayload = `accept:${Date.now()}:${itemId}`;
+    const signature = generateSimulatedSignature(signer, signaturePayload);
+    
+    updateProjectContextState(
+      selectedProject.id,
+      itemId,
+      'accepted',
+      'Proposal accepted by peer review',
+      signer,
+      signature
+    );
+  };
+
+  const handleRejectContextProposal = (itemId: string) => {
+    if (!selectedProject) return;
+    const reason = rejectReasonForProposalId[itemId] || 'Rejected';
+    updateProjectContextState(
+      selectedProject.id,
+      itemId,
+      'rejected',
+      reason
+    );
+    setIsRejectingProposalId(null);
+  };
+
+  const handleSupersedeContext = (oldItemId: string) => {
+    if (!selectedProject || !supersedingContextTitle.trim() || !supersedingContextBody.trim()) return;
+    
+    const signaturePayload = `supersede:${Date.now()}:${oldItemId}`;
+    const signature = generateSimulatedSignature(supersedingSigner, signaturePayload);
+    
+    supersedeProjectContext(
+      selectedProject.id,
+      oldItemId,
+      {
+        title: supersedingContextTitle,
+        body: supersedingContextBody,
+        context_type: supersedingContextType,
+        actor_type: 'operator',
+        actor_name: supersedingSigner,
+        source_type: 'supersede',
+        source_id: oldItemId
+      },
+      supersedingReviewNote || `Superseded by peer review: ${supersedingContextTitle}`,
+      supersedingSigner,
+      signature
+    );
+    
+    setIsSupersedingItemId(null);
+    setSupersedingContextTitle('');
+    setSupersedingContextBody('');
+    setSupersedingContextType('working_note');
+    setSupersedingReviewNote('');
   };
 
   const handleCreateProject = () => {
@@ -4454,6 +5290,11 @@ export default function ProjectsPage() {
   const buildProjectHandoffPacket = useCallback(() => {
     if (!selectedProject) return null;
 
+    const contextItems = selectedProject.context_items || [];
+    const canonical_context = contextItems.filter((item) => item.context_state === 'accepted');
+    const open_proposals = contextItems.filter((item) => item.context_state === 'proposed');
+    const superseded_context = contextItems.filter((item) => item.context_state === 'superseded' || item.context_state === 'rejected');
+
     const artifacts = selectedProject.artifacts || [];
     const decisions = selectedProject.decisions || [];
     const commitments = selectedProject.commitments || [];
@@ -4462,111 +5303,158 @@ export default function ProjectsPage() {
     const pending = artifacts.filter((artifact) => !isArtifactApproved(artifact) && !isArtifactFlagged(artifact));
 
     return {
-      generated_at: nowIso(),
-      local_truth_boundary:
-        'Built from current project data, evidence review, decisions, commitments, and runtime context. No external model call or sync involved.',
-      project: {
-        id: selectedProject.id,
-        title: selectedProject.title,
-        description: selectedProject.description,
-        category: selectedProject.category,
-        status: selectedProject.status,
-        updated_at: selectedProject.updated_at,
-        pinned_note: selectedProject.pinned_note,
-        context: selectedProject.context || null
-      },
-      current_direction: {
-        summary: projectMemory.currentDirection,
-        return_focus: projectRelevance.returnFocus,
-        open_question: projectMemory.openQuestion,
-        next_step: selectedProject.next_step?.trim() || null,
-        readiness: handoffReadiness.ready ? 'ready' : 'needs_review',
-        readiness_blockers: handoffReadiness.blockers,
-        runtime_condition: bellowsRuntime.label,
-        runtime_detail: bellowsRuntime.detail,
-        runtime_advisory: runtimeCommitmentAdvisory
-          ? {
-              label: runtimeCommitmentAdvisory.label,
-              message: runtimeCommitmentAdvisory.message,
-              detail: runtimeCommitmentAdvisory.detail
-            }
-          : null,
-        daily_note_summary: stewardshipJournal.carryForward[0] || stewardshipJournal.lastMeaningfulMovement
-      },
-      next_action: deskNextAction
-        ? {
-            title: deskNextAction.title,
-            explanation: deskNextAction.explanation,
-            action_label: deskNextAction.actionLabel,
-            action_kind: deskNextAction.actionKind,
-            target_view: deskNextAction.targetView,
-            target_element_id: deskNextAction.targetElementId || null
-          }
-        : null,
-      evidence_summary: {
-        total: artifacts.length,
-        approved: approved.length,
-        flagged: flagged.length,
-        needs_review: pending.length,
-        ready_to_carry: approved.map((artifact) => ({
-          id: artifact.id,
-          title: artifact.title,
-          type: artifact.type,
-          timestamp: artifact.timestamp,
-          source_lane: artifact.source_lane || selectedProject.category,
-          summary: artifact.summary || null,
-          review_note: artifact.review_note || null,
-          review_outcome: getArtifactReviewOutcomeLabel(artifact)
+      canonical_context: canonical_context.map((item) => ({
+        id: item.id,
+        title: item.title,
+        body: item.body,
+        context_type: item.context_type,
+        actor_type: item.actor_type,
+        actor_name: item.actor_name || null,
+        source_type: item.source_type,
+        source_id: item.source_id || null,
+        evidence_ids: item.evidence_ids || [],
+        created_at: item.created_at,
+        updated_at: item.updated_at,
+        signed_by: item.signed_by || null,
+        signature: item.signature || null
+      })),
+      open_proposals: open_proposals.map((item) => ({
+        id: item.id,
+        title: item.title,
+        body: item.body,
+        context_type: item.context_type,
+        actor_type: item.actor_type,
+        actor_name: item.actor_name || null,
+        source_type: item.source_type,
+        source_id: item.source_id || null,
+        evidence_ids: item.evidence_ids || [],
+        created_at: item.created_at,
+        updated_at: item.updated_at
+      })),
+      superseded_context: superseded_context.map((item) => ({
+        id: item.id,
+        title: item.title,
+        body: item.body,
+        context_type: item.context_type,
+        context_state: item.context_state,
+        actor_type: item.actor_type,
+        actor_name: item.actor_name || null,
+        source_type: item.source_type,
+        source_id: item.source_id || null,
+        evidence_ids: item.evidence_ids || [],
+        supersedes_id: item.supersedes_id || null,
+        review_note: item.review_note || null,
+        reviewed_at: item.reviewed_at || null,
+        created_at: item.created_at,
+        updated_at: item.updated_at
+      })),
+      provenance: {
+        generated_at: nowIso(),
+        local_truth_boundary:
+          'Built from current project data, evidence review, decisions, commitments, and runtime context. No external model call or sync involved.',
+        project: {
+          id: selectedProject.id,
+          title: selectedProject.title,
+          description: selectedProject.description,
+          category: selectedProject.category,
+          status: selectedProject.status,
+          updated_at: selectedProject.updated_at,
+          pinned_note: selectedProject.pinned_note,
+          context: selectedProject.context || null
+        },
+        evidence_summary: {
+          total: artifacts.length,
+          approved: approved.length,
+          flagged: flagged.length,
+          needs_review: pending.length,
+          ready_to_carry: approved.map((artifact) => ({
+            id: artifact.id,
+            title: artifact.title,
+            type: artifact.type,
+            timestamp: artifact.timestamp,
+            source_lane: artifact.source_lane || selectedProject.category,
+            summary: artifact.summary || null,
+            review_note: artifact.review_note || null,
+            review_outcome: getArtifactReviewOutcomeLabel(artifact)
+          })),
+          needs_review_items: [...flagged, ...pending].map((artifact) => ({
+            id: artifact.id,
+            title: artifact.title,
+            type: artifact.type,
+            timestamp: artifact.timestamp,
+            source_lane: artifact.source_lane || selectedProject.category,
+            summary: artifact.summary || null,
+            review_note: artifact.review_note || null,
+            review_outcome: getArtifactReviewOutcomeLabel(artifact)
+          }))
+        },
+        decisions: decisions.map((decision) => ({
+          id: decision.id,
+          title: decision.title,
+          timestamp: decision.timestamp,
+          rationale: decision.rationale,
+          decision_state: decision.decision_state,
+          artifact_id: decision.artifact_id || null,
+          impact_note: decision.impact_note || null
         })),
-        needs_review_items: [...flagged, ...pending].map((artifact) => ({
-          id: artifact.id,
-          title: artifact.title,
-          type: artifact.type,
-          timestamp: artifact.timestamp,
-          source_lane: artifact.source_lane || selectedProject.category,
-          summary: artifact.summary || null,
-          review_note: artifact.review_note || null,
-          review_outcome: getArtifactReviewOutcomeLabel(artifact)
-        }))
-      },
-      decisions: decisions.map((decision) => ({
-        id: decision.id,
-        title: decision.title,
-        timestamp: decision.timestamp,
-        rationale: decision.rationale,
-        decision_state: decision.decision_state,
-        artifact_id: decision.artifact_id || null,
-        impact_note: decision.impact_note || null
-      })),
-      commitments: commitments.map((commitment) => ({
-        id: commitment.id,
-        title: commitment.title,
-        timestamp: commitment.timestamp,
-        commitment_state: commitment.commitment_state,
-        rationale: commitment.rationale,
-        next_action: commitment.next_action,
-        done_when: commitment.done_when,
-        blocker_note: commitment.blocker_note || null,
-        confidence: commitment.confidence || 'medium',
-        work_package: commitment.work_package || null,
-        constraints: commitment.constraints || null,
-        artifact_id: commitment.artifact_id || null,
-        decision_id: commitment.decision_id || null
-      })),
-      recent_activity: (selectedProject.activity || []).slice(-6).map((activity) => ({
-        id: activity.id,
-        kind: activity.kind,
-        title: activity.title,
-        detail: activity.detail || null,
-        timestamp: activity.timestamp
-      })),
-      since_last_packet: {
-        status: reviewPacketDelta.status,
-        summary: reviewPacketDelta.summary,
-        readiness_impact: reviewPacketDelta.readinessImpact,
-        checkpoint_label: reviewPacketDelta.checkpointLabel,
-        carry_forward_cue: reviewPacketDelta.carryForwardCue,
-        changes: reviewPacketDelta.changeLines
+        commitments: commitments.map((commitment) => ({
+          id: commitment.id,
+          title: commitment.title,
+          timestamp: commitment.timestamp,
+          commitment_state: commitment.commitment_state,
+          rationale: commitment.rationale,
+          next_action: commitment.next_action,
+          done_when: commitment.done_when,
+          blocker_note: commitment.blocker_note || null,
+          confidence: commitment.confidence || 'medium',
+          work_package: commitment.work_package || null,
+          constraints: commitment.constraints || null,
+          artifact_id: commitment.artifact_id || null,
+          decision_id: commitment.decision_id || null
+        })),
+        recent_activity: (selectedProject.activity || []).slice(-6).map((activity) => ({
+          id: activity.id,
+          kind: activity.kind,
+          title: activity.title,
+          detail: activity.detail || null,
+          timestamp: activity.timestamp
+        })),
+        since_last_packet: {
+          status: reviewPacketDelta.status,
+          summary: reviewPacketDelta.summary,
+          readiness_impact: reviewPacketDelta.readinessImpact,
+          checkpoint_label: reviewPacketDelta.checkpointLabel,
+          carry_forward_cue: reviewPacketDelta.carryForwardCue,
+          changes: reviewPacketDelta.changeLines
+        },
+        current_direction: {
+          summary: projectMemory.currentDirection,
+          return_focus: projectRelevance.returnFocus,
+          open_question: projectMemory.openQuestion,
+          next_step: selectedProject.next_step?.trim() || null,
+          readiness: handoffReadiness.ready ? 'ready' : 'needs_review',
+          readiness_blockers: handoffReadiness.blockers,
+          runtime_condition: bellowsRuntime.label,
+          runtime_detail: bellowsRuntime.detail,
+          runtime_advisory: runtimeCommitmentAdvisory
+            ? {
+                label: runtimeCommitmentAdvisory.label,
+                message: runtimeCommitmentAdvisory.message,
+                detail: runtimeCommitmentAdvisory.detail
+              }
+            : null,
+          daily_note_summary: stewardshipJournal.carryForward[0] || stewardshipJournal.lastMeaningfulMovement
+        },
+        next_action: deskNextAction
+          ? {
+              title: deskNextAction.title,
+              explanation: deskNextAction.explanation,
+              action_label: deskNextAction.actionLabel,
+              action_kind: deskNextAction.actionKind,
+              target_view: deskNextAction.targetView,
+              target_element_id: deskNextAction.targetElementId || null
+            }
+          : null
       },
       checkpoint: latestReviewPacket
         ? {
@@ -4593,6 +5481,16 @@ export default function ProjectsPage() {
   const buildProjectHandoffMarkdown = useCallback(() => {
     if (!selectedProject) return '';
 
+    const contextItems = selectedProject.context_items || [];
+    const accepted = contextItems.filter((item) => item.context_state === 'accepted');
+
+    const currentDirectionItems = accepted.filter((item) => item.context_type === 'working_note');
+    const activeConstraintsItems = accepted.filter((item) => item.context_type === 'constraint');
+    const acceptedDecisionsItems = accepted.filter((item) => item.context_type === 'decision');
+    const activeAssumptionsItems = accepted.filter((item) => item.context_type === 'assumption');
+    const knownWarningsItems = accepted.filter((item) => item.context_type === 'warning');
+    const nextStepItems = accepted.filter((item) => item.context_type === 'requirement');
+
     const lines: string[] = [
       `# ${selectedProject.title}`,
       '',
@@ -4600,23 +5498,77 @@ export default function ProjectsPage() {
       `- Status: ${selectedProject.status}`,
       `- Updated: ${formatTimestamp(selectedProject.updated_at)}`,
       '',
-      '## Summary',
+      '## Project Description',
       '',
       selectedProject.description || 'No project description recorded yet.',
       '',
       '## Current Direction',
-      '',
-      `- Current direction: ${projectMemory.currentDirection}`,
-      `- Next step: ${selectedProject.next_step?.trim() || 'No next step recorded yet.'}`,
-      `- Return focus: ${projectRelevance.returnFocus}`,
-      agentSummary.suggestedReviewFocus[0]
-        ? `- Review focus: ${agentSummary.suggestedReviewFocus[0]}`
-        : '- Review focus: No special review focus is active.',
-      '',
-      '## Evidence Ready to Carry Forward',
       ''
     ];
 
+    if (currentDirectionItems.length === 0) {
+      lines.push(`- Current direction: ${projectMemory.currentDirection || 'No current direction recorded.'}`);
+    } else {
+      currentDirectionItems.forEach((item) => {
+        lines.push(`- **${item.title}**: ${item.body}`);
+      });
+    }
+    lines.push(`- Next step baseline: ${selectedProject.next_step?.trim() || 'No next step baseline recorded yet.'}`);
+    lines.push(`- Return focus: ${projectRelevance.returnFocus}`);
+    if (agentSummary.suggestedReviewFocus[0]) {
+      lines.push(`- Suggested review focus: ${agentSummary.suggestedReviewFocus[0]}`);
+    }
+
+    lines.push('', '## Active Constraints', '');
+    if (activeConstraintsItems.length === 0) {
+      lines.push('- No active constraints accepted yet.');
+    } else {
+      activeConstraintsItems.forEach((item) => {
+        lines.push(`- **${item.title}**: ${item.body} (Signed by ${item.signed_by || 'operator'})`);
+      });
+    }
+
+    lines.push('', '## Accepted Decisions', '');
+    if (acceptedDecisionsItems.length === 0) {
+      lines.push('- No accepted decisions yet.');
+    } else {
+      acceptedDecisionsItems.forEach((item) => {
+        lines.push(`- **${item.title}**: ${item.body} (Signed by ${item.signed_by || 'operator'})`);
+      });
+    }
+
+    lines.push('', '## Active Assumptions', '');
+    if (activeAssumptionsItems.length === 0) {
+      lines.push('- No active assumptions accepted yet.');
+    } else {
+      activeAssumptionsItems.forEach((item) => {
+        lines.push(`- **${item.title}**: ${item.body} (Signed by ${item.signed_by || 'operator'})`);
+      });
+    }
+
+    lines.push('', '## Known Warnings', '');
+    if (knownWarningsItems.length === 0) {
+      lines.push('- No warnings accepted yet.');
+    } else {
+      knownWarningsItems.forEach((item) => {
+        lines.push(`- **${item.title}**: ${item.body} (Signed by ${item.signed_by || 'operator'})`);
+      });
+    }
+
+    lines.push('', '## Next Steps (Requirements)', '');
+    if (nextStepItems.length === 0) {
+      lines.push('- No requirements accepted yet.');
+    } else {
+      nextStepItems.forEach((item) => {
+        lines.push(`- **${item.title}**: ${item.body} (Signed by ${item.signed_by || 'operator'})`);
+      });
+    }
+
+    const approvedArtifacts = (selectedProject.artifacts || []).filter((a) => isArtifactApproved(a));
+    const flaggedArtifacts = (selectedProject.artifacts || []).filter((a) => isArtifactFlagged(a));
+    const pendingArtifacts = (selectedProject.artifacts || []).filter((a) => !isArtifactApproved(a) && !isArtifactFlagged(a));
+
+    lines.push('', '## Evidence Ready to Carry Forward', '');
     if (approvedArtifacts.length === 0) {
       lines.push('- No approved evidence yet.');
     } else {
@@ -4634,31 +5586,6 @@ export default function ProjectsPage() {
       [...flaggedArtifacts, ...pendingArtifacts].forEach((artifact) => {
         lines.push(`- ${artifact.title}: ${getArtifactReviewOutcomeLabel(artifact)}`);
         lines.push(`  - Detail: ${(artifact.review_note || getArtifactReviewOutcomeDetail(artifact)).trim()}`);
-      });
-    }
-
-    lines.push('', '## Decisions', '');
-    if ((selectedProject.decisions || []).length === 0) {
-      lines.push('- No decisions recorded yet.');
-    } else {
-      (selectedProject.decisions || []).forEach((decision) => {
-        lines.push(`- ${decision.title} [${decision.decision_state}]`);
-        lines.push(`  - Rationale: ${decision.rationale}`);
-        if (decision.impact_note?.trim()) lines.push(`  - Impact: ${decision.impact_note.trim()}`);
-      });
-    }
-
-    lines.push('', '## Commitments', '');
-    if (sortedCommitments.length === 0) {
-      lines.push('- No commitments recorded yet.');
-    } else {
-      sortedCommitments.forEach((commitment) => {
-        lines.push(`- ${commitment.title} [${getCommitmentStateLabel(commitment.commitment_state)}]`);
-        lines.push(`  - Rationale: ${commitment.rationale}`);
-        lines.push(`  - Next action: ${commitment.next_action}`);
-        lines.push(`  - Done when: ${commitment.done_when}`);
-        if (commitment.blocker_note?.trim()) lines.push(`  - Blocker: ${commitment.blocker_note.trim()}`);
-        if (commitment.constraints?.trim()) lines.push(`  - Constraints: ${commitment.constraints.trim()}`);
       });
     }
 
@@ -4709,10 +5636,6 @@ export default function ProjectsPage() {
     projectMemory,
     projectRelevance,
     agentSummary,
-    approvedArtifacts,
-    flaggedArtifacts,
-    pendingArtifacts,
-    sortedCommitments,
     bellowsRuntime,
     runtimeCommitmentAdvisory,
     stewardshipJournal,
@@ -4817,24 +5740,43 @@ export default function ProjectsPage() {
   }, [selectedProject, handoffReadiness, approvedArtifacts, flaggedArtifacts, pendingArtifacts, stewardshipJournal, reviewPacketDelta]);
 
   const handleSaveProjectHandoffArtifact = () => {
+    setIsSavingCheckpoint(true);
+    setCheckpointSigner(vesselMembers[0] || 'Malaky');
+    setCheckpointWhyItChanged(reviewPacketDelta.summary || '');
+    setCheckpointMessage(`Checkpoint - ${new Date().toLocaleDateString()}`);
+  };
+
+  const handleConfirmSaveCheckpoint = () => {
     if (!selectedProject) return;
+
+    const signaturePayload = `checkpoint:${Date.now()}:${selectedProject.id}`;
+    const generatedSignature = generateSimulatedSignature(checkpointSigner, signaturePayload);
+
     addProjectArtifact(selectedProject.id, {
       type: 'project_handoff',
-      title: `Project Handoff - ${selectedProject.title}`,
-      summary: selectedProject.next_step?.trim() || projectMemory.currentDirection,
+      title: `Project Checkpoint - ${checkpointMessage.trim() || selectedProject.title}`,
+      summary: checkpointWhyItChanged.trim() || selectedProject.next_step?.trim() || projectMemory.currentDirection,
       source_lane: 'projects',
       review_state: 'unreviewed',
       review_signal: 'clear',
-      review_note: 'Compiled from reviewed evidence, decisions, commitments, and current next step.'
+      review_note: `Compiled checkpoint, signed by ${checkpointSigner}. Context: ${checkpointWhyItChanged}`
     });
+
     const snapshot = buildProjectReviewPacketSnapshot();
     if (snapshot) {
       saveProjectReviewPacket(selectedProject.id, {
-        title: `Handoff Checkpoint - ${selectedProject.title}`,
+        title: `Checkpoint: ${checkpointMessage.trim() || 'Handoff Checkpoint'}`,
         markdown: buildProjectHandoffMarkdown(),
-        snapshot
+        snapshot,
+        why_it_changed: checkpointWhyItChanged.trim(),
+        signer_handle: checkpointSigner,
+        signer_signature: generatedSignature
       });
     }
+
+    setIsSavingCheckpoint(false);
+    setCheckpointMessage('');
+    setCheckpointWhyItChanged('');
   };
 
   const handleExportProjectHandoffMarkdown = () => {
@@ -5195,6 +6137,253 @@ export default function ProjectsPage() {
         >
           + New Project
         </button>
+      </div>
+
+      <div className="rounded-xl border border-emerald-900/40 bg-emerald-950/10 p-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="max-w-2xl">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-300">Hosted Project Rooms</div>
+            <div className="mt-1 text-sm leading-6 text-slate-300">
+              Keep evidence, decisions, comments, accepted context, and handoff links together when a client or reviewer needs to enter the room.
+            </div>
+            {cloudActionMessage && (
+              <div className="mt-2 rounded border border-slate-800 bg-slate-950/50 px-3 py-2 text-xs text-slate-300">
+                {cloudActionMessage}
+              </div>
+            )}
+            {hostedRoomError && (
+              <div className="mt-2 rounded border border-amber-900/40 bg-amber-950/20 px-3 py-2 text-xs text-amber-200">
+                {hostedRoomError}
+              </div>
+            )}
+          </div>
+
+          {authState.status === 'checking' && (
+            <div className="rounded border border-slate-800 bg-slate-950/40 px-3 py-2 text-xs text-slate-400">Checking account...</div>
+          )}
+
+          {authState.status === 'unconfigured' && (
+            <div className="max-w-md rounded border border-amber-900/50 bg-amber-950/20 p-3 text-xs leading-5 text-amber-100/80">
+              {authState.error}
+            </div>
+          )}
+
+          {(authState.status === 'signed_out' || authState.status === 'error') && (
+            <div className="grid w-full max-w-xl grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr),160px]">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <input
+                  value={authEmail}
+                  onChange={(event) => setAuthEmail(event.target.value)}
+                  placeholder="Email"
+                  className="rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-500"
+                />
+                <input
+                  value={authPassword}
+                  onChange={(event) => setAuthPassword(event.target.value)}
+                  type="password"
+                  placeholder="Password"
+                  className="rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-500"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleEmailAuth('sign_in')}
+                  className="flex-1 rounded border border-emerald-700 bg-emerald-900/30 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-emerald-200 hover:bg-emerald-900/50"
+                >
+                  Sign In
+                </button>
+                <button
+                  onClick={() => handleEmailAuth('create')}
+                  className="flex-1 rounded border border-slate-700 bg-slate-900/70 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-200 hover:bg-slate-800"
+                >
+                  Create
+                </button>
+              </div>
+              <button
+                onClick={handleGoogleAuth}
+                className="rounded border border-indigo-800 bg-indigo-950/30 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-indigo-200 hover:bg-indigo-950/50 sm:col-span-2"
+              >
+                Continue with Google
+              </button>
+              {(authMessage || authState.error) && (
+                <div className="rounded border border-slate-800 bg-slate-950/50 px-3 py-2 text-xs text-slate-300 sm:col-span-2">
+                  {authMessage || authState.error}
+                </div>
+              )}
+            </div>
+          )}
+
+          {authState.status === 'signed_in' && (
+            <div className="flex flex-col items-start gap-2 text-xs text-slate-300 sm:items-end">
+              <div className="rounded border border-emerald-800/50 bg-emerald-950/20 px-3 py-2">
+                Signed in as <span className="font-bold text-emerald-200">{authState.user.email || authState.user.displayName || authState.user.uid}</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={handleImportAllProjects}
+                  className="rounded border border-emerald-800 bg-emerald-950/30 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-emerald-200 hover:bg-emerald-950/50"
+                >
+                  Import Existing Projects
+                </button>
+                <button
+                  onClick={() => signOutProjectRoom()}
+                  className="rounded border border-slate-700 bg-slate-900/70 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-300 hover:bg-slate-800"
+                >
+                  Sign Out
+                </button>
+              </div>
+              <div className="text-[10px] uppercase tracking-widest text-slate-500">
+                {hostedRooms.length} hosted room{hostedRooms.length === 1 ? '' : 's'} available
+              </div>
+            </div>
+          )}
+        </div>
+
+        {authState.status === 'signed_in' && selectedProject && (
+          <div className="mt-4 grid gap-3 border-t border-emerald-900/30 pt-4 xl:grid-cols-[1fr,1fr]">
+            <div className="rounded border border-slate-800 bg-slate-950/40 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Selected Room</div>
+                  <div className="mt-1 text-sm font-bold text-slate-100">
+                    {selectedHostedRoom ? 'Hosted copy connected' : 'Available on this device'}
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {!selectedHostedRoom ? (
+                    <button
+                      onClick={handleImportSelectedProject}
+                      className="rounded bg-emerald-600 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-white hover:bg-emerald-500"
+                    >
+                      Import Selected
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        onClick={handleSyncSelectedProject}
+                        className="rounded border border-emerald-800 bg-emerald-950/30 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-emerald-200 hover:bg-emerald-950/50"
+                      >
+                        Sync Room
+                      </button>
+                      <button
+                        onClick={handlePublishHostedHandoff}
+                        disabled={!selectedRoomPermissions.canPublishHandoff}
+                        className="rounded border border-indigo-800 bg-indigo-950/40 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-indigo-200 hover:bg-indigo-950/60 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        Publish Handoff
+                      </button>
+                      {selectedHostedRoom.current_handoff_token && (
+                        <button
+                          onClick={handleRevokeHostedHandoff}
+                          className="rounded border border-red-900/50 bg-red-950/20 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-red-200 hover:bg-red-950/40"
+                        >
+                          Revoke Link
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+              <div className="mt-3 text-xs leading-5 text-slate-400">
+                Browser projects stay on this device until you import them. Hosted rooms preserve a cloud copy for client review, comments, and published handoff links.
+              </div>
+              {(lastPublishedHandoffUrl || selectedHostedRoom?.current_handoff_token) && (
+                <div className="mt-3 rounded border border-indigo-900/40 bg-indigo-950/20 p-2 text-xs text-indigo-100">
+                  <div className="font-bold uppercase tracking-widest text-indigo-300">Current Handoff Link</div>
+                  <a
+                    href={lastPublishedHandoffUrl || `/handoff/${selectedHostedRoom?.current_handoff_token}`}
+                    className="mt-1 block break-all text-indigo-100 underline decoration-indigo-500/50"
+                  >
+                    {lastPublishedHandoffUrl || `${window.location.origin}/handoff/${selectedHostedRoom?.current_handoff_token}`}
+                  </a>
+                </div>
+              )}
+            </div>
+
+            <div className="rounded border border-slate-800 bg-slate-950/40 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Client Review</div>
+                  <div className="mt-1 text-sm font-bold text-slate-100">Invites and comments</div>
+                </div>
+                <span className="rounded border border-slate-800 px-2 py-1 text-[10px] uppercase tracking-widest text-slate-400">
+                  {roomComments.length} comment{roomComments.length === 1 ? '' : 's'}
+                </span>
+              </div>
+              {selectedHostedRoom ? (
+                <>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr),130px,auto]">
+                    <input
+                      value={inviteEmail}
+                      onChange={(event) => setInviteEmail(event.target.value)}
+                      placeholder="reviewer@example.com"
+                      className="rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-500"
+                    />
+                    <select
+                      value={inviteRole}
+                      onChange={(event) => setInviteRole(event.target.value as Exclude<ProjectRoomRole, 'owner'>)}
+                      className="rounded border border-slate-700 bg-slate-950 px-2 py-2 text-xs font-bold uppercase tracking-widest text-slate-300 outline-none focus:border-emerald-500"
+                    >
+                      <option value="reviewer">Reviewer</option>
+                      <option value="viewer">Viewer</option>
+                      <option value="editor">Editor</option>
+                    </select>
+                    <button
+                      onClick={handleCreateInvite}
+                      disabled={!selectedRoomPermissions.canManageProject}
+                      className="rounded border border-emerald-800 bg-emerald-950/30 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-emerald-200 hover:bg-emerald-950/50 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Copy Invite
+                    </button>
+                  </div>
+                  {roomInvites.length > 0 && (
+                    <div className="mt-3 flex flex-col gap-2">
+                      {roomInvites.slice(0, 3).map((invite) => (
+                        <div key={invite.id} className="flex flex-wrap items-center justify-between gap-2 rounded border border-slate-800 bg-slate-900/40 px-2 py-1.5 text-xs text-slate-300">
+                          <span className="min-w-0 truncate">{invite.email} - {invite.role} - {invite.status}</span>
+                          {invite.status === 'pending' && (
+                            <button onClick={() => handleRevokeInvite(invite.id)} className="text-[10px] font-bold uppercase tracking-widest text-red-300 hover:text-red-200">
+                              Revoke
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr),auto]">
+                    <input
+                      value={roomCommentBody}
+                      onChange={(event) => setRoomCommentBody(event.target.value)}
+                      placeholder="Add a room comment for reviewers..."
+                      className="rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-500"
+                    />
+                    <button
+                      onClick={handlePostRoomComment}
+                      disabled={!selectedRoomPermissions.canComment}
+                      className="rounded border border-slate-700 bg-slate-900 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Comment
+                    </button>
+                  </div>
+                  {roomComments.length > 0 && (
+                    <div className="mt-3 max-h-24 overflow-y-auto rounded border border-slate-800 bg-slate-950/50">
+                      {roomComments.slice(0, 4).map((comment) => (
+                        <div key={comment.id} className="border-b border-slate-800/70 px-3 py-2 text-xs last:border-b-0">
+                          <div className="font-bold text-slate-200">{comment.author_label}</div>
+                          <div className="mt-1 text-slate-400">{comment.body}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="mt-3 rounded border border-dashed border-slate-800 px-3 py-4 text-xs text-slate-500">
+                  Import the selected project before inviting reviewers or collecting room comments.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {isCreating && (
@@ -5903,12 +7092,355 @@ export default function ProjectsPage() {
                                   Promote to Commitment
                                 </button>
                                 <button
+                                  onClick={() => handlePromoteCaptureToContext(capture)}
+                                  className="rounded border border-teal-800 bg-teal-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-teal-300 transition-colors hover:bg-teal-900/40"
+                                >
+                                  Promote to Context
+                                </button>
+                                <button
                                   onClick={() => handleDismissCaptureItem(capture)}
                                   className="rounded border border-slate-700 bg-slate-950/50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-300 transition-colors hover:bg-slate-900/70"
                                 >
                                   Dismiss
                                 </button>
                               </div>
+
+                              {promotingCaptureId === capture.id && (
+                                <div className="mt-4 border-t border-indigo-900/50 pt-4 text-xs">
+                                  <div className="mb-3 rounded border border-amber-900/30 bg-amber-950/20 p-2.5">
+                                    <div className="flex items-center gap-1.5 font-bold text-amber-400 uppercase tracking-wider text-[10px]">
+                                      <span>⚡ Signed Handoff & Promotion Loop</span>
+                                    </div>
+                                    <p className="mt-1 text-[11px] text-slate-300 leading-relaxed">
+                                      Promoting this inbox item into a formal project asset requires a signed peer or steward seal. Select a signatory handle to authorize and sign the promotion payload.
+                                    </p>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                    <div>
+                                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                        Authorized Signatory
+                                      </label>
+                                      <select
+                                        value={promotingSigner}
+                                        onChange={(e) => setPromotingSigner(e.target.value)}
+                                        className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-slate-200 outline-none focus:border-indigo-500"
+                                      >
+                                        {vesselMembers.map((handle) => (
+                                          <option key={handle} value={handle}>
+                                            {handle}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
+
+                                    <div>
+                                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                        Asset Target Type
+                                      </label>
+                                      <div className="rounded border border-slate-700 bg-slate-950/60 px-2 py-1.5 font-mono text-indigo-400 uppercase font-bold text-[10px] tracking-wider">
+                                        {promotingTargetType}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {promotingTargetType === 'artifact' && (
+                                    <div className="mt-3 space-y-3 border-t border-slate-900 pt-3">
+                                      <div>
+                                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                          Artifact Title
+                                        </label>
+                                        <input
+                                          type="text"
+                                          value={promotingArtifactTitle}
+                                          onChange={(e) => setPromotingArtifactTitle(e.target.value)}
+                                          className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-slate-200 outline-none focus:border-indigo-500"
+                                        />
+                                      </div>
+                                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                        <div>
+                                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                            Artifact Type
+                                          </label>
+                                          <select
+                                            value={promotingArtifactType}
+                                            onChange={(e) => setPromotingArtifactType(e.target.value)}
+                                            className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-slate-200 outline-none focus:border-indigo-500"
+                                          >
+                                            <option value="text_note">Text Note</option>
+                                            <option value="link">Link</option>
+                                            <option value="file_reference">File Reference</option>
+                                            <option value="raw_snippet">Raw Snippet</option>
+                                          </select>
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                          Artifact Summary / Content
+                                        </label>
+                                        <textarea
+                                          value={promotingArtifactSummary}
+                                          onChange={(e) => setPromotingArtifactSummary(e.target.value)}
+                                          rows={3}
+                                          className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-slate-200 outline-none focus:border-indigo-500 font-mono"
+                                        />
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {promotingTargetType === 'decision' && (
+                                    <div className="mt-3 space-y-3 border-t border-slate-900 pt-3">
+                                      <div>
+                                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                          Decision Title
+                                        </label>
+                                        <input
+                                          type="text"
+                                          value={promotingDecisionTitle}
+                                          onChange={(e) => setPromotingDecisionTitle(e.target.value)}
+                                          className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-slate-200 outline-none focus:border-indigo-500"
+                                        />
+                                      </div>
+                                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                        <div>
+                                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                            Decision State
+                                          </label>
+                                          <select
+                                            value={promotingDecisionState}
+                                            onChange={(e) => setPromotingDecisionState(e.target.value as DecisionState)}
+                                            className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-slate-200 outline-none focus:border-indigo-500"
+                                          >
+                                            <option value="proposed">Proposed</option>
+                                            <option value="accepted">Accepted</option>
+                                            <option value="deferred">Deferred</option>
+                                          </select>
+                                        </div>
+                                        <div>
+                                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                            Impact Note (Optional)
+                                          </label>
+                                          <input
+                                            type="text"
+                                            value={promotingDecisionImpact}
+                                            onChange={(e) => setPromotingDecisionImpact(e.target.value)}
+                                            placeholder="e.g. affect nursery shelf capacity, schema versioning"
+                                            className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-slate-200 outline-none focus:border-indigo-500"
+                                          />
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                          Decision Rationale
+                                        </label>
+                                        <textarea
+                                          value={promotingDecisionRationale}
+                                          onChange={(e) => setPromotingDecisionRationale(e.target.value)}
+                                          rows={3}
+                                          className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-slate-200 outline-none focus:border-indigo-500 font-mono"
+                                        />
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {promotingTargetType === 'commitment' && (
+                                    <div className="mt-3 space-y-3 border-t border-slate-900 pt-3">
+                                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                        <div>
+                                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                            Commitment Title
+                                          </label>
+                                          <input
+                                            type="text"
+                                            value={promotingCommitmentTitle}
+                                            onChange={(e) => setPromotingCommitmentTitle(e.target.value)}
+                                            className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-slate-200 outline-none focus:border-indigo-500"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                            Work Package ID / Name (Optional)
+                                          </label>
+                                          <input
+                                            type="text"
+                                            value={promotingCommitmentWorkPackage}
+                                            onChange={(e) => setPromotingCommitmentWorkPackage(e.target.value)}
+                                            placeholder="e.g. wp-nursery-accessions"
+                                            className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-slate-200 outline-none focus:border-indigo-500"
+                                          />
+                                        </div>
+                                      </div>
+
+                                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                                        <div>
+                                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                            State
+                                          </label>
+                                          <select
+                                            value={promotingCommitmentState}
+                                            onChange={(e) => setPromotingCommitmentState(e.target.value as CommitmentState)}
+                                            className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-slate-200 outline-none focus:border-indigo-500"
+                                          >
+                                            <option value="proposed">Proposed</option>
+                                            <option value="active">Active</option>
+                                            <option value="blocked">Blocked</option>
+                                            <option value="completed">Completed</option>
+                                          </select>
+                                        </div>
+                                        <div>
+                                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                            Confidence
+                                          </label>
+                                          <select
+                                            value={promotingCommitmentConfidence}
+                                            onChange={(e) => setPromotingCommitmentConfidence(e.target.value as 'high' | 'medium' | 'low')}
+                                            className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-slate-200 outline-none focus:border-indigo-500"
+                                          >
+                                            <option value="high">High</option>
+                                            <option value="medium">Medium</option>
+                                            <option value="low">Low</option>
+                                          </select>
+                                        </div>
+                                        <div>
+                                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                            Constraints (Optional)
+                                          </label>
+                                          <input
+                                            type="text"
+                                            value={promotingCommitmentConstraints}
+                                            onChange={(e) => setPromotingCommitmentConstraints(e.target.value)}
+                                            placeholder="Time, hardware limits, dependencies"
+                                            className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-slate-200 outline-none focus:border-indigo-500"
+                                          />
+                                        </div>
+                                      </div>
+
+                                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                        <div>
+                                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                            Next Action
+                                          </label>
+                                          <input
+                                            type="text"
+                                            value={promotingCommitmentNextAction}
+                                            onChange={(e) => setPromotingCommitmentNextAction(e.target.value)}
+                                            placeholder="What is the next single-cycle move?"
+                                            className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-slate-200 outline-none focus:border-indigo-500"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                            Done When Criterion
+                                          </label>
+                                          <input
+                                            type="text"
+                                            value={promotingCommitmentDoneWhen}
+                                            onChange={(e) => setPromotingCommitmentDoneWhen(e.target.value)}
+                                            placeholder="Clear verification criteria"
+                                            className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-slate-200 outline-none focus:border-indigo-500"
+                                          />
+                                        </div>
+                                      </div>
+
+                                      {promotingCommitmentState === 'blocked' && (
+                                        <div>
+                                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                            Blocker Note
+                                          </label>
+                                          <textarea
+                                            value={promotingCommitmentBlockerNote}
+                                            onChange={(e) => setPromotingCommitmentBlockerNote(e.target.value)}
+                                            rows={2}
+                                            placeholder="Describe the blocker details..."
+                                            className="w-full rounded border border-red-900/50 bg-slate-950 px-2 py-1 text-slate-200 outline-none focus:border-red-500"
+                                          />
+                                        </div>
+                                      )}
+
+                                      <div>
+                                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                          Commitment Rationale
+                                        </label>
+                                        <textarea
+                                          value={promotingCommitmentRationale}
+                                          onChange={(e) => setPromotingCommitmentRationale(e.target.value)}
+                                          rows={3}
+                                          className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-slate-200 outline-none focus:border-indigo-500 font-mono"
+                                        />
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {promotingTargetType === 'context' && (
+                                    <div className="mt-3 space-y-3 border-t border-slate-900 pt-3">
+                                      <div>
+                                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                          Context Proposal Title
+                                        </label>
+                                        <input
+                                          type="text"
+                                          value={promotingContextTitle}
+                                          onChange={(e) => setPromotingContextTitle(e.target.value)}
+                                          className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-slate-200 outline-none focus:border-indigo-500"
+                                        />
+                                      </div>
+                                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                        <div>
+                                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                            Context Type
+                                          </label>
+                                          <select
+                                            value={promotingContextType}
+                                            onChange={(e) => setPromotingContextType(e.target.value as ProjectContextType)}
+                                            className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-slate-200 outline-none focus:border-indigo-500"
+                                          >
+                                            <option value="working_note">Working Note</option>
+                                            <option value="constraint">Constraint / Guardrail</option>
+                                            <option value="decision">Decision Statement</option>
+                                            <option value="assumption">Active Assumption</option>
+                                            <option value="warning">Systemic Warning</option>
+                                            <option value="requirement">Handoff Requirement</option>
+                                          </select>
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                          Context Body Content
+                                        </label>
+                                        <textarea
+                                          value={promotingContextBody}
+                                          onChange={(e) => setPromotingContextBody(e.target.value)}
+                                          rows={3}
+                                          className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-slate-200 outline-none focus:border-indigo-500 font-mono"
+                                        />
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  <div className="mt-4 flex items-center justify-between border-t border-slate-900 pt-3">
+                                    <div className="text-[10px] text-slate-400 italic">
+                                      A simulated digital seal will be auto-generated for <span className="font-mono text-indigo-400 font-bold">{promotingSigner}</span>.
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <button
+                                        onClick={() => {
+                                          setPromotingCaptureId(null);
+                                          setPromotingTargetType(null);
+                                        }}
+                                        className="rounded border border-slate-750 bg-slate-950/60 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-300 hover:bg-slate-900/60"
+                                      >
+                                        Cancel
+                                      </button>
+                                      <button
+                                        onClick={() => handleConfirmSignedPromotion(capture.id)}
+                                        className="rounded border border-indigo-700 bg-indigo-900/40 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-indigo-300 hover:bg-indigo-900/60"
+                                      >
+                                        Confirm Signed Promotion
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -6259,6 +7791,7 @@ export default function ProjectsPage() {
                       {([
                         { id: 'desk', label: 'Desk' },
                         { id: 'overview', label: 'Overview' },
+                        { id: 'context', label: 'Accepted Context' },
                         { id: 'frames', label: 'Sections' },
                         { id: 'room', label: 'Links' },
                         { id: 'review', label: 'Review Queue' },
@@ -6509,6 +8042,99 @@ export default function ProjectsPage() {
                   </div>
                   <div className="flex-1 overflow-y-auto p-5">
                     <div className="flex flex-col gap-4">
+                      {isSavingCheckpoint && (
+                        <div className="rounded border border-cyan-900/50 bg-cyan-950/20 p-4 text-xs">
+                          <div className="mb-3 rounded border border-amber-900/30 bg-amber-950/20 p-2.5">
+                            <div className="flex items-center gap-1.5 font-bold text-amber-400 uppercase tracking-wider text-[10px]">
+                              <span>✍️ Sign and Seal Handoff Checkpoint</span>
+                            </div>
+                            <p className="mt-1 text-[11px] text-slate-300 leading-relaxed">
+                              Compiling a handoff checkpoint records a signed snapshot of active evidence, decisions, and commitments. Provide a signatory handle and context rationale.
+                            </p>
+                          </div>
+
+                          <div className="space-y-3">
+                            <div>
+                              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                Checkpoint Title / Identifier
+                              </label>
+                              <input
+                                type="text"
+                                value={checkpointMessage}
+                                onChange={(e) => setCheckpointMessage(e.target.value)}
+                                placeholder="e.g. Checkpoint - WP1 Accessioning Complete"
+                                className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-slate-200 outline-none focus:border-cyan-500"
+                              />
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                              <div>
+                                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                  Authorized Signer
+                                </label>
+                                <select
+                                  value={checkpointSigner}
+                                  onChange={(e) => setCheckpointSigner(e.target.value)}
+                                  className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-slate-200 outline-none focus:border-cyan-500"
+                                >
+                                  {vesselMembers.map((handle) => (
+                                    <option key={handle} value={handle}>
+                                      {handle}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <div>
+                                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                  Provenance Authority
+                                </label>
+                                <div className="rounded border border-slate-700 bg-slate-950/60 px-2 py-1 text-slate-400 font-mono text-[10px] uppercase font-bold tracking-wider">
+                                  Air-Gapped Sovereign Seal
+                                </div>
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                Why It Changed (Context Rationale)
+                              </label>
+                              <textarea
+                                value={checkpointWhyItChanged}
+                                onChange={(e) => setCheckpointWhyItChanged(e.target.value)}
+                                rows={3}
+                                placeholder="Describe the material changes in project assets, new commitments, or key decisions since the last checkpoint..."
+                                className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-slate-200 outline-none focus:border-cyan-500 font-mono"
+                              />
+                            </div>
+
+                            <div className="flex items-center justify-between border-t border-slate-900 pt-3">
+                              <div className="text-[9px] text-slate-400 italic">
+                                Cryptographic seal will be signed under <span className="font-mono text-cyan-400 font-bold">{checkpointSigner}</span>.
+                              </div>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => {
+                                    setIsSavingCheckpoint(false);
+                                    setCheckpointMessage('');
+                                    setCheckpointWhyItChanged('');
+                                  }}
+                                  className="rounded border border-slate-750 bg-slate-950/60 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-300 hover:bg-slate-900/60"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  onClick={handleConfirmSaveCheckpoint}
+                                  className="rounded border border-cyan-700 bg-cyan-900/40 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-cyan-200 hover:bg-cyan-900/60"
+                                >
+                                  Confirm & Sign Checkpoint
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       <div className={`rounded border p-4 ${handoffReadiness.ready ? 'border-emerald-900/30 bg-emerald-950/10' : 'border-amber-900/30 bg-amber-950/10'}`}>
                         <div className="flex flex-wrap items-center justify-between gap-3">
                           <div>
@@ -6907,6 +8533,12 @@ export default function ProjectsPage() {
                                       >
                                         Promote to Commitment
                                       </button>
+                                      <button
+                                        onClick={() => handlePromoteDecisionToContextPrompt(decision.id)}
+                                        className="rounded border border-teal-800 bg-teal-950/30 px-2 py-1 text-[9px] font-bold uppercase tracking-widest text-teal-300 transition-colors hover:bg-teal-900/40"
+                                      >
+                                        Promote to Context
+                                      </button>
                                     </div>
                                   </div>
                                   
@@ -6930,6 +8562,47 @@ export default function ProjectsPage() {
                                       </div>
                                     )}
                                   </div>
+
+                                  {promotingDecisionId === decision.id && (
+                                    <div className="mt-3 border-t border-teal-900/50 pt-3 text-xs">
+                                      <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-teal-400">
+                                        Promote Decision to Context
+                                      </div>
+                                      <div className="flex flex-wrap items-end gap-3">
+                                        <div className="flex-1 min-w-[120px]">
+                                          <label className="block text-[9px] uppercase tracking-wider text-slate-500 font-bold mb-1">
+                                            Context Item Type
+                                          </label>
+                                          <select
+                                            value={promotingDecisionContextType}
+                                            onChange={(e) => setPromotingDecisionContextType(e.target.value as ProjectContextType)}
+                                            className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-slate-200 outline-none focus:border-teal-500 text-xs"
+                                          >
+                                            <option value="working_note">Working Note</option>
+                                            <option value="constraint">Constraint / Guardrail</option>
+                                            <option value="decision">Decision Statement</option>
+                                            <option value="assumption">Active Assumption</option>
+                                            <option value="warning">Systemic Warning</option>
+                                            <option value="requirement">Handoff Requirement</option>
+                                          </select>
+                                        </div>
+                                        <div className="flex gap-1.5">
+                                          <button
+                                            onClick={() => setPromotingDecisionId(null)}
+                                            className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-[9px] uppercase font-bold tracking-widest text-slate-300 hover:bg-slate-900"
+                                          >
+                                            Cancel
+                                          </button>
+                                          <button
+                                            onClick={() => handleConfirmPromoteDecisionToContext(decision.id)}
+                                            className="rounded border border-teal-800 bg-teal-950 px-2 py-1 text-[9px] uppercase font-bold tracking-widest text-teal-300 hover:bg-teal-900/40"
+                                          >
+                                            Confirm
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               );
                             })}
@@ -7397,6 +9070,456 @@ export default function ProjectsPage() {
                   </div>
                 </div>
               </div>
+              )}
+
+              {projectViewMode === 'context' && (
+                <div id="project-context-root" className="flex min-h-0 flex-1 flex-col">
+                  <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 px-5 py-4">
+                    <div>
+                      <h3 className="text-xs font-bold uppercase tracking-widest text-slate-300">Accepted Context</h3>
+                      <p className="mt-1 text-xs text-slate-500">
+                        The authoritative boundaries, constraints, warnings, requirements, and working assumptions of this project.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setIsCreatingContext(true);
+                        setNewContextTitle('');
+                        setNewContextBody('');
+                        setNewContextType('working_note');
+                      }}
+                      className="rounded border border-teal-800 bg-teal-950/30 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-teal-300 transition-colors hover:bg-teal-900/40"
+                    >
+                      + Propose New Context
+                    </button>
+                  </div>
+                  
+                  <div className="flex-1 overflow-y-auto p-5">
+                    <div className="mx-auto flex max-w-5xl flex-col gap-5">
+                      
+                      {/* Manual Proposal Form */}
+                      {isCreatingContext && (
+                        <div className="rounded border border-teal-900/40 bg-teal-950/10 p-4">
+                          <div className="mb-3 text-[10px] font-bold uppercase tracking-widest text-teal-400">
+                            Propose Context Item
+                          </div>
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                              <div className="sm:col-span-2">
+                                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                  Proposal Title
+                                </label>
+                                <input
+                                  type="text"
+                                  value={newContextTitle}
+                                  onChange={(e) => setNewContextTitle(e.target.value)}
+                                  placeholder="e.g. Memory constraints on embedded device"
+                                  className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-200 outline-none focus:border-teal-500"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                  Context Type
+                                </label>
+                                <select
+                                  value={newContextType}
+                                  onChange={(e) => setNewContextType(e.target.value as ProjectContextType)}
+                                  className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-200 outline-none focus:border-teal-500"
+                                >
+                                  <option value="working_note">Working Note</option>
+                                  <option value="constraint">Constraint / Guardrail</option>
+                                  <option value="decision">Decision Statement</option>
+                                  <option value="assumption">Active Assumption</option>
+                                  <option value="warning">Systemic Warning</option>
+                                  <option value="requirement">Handoff Requirement</option>
+                                </select>
+                              </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                              <div>
+                                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                  Authorized Signatory
+                                </label>
+                                <select
+                                  value={newContextSigner}
+                                  onChange={(e) => setNewContextSigner(e.target.value)}
+                                  className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-200 outline-none focus:border-teal-500"
+                                >
+                                  {vesselMembers.map((handle) => (
+                                    <option key={handle} value={handle}>
+                                      {handle}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div>
+                                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                  Proposal Seal Type
+                                </label>
+                                <div className="rounded border border-slate-700 bg-slate-950/60 px-2 py-1.5 text-slate-400 font-mono text-[10px] uppercase font-bold tracking-wider">
+                                  Operator Signed Proposal
+                                </div>
+                              </div>
+                            </div>
+                            
+                            <div>
+                              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                Context Body Content
+                              </label>
+                              <textarea
+                                value={newContextBody}
+                                onChange={(e) => setNewContextBody(e.target.value)}
+                                rows={3}
+                                placeholder="Describe the constraints, requirements, or active working assumptions in detail..."
+                                className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-200 outline-none focus:border-teal-500 font-mono"
+                              />
+                            </div>
+                            
+                            <div className="flex items-center justify-between border-t border-slate-900 pt-3">
+                              <div className="text-[9px] text-slate-400 italic">
+                                Proposal will be signed under <span className="font-mono text-teal-400 font-bold">{newContextSigner}</span>.
+                              </div>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => {
+                                    setIsCreatingContext(false);
+                                    setNewContextTitle('');
+                                    setNewContextBody('');
+                                  }}
+                                  className="rounded border border-slate-750 bg-slate-950/60 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-300 hover:bg-slate-900/60"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  onClick={handleCreateContext}
+                                  className="rounded border border-teal-700 bg-teal-900/40 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-teal-200 hover:bg-teal-900/60"
+                                >
+                                  Confirm & Sign Proposal
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Context Items Grid/Categorized Lists */}
+                      <div className="grid grid-cols-1 gap-6">
+                        
+                        {/* 1. Proposed/Pending Context Items */}
+                        <div>
+                          <div className="mb-3 flex items-center justify-between border-b border-slate-800 pb-1">
+                            <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                              Proposed Proposals ({((selectedProject.context_items || []).filter(c => c.context_state === 'proposed')).length})
+                            </h4>
+                          </div>
+                          {((selectedProject.context_items || []).filter(c => c.context_state === 'proposed')).length === 0 ? (
+                            <div className="rounded border border-dashed border-slate-850 p-4 text-xs text-slate-500 italic">
+                              No context proposals pending peer review.
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {((selectedProject.context_items || []).filter(c => c.context_state === 'proposed')).map((item) => (
+                                <div key={item.id} className="rounded border border-slate-800 bg-slate-950/60 p-4">
+                                  <div className="flex flex-wrap items-start justify-between gap-3 mb-2 pb-2 border-b border-slate-900/60">
+                                    <div>
+                                      <span className={`inline-block rounded border px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider mb-1.5 ${getContextTypeBadgeStyle(item.context_type)}`}>
+                                        {item.context_type.replace('_', ' ')}
+                                      </span>
+                                      <h5 className="text-sm font-bold text-slate-200">{item.title}</h5>
+                                      <div className="text-[9px] text-slate-500 mt-0.5">
+                                        Proposed by <span className="text-slate-400 font-bold">{item.actor_name || item.actor_type}</span> | {formatTimestamp(item.created_at)}
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      {isRejectingProposalId === item.id ? (
+                                        <div className="flex items-center gap-2">
+                                          <input
+                                            type="text"
+                                            value={rejectReasonForProposalId[item.id] || ''}
+                                            onChange={(e) => setRejectReasonForProposalId(prev => ({ ...prev, [item.id]: e.target.value }))}
+                                            placeholder="Reason for rejection"
+                                            className="rounded border border-red-800 bg-slate-950 px-2 py-1 text-[10px] text-slate-200 outline-none"
+                                          />
+                                          <button
+                                            onClick={() => handleRejectContextProposal(item.id)}
+                                            className="rounded border border-red-800 bg-red-950/30 px-2 py-1 text-[9px] font-bold uppercase text-red-300 hover:bg-red-900/40"
+                                          >
+                                            Confirm Reject
+                                          </button>
+                                          <button
+                                            onClick={() => setIsRejectingProposalId(null)}
+                                            className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-[9px] font-bold uppercase text-slate-400 hover:bg-slate-900"
+                                          >
+                                            Cancel
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <div className="flex items-center gap-2">
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold">Signatory:</span>
+                                            <select
+                                              value={activeSignerForProposalId[item.id] || vesselMembers[0] || 'Malaky'}
+                                              onChange={(e) => setActiveSignerForProposalId(prev => ({ ...prev, [item.id]: e.target.value }))}
+                                              className="rounded border border-slate-700 bg-slate-950 px-1.5 py-0.5 text-[9px] text-slate-200 outline-none"
+                                            >
+                                              {vesselMembers.map((handle) => (
+                                                <option key={handle} value={handle}>
+                                                  {handle}
+                                                </option>
+                                              ))}
+                                            </select>
+                                          </div>
+                                          <button
+                                            onClick={() => handleAcceptContextProposal(item.id)}
+                                            className="rounded border border-emerald-800 bg-emerald-950/30 px-2 py-1 text-[9px] font-bold uppercase tracking-widest text-emerald-300 hover:bg-emerald-900/40"
+                                          >
+                                            Accept & Sign
+                                          </button>
+                                          <button
+                                            onClick={() => setIsRejectingProposalId(item.id)}
+                                            className="rounded border border-red-800 bg-red-950/30 px-2 py-1 text-[9px] font-bold uppercase tracking-widest text-red-300 hover:bg-red-900/40"
+                                          >
+                                            Reject
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <p className="whitespace-pre-wrap font-mono text-xs text-slate-300 leading-relaxed bg-slate-950/40 rounded p-2.5">{item.body}</p>
+                                  
+                                  {item.source_type && (
+                                    <div className="mt-2 text-[9px] text-slate-500">
+                                      Source: <span className="font-bold">{item.source_type}</span> ({item.source_id})
+                                    </div>
+                                  )}
+                                  
+                                  {item.signed_by && (
+                                    <div className="mt-2.5 rounded border border-slate-900 bg-slate-950/80 p-2 font-mono text-[9px] text-slate-400">
+                                      <span className="text-teal-400 font-bold">Proposal Sealed By:</span> {item.signed_by}
+                                      {item.signature && <span className="ml-2 text-slate-600 font-mono">({item.signature})</span>}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* 2. Canonical/Active Context Items */}
+                        <div>
+                          <div className="mb-3 flex items-center justify-between border-b border-slate-800 pb-1">
+                            <h4 className="text-[10px] font-bold uppercase tracking-widest text-emerald-400">
+                              Canonical Project Context ({((selectedProject.context_items || []).filter(c => c.context_state === 'accepted')).length})
+                            </h4>
+                          </div>
+                          {((selectedProject.context_items || []).filter(c => c.context_state === 'accepted')).length === 0 ? (
+                            <div className="rounded border border-dashed border-slate-850 p-4 text-xs text-slate-500 italic">
+                              No canonical context rules verified for this project yet. Use proposals to establish them.
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {((selectedProject.context_items || []).filter(c => c.context_state === 'accepted')).map((item) => (
+                                <div key={item.id} className="rounded border border-slate-850 bg-slate-950/30 p-4">
+                                  <div className="flex flex-wrap items-start justify-between gap-3 mb-2 pb-2 border-b border-slate-900/60">
+                                    <div>
+                                      <span className={`inline-block rounded border px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider mb-1.5 ${getContextTypeBadgeStyle(item.context_type)}`}>
+                                        {item.context_type.replace('_', ' ')}
+                                      </span>
+                                      <h5 className="text-sm font-bold text-slate-200">{item.title}</h5>
+                                      <div className="text-[9px] text-slate-500 mt-0.5">
+                                        Reviewed & Signed by <span className="text-emerald-400 font-bold">{item.signed_by}</span> | Active since {formatTimestamp(item.reviewed_at || item.updated_at)}
+                                      </div>
+                                    </div>
+                                    <div>
+                                      {isSupersedingItemId === item.id ? (
+                                        <button
+                                          onClick={() => setIsSupersedingItemId(null)}
+                                          className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-[9px] font-bold uppercase text-slate-400 hover:bg-slate-900"
+                                        >
+                                          Close Form
+                                        </button>
+                                      ) : (
+                                        <button
+                                          onClick={() => {
+                                            setIsSupersedingItemId(item.id);
+                                            setSupersedingContextTitle(`Supersedes: ${item.title}`);
+                                            setSupersedingContextBody(item.body);
+                                            setSupersedingContextType(item.context_type);
+                                            setSupersedingReviewNote('');
+                                          }}
+                                          className="rounded border border-indigo-800 bg-indigo-950/30 px-2 py-1 text-[9px] font-bold uppercase tracking-widest text-indigo-300 hover:bg-indigo-900/40"
+                                        >
+                                          Supersede Context
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                  
+                                  <p className="whitespace-pre-wrap font-mono text-xs text-slate-300 leading-relaxed bg-slate-950/40 rounded p-2.5">{item.body}</p>
+                                  
+                                  {item.supersedes_id && (
+                                    <div className="mt-2 text-[9px] text-slate-500 font-mono">
+                                      Supersedes older item: {item.supersedes_id}
+                                    </div>
+                                  )}
+                                  
+                                  {item.signature && (
+                                    <div className="mt-2.5 rounded border border-slate-900 bg-slate-950/80 p-2 font-mono text-[9px] text-slate-400">
+                                      <span className="text-emerald-400 font-bold">Authorized Seal:</span> {item.signed_by}
+                                      <span className="ml-2 text-slate-600 font-mono">({item.signature})</span>
+                                    </div>
+                                  )}
+
+                                  {/* Inline Supersede Form */}
+                                  {isSupersedingItemId === item.id && (
+                                    <div className="mt-4 border-t border-indigo-900/40 pt-4 space-y-4">
+                                      <div className="text-[10px] font-bold uppercase tracking-widest text-indigo-400">
+                                        Propose Replacement Context (Supersede)
+                                      </div>
+                                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                                        <div className="sm:col-span-2">
+                                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                            Replacement Title
+                                          </label>
+                                          <input
+                                            type="text"
+                                            value={supersedingContextTitle}
+                                            onChange={(e) => setSupersedingContextTitle(e.target.value)}
+                                            className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-200 outline-none focus:border-indigo-500"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                            Replacement Type
+                                          </label>
+                                          <select
+                                            value={supersedingContextType}
+                                            onChange={(e) => setSupersedingContextType(e.target.value as ProjectContextType)}
+                                            className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-200 outline-none focus:border-indigo-500"
+                                          >
+                                            <option value="working_note">Working Note</option>
+                                            <option value="constraint">Constraint / Guardrail</option>
+                                            <option value="decision">Decision Statement</option>
+                                            <option value="assumption">Active Assumption</option>
+                                            <option value="warning">Systemic Warning</option>
+                                            <option value="requirement">Handoff Requirement</option>
+                                          </select>
+                                        </div>
+                                      </div>
+                                      
+                                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                        <div>
+                                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                            Authorized Signatory
+                                          </label>
+                                          <select
+                                            value={supersedingSigner}
+                                            onChange={(e) => setSupersedingSigner(e.target.value)}
+                                            className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-200 outline-none focus:border-indigo-500"
+                                          >
+                                            {vesselMembers.map((handle) => (
+                                              <option key={handle} value={handle}>
+                                                {handle}
+                                              </option>
+                                            ))}
+                                          </select>
+                                        </div>
+                                        <div>
+                                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                            Supersede Reason / Review Note
+                                          </label>
+                                          <input
+                                            type="text"
+                                            value={supersedingReviewNote}
+                                            onChange={(e) => setSupersedingReviewNote(e.target.value)}
+                                            placeholder="e.g. Replaced due to new hardware design details"
+                                            className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-200 outline-none focus:border-indigo-500"
+                                          />
+                                        </div>
+                                      </div>
+                                      
+                                      <div>
+                                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                          Replacement Body Content
+                                        </label>
+                                        <textarea
+                                          value={supersedingContextBody}
+                                          onChange={(e) => setSupersedingContextBody(e.target.value)}
+                                          rows={3}
+                                          className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-200 outline-none focus:border-indigo-500 font-mono"
+                                        />
+                                      </div>
+                                      
+                                      <div className="flex items-center justify-between border-t border-slate-900 pt-3">
+                                        <div className="text-[9px] text-slate-400 italic">
+                                          Replacement will be active immediately upon signing by <span className="font-mono text-indigo-400 font-bold">{supersedingSigner}</span>.
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <button
+                                            onClick={() => setIsSupersedingItemId(null)}
+                                            className="rounded border border-slate-750 bg-slate-950/60 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-300 hover:bg-slate-900/60"
+                                          >
+                                            Cancel
+                                          </button>
+                                          <button
+                                            onClick={() => handleSupersedeContext(item.id)}
+                                            className="rounded border border-indigo-700 bg-indigo-900/40 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-indigo-200 hover:bg-indigo-900/60"
+                                          >
+                                            Confirm & Sign Supersede
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* 3. Superseded & Rejected Context Items */}
+                        <div>
+                          <div className="mb-3 flex items-center justify-between border-b border-slate-800 pb-1">
+                            <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                              Superseded / Rejected Context ({((selectedProject.context_items || []).filter(c => c.context_state === 'superseded' || c.context_state === 'rejected')).length})
+                            </h4>
+                          </div>
+                          {((selectedProject.context_items || []).filter(c => c.context_state === 'superseded' || c.context_state === 'rejected')).length === 0 ? (
+                            <div className="rounded border border-dashed border-slate-850 p-4 text-xs text-slate-500 italic">
+                              No archived, rejected, or superseded context items.
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {((selectedProject.context_items || []).filter(c => c.context_state === 'superseded' || c.context_state === 'rejected')).map((item) => (
+                                <div key={item.id} className="rounded border border-slate-900 bg-slate-950/10 p-3 opacity-60">
+                                  <div className="flex flex-wrap items-start justify-between gap-3 mb-1.5 pb-1.5 border-b border-slate-950">
+                                    <div>
+                                      <span className={`inline-block rounded border px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider mb-1.5 border-slate-800 text-slate-400 bg-slate-950/40`}>
+                                        {item.context_type.replace('_', ' ')}
+                                      </span>
+                                      <h5 className="text-xs font-bold text-slate-400 line-through">{item.title}</h5>
+                                      <div className="text-[9px] text-slate-600 mt-0.5">
+                                        Status: <span className="uppercase tracking-wider font-bold">{item.context_state}</span> | Updated {formatTimestamp(item.updated_at)}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <p className="font-mono text-xs text-slate-500 bg-slate-950/20 rounded p-2 line-through">{item.body}</p>
+                                  {item.review_note && (
+                                    <div className="mt-2 text-[10px] text-indigo-400/80 italic">
+                                      Note: "{item.review_note}"
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                      </div>
+                    </div>
+                  </div>
+                </div>
               )}
 
               {projectViewMode === 'handoff' && (

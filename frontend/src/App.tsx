@@ -32,6 +32,7 @@ const OperationsPage = lazy(() => import('./OperationsPage'));
 const ProjectsPage = lazy(() => import('./ProjectsPage'));
 const SovereignGallery = lazy(() => import('./components/SovereignGallery'));
 const DossierRoute = lazy(() => import('./DossierRoute'));
+const HandoffPublicPage = lazy(() => import('./HandoffPublicPage'));
 
 const HiveTester = lazy(() => import('./HiveTester'));
 const WitnessPage = lazy(() => import('./WitnessPage').then(m => ({ default: m.WitnessPage })));
@@ -362,6 +363,14 @@ function App() {
           <LandingPage />
         </div>
       </SuspendedPublicShell>
+    );
+  }
+
+  if (pathname.startsWith('/handoff/')) {
+    return (
+      <Suspense fallback={<LoadingSurface label="Loading handoff..." />}>
+        <HandoffPublicPage />
+      </Suspense>
     );
   }
 
