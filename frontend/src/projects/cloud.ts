@@ -2,6 +2,7 @@ import type { User } from 'firebase/auth';
 import {
   addDoc,
   collection,
+  collectionGroup,
   deleteDoc,
   doc,
   getDoc,
@@ -39,6 +40,28 @@ export interface ProjectRoomInvite {
   status: 'pending' | 'accepted' | 'revoked';
   created_at: string;
   expires_at: string;
+  expires_at_ms?: number;
+}
+
+export interface ProjectInvitePreview {
+  token: string;
+  invite_id: string;
+  project_id: string;
+  project_title: string;
+  project_summary: string;
+  email: string;
+  role: Exclude<ProjectRoomRole, 'owner'>;
+  status: 'pending' | 'accepted' | 'revoked';
+  created_at: string;
+  expires_at: string;
+  expires_at_ms?: number;
+  accepted_by?: string;
+  accepted_at?: string;
+}
+
+export interface ProjectInviteAcceptance {
+  invite: ProjectInvitePreview;
+  room: CloudProjectRoom | null;
 }
 
 export interface ProjectRoomComment {
@@ -180,16 +203,23 @@ export function listenToHostedProjectRooms(user: User, onRooms: (rooms: CloudPro
   }
 
   const roomsQuery = query(
-    collection(dbResult.value, 'project_rooms'),
-    where('member_uids', 'array-contains', user.uid),
+    collectionGroup(dbResult.value, 'members'),
+    where('uid', '==', user.uid),
     limit(50),
   );
 
   return onSnapshot(
     roomsQuery,
-    (snapshot) => {
-      const rooms = snapshot.docs
-        .map((roomDoc) => normalizeCloudRoom(roomDoc.id, roomDoc.data()))
+    async (snapshot) => {
+      const roomSnapshots = await Promise.all(
+        snapshot.docs.map((memberDoc) => {
+          const roomRef = memberDoc.ref.parent.parent;
+          return roomRef ? getDoc(roomRef) : Promise.resolve(null);
+        }),
+      );
+      const rooms = roomSnapshots
+        .filter((roomSnapshot): roomSnapshot is NonNullable<typeof roomSnapshot> => Boolean(roomSnapshot?.exists()))
+        .map((roomDoc) => normalizeCloudRoom(roomDoc.id, roomDoc.data() as Record<string, unknown>))
         .filter((room): room is CloudProjectRoom => Boolean(room))
         .sort((a, b) => Date.parse(b.project.updated_at || b.updated_at || '') - Date.parse(a.project.updated_at || a.updated_at || ''));
       onRooms(rooms);
@@ -261,6 +291,8 @@ export async function createProjectRoomInvite(roomId: string, email: string, rol
   const token = randomToken('invite');
   const createdAt = new Date();
   const expiresAt = new Date(createdAt.getTime() + 1000 * 60 * 60 * 24 * 14);
+  const roomSnapshot = await getDoc(doc(dbResult.value, 'project_rooms', roomId));
+  const room = roomSnapshot.exists() ? normalizeCloudRoom(roomSnapshot.id, roomSnapshot.data()) : null;
   const payload = {
     project_id: roomId,
     email: email.trim().toLowerCase(),
@@ -270,8 +302,15 @@ export async function createProjectRoomInvite(roomId: string, email: string, rol
     created_by: user.uid,
     created_at: createdAt.toISOString(),
     expires_at: expiresAt.toISOString(),
+    expires_at_ms: expiresAt.getTime(),
   };
   const ref = await addDoc(collection(dbResult.value, 'project_rooms', roomId, 'invites'), payload);
+  await setDoc(doc(dbResult.value, 'project_invites', token), {
+    ...payload,
+    invite_id: ref.id,
+    project_title: room?.title || 'Project Room',
+    project_summary: room?.description || '',
+  });
   return {
     ok: true,
     value: {
@@ -298,11 +337,74 @@ export async function listProjectRoomInvites(roomId: string): Promise<CloudResul
 export async function revokeProjectRoomInvite(roomId: string, inviteId: string): Promise<CloudResult<string>> {
   const dbResult = getDbOrError();
   if (!dbResult.ok || !dbResult.value) return cloudError<string>(dbResult.error);
-  await updateDoc(doc(dbResult.value, 'project_rooms', roomId, 'invites', inviteId), {
+  const inviteRef = doc(dbResult.value, 'project_rooms', roomId, 'invites', inviteId);
+  const inviteSnapshot = await getDoc(inviteRef);
+  await updateDoc(inviteRef, {
     status: 'revoked',
     revoked_at: serverTimestamp(),
   });
+  const inviteData = inviteSnapshot.exists() ? inviteSnapshot.data() : null;
+  if (typeof inviteData?.token === 'string') {
+    await updateDoc(doc(dbResult.value, 'project_invites', inviteData.token), {
+      status: 'revoked',
+      revoked_at: serverTimestamp(),
+    });
+  }
   return { ok: true, value: inviteId };
+}
+
+export async function fetchProjectInviteByToken(token: string): Promise<CloudResult<ProjectInvitePreview>> {
+  const dbResult = getDbOrError();
+  if (!dbResult.ok || !dbResult.value) return cloudError<ProjectInvitePreview>(dbResult.error);
+  const inviteSnapshot = await getDoc(doc(dbResult.value, 'project_invites', token));
+  if (!inviteSnapshot.exists()) return { ok: false, error: 'This project invite was not found.' };
+  const invite = inviteSnapshot.data() as ProjectInvitePreview;
+  if (invite.status === 'revoked') return { ok: false, value: invite, error: 'Invite revoked.' };
+  if (invite.status === 'accepted') return { ok: false, value: invite, error: 'Invite already accepted.' };
+  if ((invite.expires_at_ms || Date.parse(invite.expires_at)) < Date.now()) return { ok: false, value: invite, error: 'Invite expired.' };
+  return { ok: true, value: invite };
+}
+
+export async function acceptProjectRoomInvite(token: string, user: User): Promise<CloudResult<ProjectInviteAcceptance>> {
+  const dbResult = getDbOrError();
+  if (!dbResult.ok || !dbResult.value) return cloudError<ProjectInviteAcceptance>(dbResult.error);
+
+  const inviteResult = await fetchProjectInviteByToken(token);
+  if (!inviteResult.ok || !inviteResult.value) return cloudError<ProjectInviteAcceptance>(inviteResult.error);
+  const invite = inviteResult.value;
+
+  const acceptedAt = new Date().toISOString();
+  await setDoc(doc(dbResult.value, 'project_rooms', invite.project_id, 'members', user.uid), {
+    uid: user.uid,
+    email: user.email || null,
+    display_name: user.displayName || null,
+    role: invite.role,
+    invite_token: token,
+    joined_at: acceptedAt,
+  });
+  await updateDoc(doc(dbResult.value, 'project_invites', token), {
+    status: 'accepted',
+    accepted_by: user.uid,
+    accepted_at: acceptedAt,
+  });
+  await updateDoc(doc(dbResult.value, 'project_rooms', invite.project_id, 'invites', invite.invite_id), {
+    status: 'accepted',
+    accepted_by: user.uid,
+    accepted_at: acceptedAt,
+  });
+  await addDoc(collection(dbResult.value, 'project_rooms', invite.project_id, 'events'), {
+    actor_uid: user.uid,
+    actor_label: userLabel(user),
+    action: 'member_joined',
+    object_type: 'member',
+    object_id: user.uid,
+    summary: `${userLabel(user)} joined as ${invite.role}.`,
+    timestamp: acceptedAt,
+  });
+
+  const roomSnapshot = await getDoc(doc(dbResult.value, 'project_rooms', invite.project_id));
+  const room = roomSnapshot.exists() ? normalizeCloudRoom(roomSnapshot.id, roomSnapshot.data()) : null;
+  return { ok: true, value: { invite, room } };
 }
 
 export async function addProjectRoomComment(

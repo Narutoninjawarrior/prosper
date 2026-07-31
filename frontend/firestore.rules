@@ -126,6 +126,18 @@ service cloud.firestore {
       return isProjectRoomMember(roomId) && projectRoomRole(roomId) in ['owner', 'editor', 'reviewer'];
     }
 
+    function inviteDoc(token) {
+      return get(/databases/$(database)/documents/project_invites/$(token));
+    }
+
+    function validProjectInvite(roomId, token) {
+      return exists(/databases/$(database)/documents/project_invites/$(token)) &&
+        inviteDoc(token).data.project_id == roomId &&
+        inviteDoc(token).data.status == 'pending' &&
+        inviteDoc(token).data.role in ['editor', 'reviewer', 'viewer'] &&
+        inviteDoc(token).data.expires_at_ms > request.time.toMillis();
+    }
+
     match /project_rooms/{roomId} {
       allow read: if isProjectRoomMember(roomId);
       allow create: if signedIn() &&
@@ -143,12 +155,27 @@ service cloud.firestore {
             get(/databases/$(database)/documents/project_rooms/$(roomId)).data.owner_uid == request.auth.uid &&
             request.resource.data.role == 'owner'
           ) ||
-          (signedIn() && memberId == request.auth.uid && request.resource.data.role in ['reviewer', 'viewer']);
+          (
+            signedIn() &&
+            memberId == request.auth.uid &&
+            validProjectInvite(roomId, request.resource.data.invite_token) &&
+            request.resource.data.role == inviteDoc(request.resource.data.invite_token).data.role &&
+            request.resource.data.uid == request.auth.uid
+          );
       }
 
       match /invites/{inviteId} {
         allow read: if canManageProjectRoom(roomId);
-        allow create, update, delete: if canManageProjectRoom(roomId);
+        allow create, delete: if canManageProjectRoom(roomId);
+        allow update: if canManageProjectRoom(roomId) ||
+          (
+            signedIn() &&
+            resource.data.status == 'pending' &&
+            request.resource.data.status == 'accepted' &&
+            request.resource.data.accepted_by == request.auth.uid &&
+            request.resource.data.role == resource.data.role &&
+            request.resource.data.project_id == roomId
+          );
       }
 
       match /comments/{commentId} {
@@ -165,6 +192,21 @@ service cloud.firestore {
         allow create: if canReviewProjectRoom(roomId);
         allow update, delete: if false;
       }
+    }
+
+    match /project_invites/{token} {
+      allow read: if true;
+      allow create: if signedIn() && canManageProjectRoom(request.resource.data.project_id);
+      allow update: if canManageProjectRoom(resource.data.project_id) ||
+        (
+          signedIn() &&
+          resource.data.status == 'pending' &&
+          request.resource.data.status == 'accepted' &&
+          request.resource.data.accepted_by == request.auth.uid &&
+          request.resource.data.project_id == resource.data.project_id &&
+          request.resource.data.role == resource.data.role
+        );
+      allow delete: if false;
     }
 
     match /published_handoffs/{token} {

@@ -10,7 +10,9 @@ import {
 } from './projects/auth';
 import {
   addProjectRoomComment,
+  acceptProjectRoomInvite,
   createProjectRoomInvite,
+  fetchProjectInviteByToken,
   importLocalProjectRoom,
   listenToHostedProjectRooms,
   listenToProjectRoomComments,
@@ -21,6 +23,7 @@ import {
   revokePublishedHandoff,
   syncProjectRoom,
   type CloudProjectRoom,
+  type ProjectInvitePreview,
   type ProjectRoomComment,
   type ProjectRoomInvite,
   type ProjectRoomRole,
@@ -3919,6 +3922,10 @@ export default function ProjectsPage() {
   const [roomComments, setRoomComments] = useState<ProjectRoomComment[]>([]);
   const [roomCommentBody, setRoomCommentBody] = useState('');
   const [lastPublishedHandoffUrl, setLastPublishedHandoffUrl] = useState('');
+  const [inviteToken] = useState(() => new URLSearchParams(window.location.search).get('invite') || '');
+  const [invitePreview, setInvitePreview] = useState<ProjectInvitePreview | null>(null);
+  const [inviteStatusMessage, setInviteStatusMessage] = useState('');
+  const [isAcceptingInvite, setIsAcceptingInvite] = useState(false);
 
   useEffect(() => {
     fetch('/__hearth/hearth_data')
@@ -3974,6 +3981,24 @@ export default function ProjectsPage() {
       unsubscribe?.();
     };
   }, [authState]);
+
+  useEffect(() => {
+    if (!inviteToken) return;
+    let cancelled = false;
+    setInviteStatusMessage('Loading project invite...');
+    fetchProjectInviteByToken(inviteToken)
+      .then((result) => {
+        if (cancelled) return;
+        setInvitePreview(result.value || null);
+        setInviteStatusMessage(result.ok ? '' : result.error || 'This project invite is unavailable.');
+      })
+      .catch((error) => {
+        if (!cancelled) setInviteStatusMessage(error instanceof Error ? error.message : 'This project invite is unavailable.');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [inviteToken]);
   const [newMessage, setNewMessage] = useState('');
   const [updateType, setUpdateType] = useState<StructuredUpdateType>('status_update');
   const [associatedArtifactId, setAssociatedArtifactId] = useState<string>('');
@@ -4571,6 +4596,32 @@ export default function ProjectsPage() {
       setCloudActionMessage('Invitation revoked.');
     } else {
       setCloudActionMessage(result.error || 'Invite revoke failed.');
+    }
+  };
+
+  const handleAcceptInvite = async () => {
+    if (!inviteToken || !currentUser) {
+      setInviteStatusMessage('Sign in to join this project room.');
+      return;
+    }
+    setIsAcceptingInvite(true);
+    setInviteStatusMessage('Joining project room...');
+    const result = await acceptProjectRoomInvite(inviteToken, currentUser);
+    setIsAcceptingInvite(false);
+    if (result.ok && result.value) {
+      setInvitePreview({ ...result.value.invite, status: 'accepted', accepted_by: currentUser.uid, accepted_at: nowIso() });
+      setInviteStatusMessage('Project room joined.');
+      if (result.value.room?.project?.id) {
+        setSelectedProjectId(result.value.room.project.id);
+      }
+      const url = new URL(window.location.href);
+      url.searchParams.delete('invite');
+      if (result.value.room?.project?.id) {
+        url.searchParams.set('project', result.value.room.project.id);
+      }
+      window.history.replaceState({}, '', `${url.pathname}${url.search}`);
+    } else {
+      setInviteStatusMessage(result.error || 'Could not join this project room.');
     }
   };
 
@@ -6138,6 +6189,62 @@ export default function ProjectsPage() {
           + New Project
         </button>
       </div>
+
+      {inviteToken && (
+        <div className="rounded-xl border border-indigo-900/50 bg-indigo-950/20 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="max-w-2xl">
+              <div className="text-[10px] font-bold uppercase tracking-widest text-indigo-300">Project Invite</div>
+              <h2 className="mt-2 text-lg font-bold text-slate-100">
+                {invitePreview?.project_title || 'Project room invitation'}
+              </h2>
+              <p className="mt-1 text-sm leading-6 text-slate-300">
+                {invitePreview?.project_summary || 'Review the invite status below, then sign in to join if the invite is still pending.'}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2 text-[10px] uppercase tracking-widest">
+                <span className="rounded border border-indigo-800 bg-indigo-950/40 px-2 py-1 text-indigo-200">
+                  Role: {invitePreview?.role || 'Reviewer'}
+                </span>
+                <span className={`rounded border px-2 py-1 ${
+                  invitePreview?.status === 'pending'
+                    ? 'border-emerald-800 bg-emerald-950/20 text-emerald-200'
+                    : 'border-amber-800 bg-amber-950/20 text-amber-200'
+                }`}>
+                  {invitePreview?.status || 'Checking'}
+                </span>
+                {invitePreview?.expires_at && (
+                  <span className="rounded border border-slate-800 bg-slate-950/50 px-2 py-1 text-slate-300">
+                    Expires {formatTimestamp(invitePreview.expires_at)}
+                  </span>
+                )}
+              </div>
+              {inviteStatusMessage && (
+                <div className="mt-3 rounded border border-slate-800 bg-slate-950/50 px-3 py-2 text-xs text-slate-300">
+                  {inviteStatusMessage}
+                </div>
+              )}
+            </div>
+            <div className="flex flex-col gap-2 sm:items-end">
+              {authState.status !== 'signed_in' ? (
+                <div className="rounded border border-amber-900/40 bg-amber-950/20 px-3 py-2 text-xs text-amber-100/80">
+                  Sign in below to join this project room.
+                </div>
+              ) : (
+                <button
+                  onClick={handleAcceptInvite}
+                  disabled={isAcceptingInvite || invitePreview?.status !== 'pending'}
+                  className="rounded bg-indigo-600 px-4 py-2 text-xs font-bold uppercase tracking-widest text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {isAcceptingInvite ? 'Joining...' : 'Join Project Room'}
+                </button>
+              )}
+              <div className="max-w-xs text-xs leading-5 text-slate-500">
+                Invites add you to the hosted room only. Public handoff links remain read-only unless the owner invites you here.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="rounded-xl border border-emerald-900/40 bg-emerald-950/10 p-4">
         <div className="flex flex-wrap items-start justify-between gap-4">
