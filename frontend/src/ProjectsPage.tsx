@@ -15,6 +15,7 @@ import {
   fetchProjectInviteByToken,
   importLocalProjectRoom,
   listenToHostedProjectRooms,
+  listenToProjectRoomMembers,
   listenToProjectRoomEvents,
   listenToProjectRoomComments,
   listProjectRoomInvites,
@@ -28,6 +29,7 @@ import {
   type ProjectRoomComment,
   type ProjectRoomEvent,
   type ProjectRoomInvite,
+  type ProjectRoomMember,
   type ProjectRoomRole,
 } from './projects/cloud';
 
@@ -1898,6 +1900,93 @@ function escapeHtml(value: string) {
 }
 
 const nowIso = () => new Date().toISOString();
+
+type ResolvedRoomIdentity = {
+  uid: string;
+  label: string;
+  handle?: string;
+  profileUrl?: string;
+  initials: string;
+  role?: ProjectRoomRole;
+  honorTier?: string;
+  skillTags: string[];
+};
+
+const identityInitials = (label: string) => {
+  const parts = label.trim().replace(/^@/, '').split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+};
+
+const resolveRoomIdentity = (
+  uidValue: string,
+  fallbackLabel: string,
+  membersByUid: Record<string, ProjectRoomMember>
+): ResolvedRoomIdentity => {
+  const member = membersByUid[uidValue];
+  const handle = member?.moltbook_handle?.trim() || undefined;
+  const displayName = member?.display_name?.trim() || fallbackLabel?.trim() || uidValue || 'Member';
+  const label = handle ? `@${handle.replace(/^@/, '')}` : displayName;
+  return {
+    uid: uidValue,
+    label,
+    handle,
+    profileUrl: member?.moltbook_profile_url?.trim() || undefined,
+    initials: identityInitials(label),
+    role: member?.role,
+    honorTier: member?.honor_tier?.trim() || undefined,
+    skillTags: member?.skill_tags || [],
+  };
+};
+
+function RoomIdentityBadge({ identity }: { identity: ResolvedRoomIdentity }) {
+  return (
+    <details className="group relative inline-flex">
+      <summary className="flex cursor-pointer list-none items-center gap-2 rounded-full border border-slate-700 bg-slate-950/80 px-2 py-1 text-[11px] font-bold text-slate-200 outline-none transition hover:border-emerald-700 focus-visible:border-emerald-500 focus-visible:ring-2 focus-visible:ring-emerald-900/60">
+        <span className="flex h-6 w-6 items-center justify-center rounded-full border border-emerald-900/60 bg-emerald-950/30 text-[10px] uppercase tracking-widest text-emerald-200">
+          {identity.initials}
+        </span>
+        <span>{identity.label}</span>
+        {identity.role && (
+          <span className="rounded-full border border-slate-800 px-1.5 py-0.5 text-[9px] uppercase tracking-widest text-slate-500">
+            {identity.role}
+          </span>
+        )}
+      </summary>
+      <div className="absolute left-0 top-9 z-20 w-64 rounded-lg border border-slate-700 bg-slate-950 p-3 text-xs shadow-xl shadow-black/40">
+        <div className="font-bold text-slate-100">{identity.label}</div>
+        <div className="mt-1 text-[10px] uppercase tracking-widest text-slate-500">
+          {identity.role ? `${identity.role} member` : 'Room member'}
+        </div>
+        {identity.honorTier && (
+          <div className="mt-2 text-slate-300">
+            <span className="text-slate-500">Honor tier:</span> {identity.honorTier}
+          </div>
+        )}
+        {identity.skillTags.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {identity.skillTags.slice(0, 6).map((tag) => (
+              <span key={tag} className="rounded-full border border-slate-800 bg-slate-900 px-2 py-0.5 text-[10px] uppercase tracking-widest text-slate-400">
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
+        {identity.profileUrl && (
+          <a
+            href={identity.profileUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-2 block text-[10px] font-bold uppercase tracking-widest text-emerald-300 hover:text-emerald-200"
+          >
+            Open Profile
+          </a>
+        )}
+      </div>
+    </details>
+  );
+}
 
 const PROJECT_TEMPLATES: Record<ProjectTemplateKey, ProjectTemplateDefinition> = {
   indie_build: {
@@ -3921,6 +4010,7 @@ export default function ProjectsPage() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<Exclude<ProjectRoomRole, 'owner'>>('reviewer');
   const [roomInvites, setRoomInvites] = useState<ProjectRoomInvite[]>([]);
+  const [roomMembers, setRoomMembers] = useState<ProjectRoomMember[]>([]);
   const [roomComments, setRoomComments] = useState<ProjectRoomComment[]>([]);
   const [roomEvents, setRoomEvents] = useState<ProjectRoomEvent[]>([]);
   const [roomCommentBody, setRoomCommentBody] = useState('');
@@ -4173,7 +4263,22 @@ export default function ProjectsPage() {
         : null,
     [hostedRooms, selectedProject]
   );
-  const selectedRoomRole: ProjectRoomRole = selectedHostedRoom && authState.status === 'signed_in' && selectedHostedRoom.owner_uid === authState.user.uid ? 'owner' : 'editor';
+  const roomMembersByUid = useMemo(
+    () =>
+      roomMembers.reduce<Record<string, ProjectRoomMember>>((acc, member) => {
+        acc[member.uid] = member;
+        return acc;
+      }, {}),
+    [roomMembers]
+  );
+  const currentRoomMember = useMemo(
+    () => (authState.status === 'signed_in' ? roomMembersByUid[authState.user.uid] || null : null),
+    [authState, roomMembersByUid]
+  );
+  const selectedRoomRole: ProjectRoomRole =
+    selectedHostedRoom && authState.status === 'signed_in' && selectedHostedRoom.owner_uid === authState.user.uid
+      ? 'owner'
+      : currentRoomMember?.role || 'viewer';
   const selectedRoomPermissions = useMemo(() => permissionsForRole(selectedRoomRole), [selectedRoomRole]);
   const agentSummary = useMemo(() => deriveAgentSummary(selectedProject), [selectedProject]);
   const projectRelevance = useMemo(() => deriveProjectRelevance(selectedProject), [selectedProject]);
@@ -4352,7 +4457,9 @@ export default function ProjectsPage() {
       id: `comment-${comment.id}`,
       kind: 'comment' as const,
       timestamp: comment.created_at,
-      title: comment.parent_comment_id ? `${comment.author_label} replied` : `${comment.author_label} commented`,
+      actionLabel: comment.parent_comment_id ? 'replied' : 'commented',
+      actorUid: comment.author_uid,
+      fallbackLabel: comment.author_label,
       detail: comment.body,
       accent: comment.optimistic ? 'border-indigo-900/40 bg-indigo-950/20 text-indigo-100' : 'border-slate-800 bg-slate-950/50 text-slate-300',
     }));
@@ -4362,7 +4469,9 @@ export default function ProjectsPage() {
         id: `event-${event.id}`,
         kind: 'event' as const,
         timestamp: event.timestamp,
-        title: event.action.replace(/_/g, ' '),
+        actionLabel: event.action.replace(/_/g, ' '),
+        actorUid: event.actor_uid,
+        fallbackLabel: event.actor_label,
         detail: event.summary,
         accent: 'border-emerald-900/30 bg-emerald-950/10 text-emerald-100',
       }));
@@ -4436,6 +4545,21 @@ export default function ProjectsPage() {
     listProjectRoomInvites(selectedHostedRoom.id).then((result) => {
       if (result.ok && result.value) setRoomInvites(result.value);
     });
+  }, [authState.status, selectedHostedRoom]);
+
+  useEffect(() => {
+    if (!selectedHostedRoom || authState.status !== 'signed_in') {
+      window.setTimeout(() => setRoomMembers([]), 0);
+      return;
+    }
+    const unsubscribe = listenToProjectRoomMembers(
+      selectedHostedRoom.id,
+      setRoomMembers,
+      (message) => setCloudActionMessage(`Members unavailable: ${message}`),
+    );
+    return () => {
+      unsubscribe?.();
+    };
   }, [authState.status, selectedHostedRoom]);
 
   useEffect(() => {
@@ -6593,75 +6717,81 @@ export default function ProjectsPage() {
                         Review Threads
                       </div>
                       <div className="max-h-52 overflow-y-auto">
-                        {rootRoomComments.slice(0, 5).map((comment) => (
-                          <div key={comment.id} className="border-b border-slate-800/70 px-3 py-2 text-xs last:border-b-0">
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <div className="font-bold text-slate-200">{comment.author_label}</div>
-                              <div className="text-[10px] uppercase tracking-widest text-slate-500">
-                                {new Date(comment.created_at).toLocaleString()}
+                        {rootRoomComments.slice(0, 5).map((comment) => {
+                          const identity = resolveRoomIdentity(comment.author_uid, comment.author_label, roomMembersByUid);
+                          return (
+                            <div key={comment.id} className="border-b border-slate-800/70 px-3 py-2 text-xs last:border-b-0">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <RoomIdentityBadge identity={identity} />
+                                <div className="text-[10px] uppercase tracking-widest text-slate-500">
+                                  {new Date(comment.created_at).toLocaleString()}
+                                </div>
                               </div>
-                            </div>
-                            <div className="mt-1 whitespace-pre-wrap text-slate-400">{comment.body}</div>
-                            {comment.optimistic && (
-                              <div className="mt-1 text-[10px] font-bold uppercase tracking-widest text-indigo-300">Sending...</div>
-                            )}
-                            {(roomRepliesByParent[comment.id] || []).length > 0 && (
-                              <div className="mt-2 space-y-2 border-l border-slate-800 pl-3">
-                                {(roomRepliesByParent[comment.id] || []).map((reply) => (
-                                  <div key={reply.id} className="rounded border border-slate-800/80 bg-slate-900/40 px-2 py-1.5">
-                                    <div className="flex flex-wrap items-center justify-between gap-2">
-                                      <div className="font-bold text-slate-300">{reply.author_label}</div>
-                                      <div className="text-[10px] uppercase tracking-widest text-slate-500">
-                                        {new Date(reply.created_at).toLocaleString()}
+                              <div className="mt-2 whitespace-pre-wrap text-slate-400">{comment.body}</div>
+                              {comment.optimistic && (
+                                <div className="mt-1 text-[10px] font-bold uppercase tracking-widest text-indigo-300">Sending...</div>
+                              )}
+                              {(roomRepliesByParent[comment.id] || []).length > 0 && (
+                                <div className="mt-2 space-y-2 border-l border-slate-800 pl-3">
+                                  {(roomRepliesByParent[comment.id] || []).map((reply) => {
+                                    const replyIdentity = resolveRoomIdentity(reply.author_uid, reply.author_label, roomMembersByUid);
+                                    return (
+                                      <div key={reply.id} className="rounded border border-slate-800/80 bg-slate-900/40 px-2 py-1.5">
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                          <RoomIdentityBadge identity={replyIdentity} />
+                                          <div className="text-[10px] uppercase tracking-widest text-slate-500">
+                                            {new Date(reply.created_at).toLocaleString()}
+                                          </div>
+                                        </div>
+                                        <div className="mt-2 whitespace-pre-wrap text-slate-400">{reply.body}</div>
+                                        {reply.optimistic && (
+                                          <div className="mt-1 text-[10px] font-bold uppercase tracking-widest text-indigo-300">Sending...</div>
+                                        )}
                                       </div>
-                                    </div>
-                                    <div className="mt-1 whitespace-pre-wrap text-slate-400">{reply.body}</div>
-                                    {reply.optimistic && (
-                                      <div className="mt-1 text-[10px] font-bold uppercase tracking-widest text-indigo-300">Sending...</div>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                            {replyingToCommentId === comment.id ? (
-                              <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr),auto,auto]">
-                                <input
-                                  value={replyBody}
-                                  onChange={(event) => setReplyBody(event.target.value)}
-                                  placeholder="Reply to this thread..."
-                                  className="rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-100 outline-none focus:border-emerald-500"
-                                />
+                                    );
+                                  })}
+                                </div>
+                              )}
+                              {replyingToCommentId === comment.id ? (
+                                <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr),auto,auto]">
+                                  <input
+                                    value={replyBody}
+                                    onChange={(event) => setReplyBody(event.target.value)}
+                                    placeholder="Reply to this thread..."
+                                    className="rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-100 outline-none focus:border-emerald-500"
+                                  />
+                                  <button
+                                    onClick={() => handlePostRoomReply(comment)}
+                                    disabled={!selectedRoomPermissions.canComment || !replyBody.trim()}
+                                    className="rounded border border-emerald-900/60 bg-emerald-950/20 px-2 py-1.5 text-[10px] font-bold uppercase tracking-widest text-emerald-200 hover:bg-emerald-950/40 disabled:cursor-not-allowed disabled:opacity-40"
+                                  >
+                                    Reply
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setReplyingToCommentId(null);
+                                      setReplyBody('');
+                                    }}
+                                    className="rounded border border-slate-700 px-2 py-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-slate-200"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              ) : (
                                 <button
-                                  onClick={() => handlePostRoomReply(comment)}
-                                  disabled={!selectedRoomPermissions.canComment || !replyBody.trim()}
-                                  className="rounded border border-emerald-900/60 bg-emerald-950/20 px-2 py-1.5 text-[10px] font-bold uppercase tracking-widest text-emerald-200 hover:bg-emerald-950/40 disabled:cursor-not-allowed disabled:opacity-40"
+                                  onClick={() => {
+                                    setReplyingToCommentId(comment.id);
+                                    setReplyBody('');
+                                  }}
+                                  disabled={!selectedRoomPermissions.canComment}
+                                  className="mt-2 text-[10px] font-bold uppercase tracking-widest text-emerald-300 hover:text-emerald-200 disabled:cursor-not-allowed disabled:opacity-40"
                                 >
                                   Reply
                                 </button>
-                                <button
-                                  onClick={() => {
-                                    setReplyingToCommentId(null);
-                                    setReplyBody('');
-                                  }}
-                                  className="rounded border border-slate-700 px-2 py-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-slate-200"
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => {
-                                  setReplyingToCommentId(comment.id);
-                                  setReplyBody('');
-                                }}
-                                disabled={!selectedRoomPermissions.canComment}
-                                className="mt-2 text-[10px] font-bold uppercase tracking-widest text-emerald-300 hover:text-emerald-200 disabled:cursor-not-allowed disabled:opacity-40"
-                              >
-                                Reply
-                              </button>
-                            )}
-                          </div>
-                        ))}
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -6671,17 +6801,23 @@ export default function ProjectsPage() {
                         Room Timeline
                       </div>
                       <div className="max-h-40 overflow-y-auto">
-                        {roomTimeline.slice(0, 8).map((item) => (
-                          <div key={item.id} className={`border-b px-3 py-2 text-xs last:border-b-0 ${item.accent}`}>
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <div className="font-bold capitalize">{item.title}</div>
-                              <div className="text-[10px] uppercase tracking-widest opacity-70">
-                                {new Date(item.timestamp).toLocaleString()}
+                        {roomTimeline.slice(0, 8).map((item) => {
+                          const identity = resolveRoomIdentity(item.actorUid, item.fallbackLabel, roomMembersByUid);
+                          return (
+                            <div key={item.id} className={`border-b px-3 py-2 text-xs last:border-b-0 ${item.accent}`}>
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <RoomIdentityBadge identity={identity} />
+                                  <span className="font-bold capitalize">{item.actionLabel}</span>
+                                </div>
+                                <div className="text-[10px] uppercase tracking-widest opacity-70">
+                                  {new Date(item.timestamp).toLocaleString()}
+                                </div>
                               </div>
+                              <div className="mt-2 whitespace-pre-wrap opacity-80">{item.detail}</div>
                             </div>
-                            <div className="mt-1 whitespace-pre-wrap opacity-80">{item.detail}</div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   )}

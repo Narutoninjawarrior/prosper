@@ -29,6 +29,10 @@ export interface ProjectRoomMember {
   display_name: string | null;
   role: ProjectRoomRole;
   joined_at: string;
+  moltbook_handle?: string | null;
+  moltbook_profile_url?: string | null;
+  honor_tier?: string | null;
+  skill_tags?: string[];
 }
 
 export interface ProjectRoomInvite {
@@ -242,6 +246,35 @@ export function listenToHostedProjectRooms(user: User, onRooms: (rooms: CloudPro
   );
 }
 
+export function listenToProjectRoomMembers(roomId: string, onMembers: (members: ProjectRoomMember[]) => void, onError: (message: string) => void): Unsubscribe | null {
+  const dbResult = getDbOrError();
+  if (!dbResult.ok || !dbResult.value) {
+    onError(dbResult.error || 'Room members are unavailable.');
+    return null;
+  }
+
+  return onSnapshot(
+    query(collection(dbResult.value, 'project_rooms', roomId, 'members'), limit(50)),
+    (snapshot) => {
+      onMembers(snapshot.docs.map((memberDoc) => {
+        const data = memberDoc.data() as Partial<ProjectRoomMember>;
+        return {
+          uid: typeof data.uid === 'string' ? data.uid : memberDoc.id,
+          email: typeof data.email === 'string' ? data.email : null,
+          display_name: typeof data.display_name === 'string' ? data.display_name : null,
+          role: data.role === 'owner' || data.role === 'editor' || data.role === 'reviewer' || data.role === 'viewer' ? data.role : 'viewer',
+          joined_at: safeIso(data.joined_at) || '',
+          moltbook_handle: typeof data.moltbook_handle === 'string' ? data.moltbook_handle : null,
+          moltbook_profile_url: typeof data.moltbook_profile_url === 'string' ? data.moltbook_profile_url : null,
+          honor_tier: typeof data.honor_tier === 'string' ? data.honor_tier : null,
+          skill_tags: Array.isArray(data.skill_tags) ? data.skill_tags.filter((tag): tag is string => typeof tag === 'string') : [],
+        };
+      }));
+    },
+    (error) => onError(error.message),
+  );
+}
+
 export async function importLocalProjectRoom(project: Project, user: User): Promise<CloudResult<string>> {
   const dbResult = getDbOrError();
   if (!dbResult.ok || !dbResult.value) return cloudError<string>(dbResult.error);
@@ -274,7 +307,11 @@ export async function importLocalProjectRoom(project: Project, user: User): Prom
   await setDoc(doc(dbResult.value, 'project_rooms', roomId, 'members', user.uid), {
     uid: user.uid,
     email: user.email || null,
-    display_name: user.displayName || null,
+    display_name: user.displayName || user.email || 'Project Owner',
+    moltbook_handle: null,
+    moltbook_profile_url: null,
+    honor_tier: null,
+    skill_tags: [],
     role: 'owner',
     joined_at: serverTimestamp(),
   });
@@ -391,7 +428,11 @@ export async function acceptProjectRoomInvite(token: string, user: User): Promis
   await setDoc(doc(dbResult.value, 'project_rooms', invite.project_id, 'members', user.uid), {
     uid: user.uid,
     email: user.email || null,
-    display_name: user.displayName || null,
+    display_name: user.displayName || user.email || 'Room Member',
+    moltbook_handle: null,
+    moltbook_profile_url: null,
+    honor_tier: null,
+    skill_tags: [],
     role: invite.role,
     invite_token: token,
     joined_at: acceptedAt,

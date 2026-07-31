@@ -144,6 +144,38 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/project_rooms/$(roomId)/comments/$(request.resource.data.parent_comment_id));
     }
 
+    function validMemberShape() {
+      return request.resource.data.keys().hasOnly([
+        'uid',
+        'email',
+        'display_name',
+        'role',
+        'joined_at',
+        'invite_token',
+        'moltbook_handle',
+        'moltbook_profile_url',
+        'honor_tier',
+        'skill_tags'
+      ]) &&
+      request.resource.data.uid is string &&
+      request.resource.data.role in ['owner', 'editor', 'reviewer', 'viewer'];
+    }
+
+    function safeSelfProfileUpdate(memberId) {
+      return signedIn() &&
+        memberId == request.auth.uid &&
+        resource.data.uid == request.auth.uid &&
+        request.resource.data.uid == resource.data.uid &&
+        request.resource.data.role == resource.data.role &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'display_name',
+          'moltbook_handle',
+          'moltbook_profile_url',
+          'honor_tier',
+          'skill_tags'
+        ]);
+    }
+
     match /project_rooms/{roomId} {
       allow read: if isProjectRoomMember(roomId);
       allow create: if signedIn() &&
@@ -154,11 +186,13 @@ service cloud.firestore {
 
       match /members/{memberId} {
         allow read: if isProjectRoomMember(roomId);
-        allow create, update, delete: if canManageProjectRoom(roomId) ||
+        allow create: if validMemberShape() && (
+          canManageProjectRoom(roomId) ||
           (
             signedIn() &&
             memberId == request.auth.uid &&
             get(/databases/$(database)/documents/project_rooms/$(roomId)).data.owner_uid == request.auth.uid &&
+            request.resource.data.uid == request.auth.uid &&
             request.resource.data.role == 'owner'
           ) ||
           (
@@ -167,7 +201,10 @@ service cloud.firestore {
             validProjectInvite(roomId, request.resource.data.invite_token) &&
             request.resource.data.role == inviteDoc(request.resource.data.invite_token).data.role &&
             request.resource.data.uid == request.auth.uid
-          );
+          )
+        );
+        allow update: if (validMemberShape() && canManageProjectRoom(roomId)) || safeSelfProfileUpdate(memberId);
+        allow delete: if canManageProjectRoom(roomId);
       }
 
       match /invites/{inviteId} {
