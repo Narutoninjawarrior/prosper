@@ -1,0 +1,13 @@
+{
+  "rules": {
+    "project_room_presence": {
+      "$roomId": {
+        ".read": false,
+        "$uid": {
+          ".write": "auth != null && auth.uid === $uid",
+          ".validate": "newData.hasChildren(['uid', 'display_name', 'state', 'status', 'last_changed', 'last_active_ms']) && newData.child('uid').val() === auth.uid && (newData.child('state').val() === 'online' || newData.child('state').val() === 'offline') && (newData.child('status').val() === 'online' || newData.child('status').val() === 'offline') && newData.child('last_active_ms').isNumber()"
+        }
+      }
+    }
+  }
+}
