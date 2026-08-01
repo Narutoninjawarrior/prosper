@@ -13,6 +13,7 @@ import {
   acceptProjectRoomInvite,
   createProjectRoomInvite,
   fetchProjectInviteByToken,
+  finalizeProjectRoomContext,
   importLocalProjectRoom,
   listenToHostedProjectRooms,
   listenToProjectRoomMembers,
@@ -5360,25 +5361,75 @@ export default function ProjectsPage() {
     setIsCreatingContext(false);
   };
 
-  const handleAcceptContextProposal = (itemId: string) => {
+  const handleAcceptContextProposal = async (itemId: string) => {
     if (!selectedProject) return;
+    if (selectedHostedRoom) {
+      if (!currentUser) {
+        setCloudActionMessage('Sign in to accept context proposals in a hosted room.');
+        return;
+      }
+      if (!selectedRoomPermissions.canAcceptContext) {
+        setCloudActionMessage('Requires Editor role to accept context proposals.');
+        return;
+      }
+    }
     const signer = activeSignerForProposalId[itemId] || vesselMembers[0] || 'Malaky';
-    const signaturePayload = `accept:${Date.now()}:${itemId}`;
+    const signaturePayload = `accept:${itemId}`;
     const signature = generateSimulatedSignature(signer, signaturePayload);
+    const reviewNote = 'Proposal accepted for project use.';
+
+    if (selectedHostedRoom && currentUser) {
+      const result = await finalizeProjectRoomContext(
+        selectedHostedRoom.id,
+        itemId,
+        'accepted',
+        currentUser,
+        reviewNote,
+        signer,
+        signature
+      );
+      if (!result.ok) {
+        setCloudActionMessage(result.error || 'Context approval failed.');
+        return;
+      }
+      setCloudActionMessage('Context accepted and recorded in the room timeline.');
+    }
     
     updateProjectContextState(
       selectedProject.id,
       itemId,
       'accepted',
-      'Proposal accepted by peer review',
+      reviewNote,
       signer,
       signature
     );
   };
 
-  const handleRejectContextProposal = (itemId: string) => {
+  const handleRejectContextProposal = async (itemId: string) => {
     if (!selectedProject) return;
     const reason = rejectReasonForProposalId[itemId] || 'Rejected';
+    if (selectedHostedRoom) {
+      if (!currentUser) {
+        setCloudActionMessage('Sign in to reject context proposals in a hosted room.');
+        return;
+      }
+      if (!selectedRoomPermissions.canAcceptContext) {
+        setCloudActionMessage('Requires Editor role to reject context proposals.');
+        return;
+      }
+      const result = await finalizeProjectRoomContext(
+        selectedHostedRoom.id,
+        itemId,
+        'rejected',
+        currentUser,
+        reason
+      );
+      if (!result.ok) {
+        setCloudActionMessage(result.error || 'Context rejection failed.');
+        return;
+      }
+      setCloudActionMessage('Context rejected and recorded in the room timeline.');
+    }
     updateProjectContextState(
       selectedProject.id,
       itemId,
@@ -10142,12 +10193,17 @@ export default function ProjectsPage() {
                         <div>
                           <div className="mb-3 flex items-center justify-between border-b border-slate-800 pb-1">
                             <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                              Proposed Proposals ({((selectedProject.context_items || []).filter(c => c.context_state === 'proposed')).length})
+                              Proposed Context ({((selectedProject.context_items || []).filter(c => c.context_state === 'proposed')).length})
                             </h4>
                           </div>
+                          {selectedHostedRoom && !selectedRoomPermissions.canAcceptContext && (
+                            <div className="mb-3 rounded border border-slate-800 bg-slate-950/60 p-3 text-xs text-slate-400">
+                              Reviewers can discuss proposed context. Accepting or rejecting it requires Editor role.
+                            </div>
+                          )}
                           {((selectedProject.context_items || []).filter(c => c.context_state === 'proposed')).length === 0 ? (
                             <div className="rounded border border-dashed border-slate-850 p-4 text-xs text-slate-500 italic">
-                              No context proposals pending peer review.
+                              No context proposals are waiting for approval.
                             </div>
                           ) : (
                             <div className="space-y-3">
@@ -10171,11 +10227,15 @@ export default function ProjectsPage() {
                                             value={rejectReasonForProposalId[item.id] || ''}
                                             onChange={(e) => setRejectReasonForProposalId(prev => ({ ...prev, [item.id]: e.target.value }))}
                                             placeholder="Reason for rejection"
+                                            disabled={selectedHostedRoom ? !selectedRoomPermissions.canAcceptContext : false}
+                                            title={selectedHostedRoom && !selectedRoomPermissions.canAcceptContext ? requiresEditorRole : 'Reason for rejection'}
                                             className="rounded border border-red-800 bg-slate-950 px-2 py-1 text-[10px] text-slate-200 outline-none"
                                           />
                                           <button
                                             onClick={() => handleRejectContextProposal(item.id)}
-                                            className="rounded border border-red-800 bg-red-950/30 px-2 py-1 text-[9px] font-bold uppercase text-red-300 hover:bg-red-900/40"
+                                            disabled={selectedHostedRoom ? !selectedRoomPermissions.canAcceptContext : false}
+                                            title={selectedHostedRoom && !selectedRoomPermissions.canAcceptContext ? requiresEditorRole : 'Reject context proposal'}
+                                            className="rounded border border-red-800 bg-red-950/30 px-2 py-1 text-[9px] font-bold uppercase text-red-300 hover:bg-red-900/40 disabled:cursor-not-allowed disabled:opacity-40"
                                           >
                                             Confirm Reject
                                           </button>
@@ -10193,7 +10253,9 @@ export default function ProjectsPage() {
                                             <select
                                               value={activeSignerForProposalId[item.id] || vesselMembers[0] || 'Malaky'}
                                               onChange={(e) => setActiveSignerForProposalId(prev => ({ ...prev, [item.id]: e.target.value }))}
-                                              className="rounded border border-slate-700 bg-slate-950 px-1.5 py-0.5 text-[9px] text-slate-200 outline-none"
+                                              disabled={selectedHostedRoom ? !selectedRoomPermissions.canAcceptContext : false}
+                                              title={selectedHostedRoom && !selectedRoomPermissions.canAcceptContext ? requiresEditorRole : 'Select approval signatory'}
+                                              className="rounded border border-slate-700 bg-slate-950 px-1.5 py-0.5 text-[9px] text-slate-200 outline-none disabled:cursor-not-allowed disabled:opacity-50"
                                             >
                                               {vesselMembers.map((handle) => (
                                                 <option key={handle} value={handle}>
@@ -10204,13 +10266,17 @@ export default function ProjectsPage() {
                                           </div>
                                           <button
                                             onClick={() => handleAcceptContextProposal(item.id)}
-                                            className="rounded border border-emerald-800 bg-emerald-950/30 px-2 py-1 text-[9px] font-bold uppercase tracking-widest text-emerald-300 hover:bg-emerald-900/40"
+                                            disabled={selectedHostedRoom ? !selectedRoomPermissions.canAcceptContext : false}
+                                            title={selectedHostedRoom && !selectedRoomPermissions.canAcceptContext ? requiresEditorRole : 'Approve context proposal'}
+                                            className="rounded border border-emerald-800 bg-emerald-950/30 px-2 py-1 text-[9px] font-bold uppercase tracking-widest text-emerald-300 hover:bg-emerald-900/40 disabled:cursor-not-allowed disabled:opacity-40"
                                           >
-                                            Accept & Sign
+                                            Approve
                                           </button>
                                           <button
                                             onClick={() => setIsRejectingProposalId(item.id)}
-                                            className="rounded border border-red-800 bg-red-950/30 px-2 py-1 text-[9px] font-bold uppercase tracking-widest text-red-300 hover:bg-red-900/40"
+                                            disabled={selectedHostedRoom ? !selectedRoomPermissions.canAcceptContext : false}
+                                            title={selectedHostedRoom && !selectedRoomPermissions.canAcceptContext ? requiresEditorRole : 'Reject context proposal'}
+                                            className="rounded border border-red-800 bg-red-950/30 px-2 py-1 text-[9px] font-bold uppercase tracking-widest text-red-300 hover:bg-red-900/40 disabled:cursor-not-allowed disabled:opacity-40"
                                           >
                                             Reject
                                           </button>

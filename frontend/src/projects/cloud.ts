@@ -24,7 +24,7 @@ import {
   type UploadTaskSnapshot,
 } from 'firebase/storage';
 import { getFirebaseStorage, getFirestoreDb } from '../firebaseConfig';
-import type { Project, ProjectEvidenceAsset } from '../ProjectsPage';
+import type { Project, ProjectContextState, ProjectEvidenceAsset } from '../ProjectsPage';
 
 export type ProjectRoomRole = 'owner' | 'editor' | 'reviewer' | 'viewer';
 export type ProjectRoomCommentParent = 'project' | 'evidence' | 'decision' | 'commitment' | 'handoff';
@@ -601,6 +601,87 @@ export async function addProjectRoomComment(
     timestamp: createdAt,
   });
   return { ok: true, value: ref.id };
+}
+
+export async function finalizeProjectRoomContext(
+  roomId: string,
+  itemId: string,
+  contextState: Extract<ProjectContextState, 'accepted' | 'rejected'>,
+  user: User,
+  reviewNote?: string,
+  signedBy?: string,
+  signature?: string,
+): Promise<CloudResult<string>> {
+  const dbResult = getDbOrError();
+  if (!dbResult.ok || !dbResult.value) return cloudError<string>(dbResult.error);
+
+  const roomRef = doc(dbResult.value, 'project_rooms', roomId);
+  const roomSnapshot = await getDoc(roomRef);
+  if (!roomSnapshot.exists()) return cloudError<string>('Hosted project room was not found.');
+
+  const room = normalizeCloudRoom(roomSnapshot.id, roomSnapshot.data());
+  if (!room) return cloudError<string>('Hosted project room could not be read.');
+
+  const contextItems = room.project.context_items || [];
+  const targetItem = contextItems.find((item) => item.id === itemId);
+  if (!targetItem) return cloudError<string>('Context proposal was not found.');
+  if (targetItem.context_state === contextState) return { ok: true, value: itemId };
+  if (targetItem.context_state !== 'proposed') {
+    return cloudError<string>('Only proposed context items can be finalized.');
+  }
+
+  const finalizedAt = new Date().toISOString();
+  const action = contextState === 'accepted' ? 'context_accepted' : 'context_rejected';
+  const actionLabel = contextState === 'accepted' ? 'accepted' : 'rejected';
+  const note = reviewNote?.trim() || (contextState === 'accepted' ? 'Context accepted for project use.' : 'Context rejected during review.');
+  const updatedProject: Project = {
+    ...room.project,
+    updated_at: finalizedAt,
+    context_items: contextItems.map((item) => (
+      item.id === itemId
+        ? {
+            ...item,
+            context_state: contextState,
+            review_note: note,
+            reviewed_at: finalizedAt,
+            updated_at: finalizedAt,
+            signed_by: signedBy || item.signed_by,
+            signature: signature || item.signature,
+          }
+        : item
+    )),
+    activity: [
+      ...(room.project.activity || []),
+      {
+        id: `act_${Date.now()}`,
+        kind: 'status_update',
+        title: `Context ${actionLabel}: ${targetItem.title}`,
+        detail: note,
+        timestamp: finalizedAt,
+      },
+    ],
+  };
+
+  await updateDoc(roomRef, {
+    project: updatedProject,
+    updated_at: serverTimestamp(),
+  });
+
+  await addDoc(collection(dbResult.value, 'project_rooms', roomId, 'events'), {
+    actor_uid: user.uid,
+    actor_label: userLabel(user),
+    action,
+    object_type: 'context',
+    object_id: itemId,
+    summary: `${userLabel(user)} ${actionLabel} context: ${targetItem.title}.`,
+    timestamp: finalizedAt,
+    metadata: {
+      context_state: contextState,
+      review_note: note,
+    },
+  });
+
+  return { ok: true, value: itemId };
 }
 
 export function listenToProjectRoomComments(roomId: string, onComments: (comments: ProjectRoomComment[]) => void, onError: (message: string) => void): Unsubscribe | null {

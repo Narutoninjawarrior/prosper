@@ -241,7 +241,14 @@ service cloud.firestore {
         'metadata'
       ]) &&
       request.resource.data.actor_uid == request.auth.uid &&
-      request.resource.data.action in ['member_joined', 'comment_added', 'handoff_published', 'handoff_revoked'];
+      request.resource.data.action in [
+        'member_joined',
+        'comment_added',
+        'handoff_published',
+        'handoff_revoked',
+        'context_accepted',
+        'context_rejected'
+      ];
     }
 
     match /project_rooms/{roomId} {
@@ -302,9 +309,10 @@ service cloud.firestore {
       match /events/{eventId} {
         allow read: if isProjectRoomMember(roomId);
         allow create: if validRoomEventShape() && (
-          canReviewProjectRoom(roomId) ||
+          (request.resource.data.action == 'comment_added' && canReviewProjectRoom(roomId)) ||
           (request.resource.data.action == 'member_joined' && isProjectRoomMember(roomId)) ||
-          (request.resource.data.action in ['handoff_published', 'handoff_revoked'] && canManageProjectRoom(roomId))
+          (request.resource.data.action in ['handoff_published', 'handoff_revoked'] && canManageProjectRoom(roomId)) ||
+          (request.resource.data.action in ['context_accepted', 'context_rejected'] && canEditProjectRoom(roomId))
         );
         allow update, delete: if false;
       }
