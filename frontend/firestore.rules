@@ -322,6 +322,15 @@ service cloud.firestore {
         allow create, update: if isProjectRoomMember(roomId) && validPresenceShape(memberId);
         allow delete: if canManageProjectRoom(roomId) || (signedIn() && memberId == request.auth.uid);
       }
+
+      match /feedback/{feedbackId} {
+        allow read: if isProjectRoomMember(roomId);
+        allow create: if request.resource.data.handoff_token is string &&
+          exists(/databases/$(database)/documents/public_handoff_pointers/$(request.resource.data.handoff_token)) &&
+          get(/databases/$(database)/documents/public_handoff_pointers/$(request.resource.data.handoff_token)).data.project_id == roomId &&
+          get(/databases/$(database)/documents/public_handoff_pointers/$(request.resource.data.handoff_token)).data.revoked != true;
+        allow update, delete: if canManageProjectRoom(roomId) || canEditProjectRoom(roomId);
+      }
     }
 
     match /project_invites/{token} {

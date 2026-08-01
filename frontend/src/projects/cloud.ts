@@ -125,6 +125,7 @@ export interface PublishedHandoff {
   approved_evidence: unknown[];
   decisions: unknown[];
   commitments: unknown[];
+  runs: unknown[];
   checkpoint_metadata: Record<string, unknown>;
 }
 
@@ -134,6 +135,18 @@ export interface PublicHandoffPointer {
   revoked: boolean;
   revoked_at?: string;
   revoked_by?: string;
+}
+
+export interface ProjectFeedback {
+  id: string;
+  project_id: string;
+  handoff_token: string;
+  content: string;
+  author_name: string;
+  created_at: string;
+  status: 'new' | 'processed' | 'dismissed';
+  converted_to_type?: string;
+  converted_to_id?: string;
 }
 
 export interface CloudProjectRoom {
@@ -228,6 +241,16 @@ function randomToken(prefix: string) {
 function safeStorageFileName(name: string) {
   const cleaned = name.trim().replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/-+/g, '-');
   return cleaned || 'evidence-asset';
+}
+
+function recordFromUnknown(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+function arrayFromRecord(record: Record<string, unknown> | null, key: string): unknown[] {
+  if (!record) return [];
+  const value = record[key];
+  return Array.isArray(value) ? value : [];
 }
 
 export function permissionsForRole(role: ProjectRoomRole): PermissionSet {
@@ -778,6 +801,11 @@ export async function publishProjectHandoff(
 
   const token = randomToken('handoff');
   const publishedAt = new Date().toISOString();
+  const jsonRecord = recordFromUnknown(json);
+  const provenance = recordFromUnknown(jsonRecord?.provenance);
+  const evidenceSummary = recordFromUnknown(provenance?.evidence_summary);
+  const checkpoint = recordFromUnknown(jsonRecord?.checkpoint);
+
   const payload: PublishedHandoff = {
     token,
     project_id: roomId,
@@ -793,12 +821,15 @@ export async function publishProjectHandoff(
     markdown,
     json,
     accepted_context: project.context_items?.filter(c => c.context_state === 'accepted') || [],
-    approved_evidence: [],
-    decisions: project.activity?.filter(a => a.kind.startsWith('decision')) || [],
-    commitments: project.activity?.filter(a => a.kind.startsWith('commitment')) || [],
+    approved_evidence: arrayFromRecord(evidenceSummary, 'ready_to_carry'),
+    decisions: arrayFromRecord(provenance, 'decisions'),
+    commitments: arrayFromRecord(provenance, 'commitments'),
+    runs: arrayFromRecord(provenance, 'runs'),
     checkpoint_metadata: {
       exported_at: publishedAt,
-      version: `v${(project.review_packets || []).length + 1}`
+      version: `v${(project.review_packets || []).length + 1}`,
+      checkpoint_title: typeof checkpoint?.title === 'string' ? checkpoint.title : null,
+      checkpoint_timestamp: typeof checkpoint?.timestamp === 'string' ? checkpoint.timestamp : null
     }
   };
 
@@ -879,4 +910,76 @@ export async function deleteHostedRoom(roomId: string): Promise<CloudResult<stri
   if (!dbResult.ok || !dbResult.value) return cloudError<string>(dbResult.error);
   await deleteDoc(doc(dbResult.value, 'project_rooms', roomId));
   return { ok: true, value: roomId };
+}
+
+export async function submitHandoffFeedback(
+  roomId: string,
+  handoffToken: string,
+  content: string,
+  authorName: string,
+): Promise<CloudResult<string>> {
+  const dbResult = getDbOrError();
+  if (!dbResult.ok || !dbResult.value) return cloudError<string>(dbResult.error);
+
+  const createdAt = new Date().toISOString();
+  const feedbackRef = await addDoc(collection(dbResult.value, 'project_rooms', roomId, 'feedback'), {
+    project_id: roomId,
+    handoff_token: handoffToken,
+    content: content.trim(),
+    author_name: authorName.trim() || 'Anonymous Reviewer',
+    created_at: createdAt,
+    status: 'new',
+  });
+  
+  return { ok: true, value: feedbackRef.id };
+}
+
+export function listenToProjectFeedback(
+  roomId: string,
+  onFeedback: (feedback: ProjectFeedback[]) => void,
+  onError: (message: string) => void,
+): Unsubscribe | null {
+  const dbResult = getDbOrError();
+  if (!dbResult.ok || !dbResult.value) {
+    onError(dbResult.error || 'Project feedback is unavailable.');
+    return null;
+  }
+  return onSnapshot(
+    query(
+      collection(dbResult.value, 'project_rooms', roomId, 'feedback'),
+      orderBy('created_at', 'desc'),
+      limit(100)
+    ),
+    (snapshot) => {
+      onFeedback(
+        snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...(doc.data() as Omit<ProjectFeedback, 'id'>),
+        }))
+      );
+    },
+    (error) => onError(error.message)
+  );
+}
+
+export async function updateProjectFeedbackStatus(
+  roomId: string,
+  feedbackId: string,
+  status: 'new' | 'processed' | 'dismissed',
+  convertedToType?: string,
+  convertedToId?: string
+): Promise<CloudResult<string>> {
+  const dbResult = getDbOrError();
+  if (!dbResult.ok || !dbResult.value) return cloudError<string>(dbResult.error);
+
+  const updates: Record<string, any> = {
+    status,
+    updated_at: serverTimestamp(),
+  };
+
+  if (convertedToType) updates.converted_to_type = convertedToType;
+  if (convertedToId) updates.converted_to_id = convertedToId;
+
+  await updateDoc(doc(dbResult.value, 'project_rooms', roomId, 'feedback', feedbackId), updates);
+  return { ok: true, value: feedbackId };
 }

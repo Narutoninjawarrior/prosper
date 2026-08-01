@@ -8,19 +8,19 @@ const primarySurfaces = [
   {
     title: 'Projects',
     href: '/projects',
-    body: 'Use one project desk to capture inputs, review sources, record decisions, track open actions, and share a clean handoff.',
+    body: 'Use one packet desk to capture coding-agent output, review sources, record decisions, track open actions, and publish a clean project update.',
     accent: '#34D399',
   },
   {
     title: 'Review',
     href: '/review',
-    body: 'Open the review workspace to inspect the current flow, scope notes, and share-ready handoff without hunting through side routes.',
+    body: 'Open the review workspace to inspect proposals, scope notes, and release-ready packet changes without hunting through side routes.',
     accent: '#A78BFA',
   },
   {
     title: 'Activity',
     href: '/activity',
-    body: 'Track what changed across projects, reviews, and handoffs in one feed.',
+    body: 'Track what changed across packets, reviews, runs, and published updates in one feed.',
     accent: '#F59E0B',
   },
   {
@@ -39,16 +39,16 @@ const primarySurfaces = [
 
 const useCases = [
   {
-    title: 'Indie builder',
-    body: 'Collect notes, links, and snippets fast, then turn them into reviewed sources and a clear weekly handoff.',
+    title: 'Coding-agent build loop',
+    body: 'Collect notes, links, diffs, and agent proposals fast, then turn them into reviewed sources and a weekly project update.',
   },
   {
-    title: 'Small project team',
-    body: 'Keep a project record that shows what changed, what was reviewed, what was decided, and what happens next.',
+    title: 'Small shipping team',
+    body: 'Keep one packet that shows what changed, what was reviewed, what was decided, and what still needs to ship.',
   },
   {
-    title: 'People + agent handoff',
-    body: 'Give an agent a stable project packet instead of scattered notes, then keep the review and decision trail visible to people.',
+    title: 'People + coding agents',
+    body: 'Give coding agents a stable packet instead of scattered chat context, then keep the review and decision trail visible to people.',
   },
 ];
 
@@ -153,11 +153,11 @@ export default function LandingPage() {
                 Prosper
               </div>
               <h1 className="max-w-4xl text-4xl font-semibold tracking-tight text-white md:text-5xl">
-                Turn messy project notes into a clear handoff.
+                Keep coding-agent work in a packet your team can actually ship from.
               </h1>
               <p className="mt-4 max-w-3xl text-base leading-7 text-[#b7c9be] md:text-lg">
-                Capture inputs, attach sources, record decisions, track what still needs doing,
-                and share a handoff that another person or agent can actually use.
+                Capture inputs, attach sources, review agent proposals, record decisions, track open actions,
+                and publish a project update that another engineer or agent can pick up without a reset.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-3">
@@ -195,10 +195,10 @@ export default function LandingPage() {
             <div className="grid min-w-[300px] gap-3 rounded-[28px] border border-white/8 bg-white/5 p-4 shadow-inner">
               <div className="text-[11px] uppercase tracking-[0.3em] text-[#89a598]">Core Loop</div>
               {[
-                'Capture project inputs before they are lost.',
-                'Review sources and attach clear judgment.',
-                'Record decisions and keep open actions visible.',
-                'Draft a project handoff that another person or agent can actually use.',
+                'Capture project inputs and coding-agent output before they are lost.',
+                'Review sources and proposals with clear human judgment.',
+                'Record decisions and keep open actions visible across runs.',
+                'Publish a project update that another engineer or agent can actually use.',
               ].map((item) => (
                 <div key={item} className="rounded-2xl border border-white/8 bg-black/20 p-4 text-sm leading-6 text-[#d4f7e0]">
                   {item}
@@ -209,7 +209,7 @@ export default function LandingPage() {
         </section>
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <StatCard label="Project desk" value="Live" detail="Inbox, sources, decisions, open actions, and handoff all live in /projects." />
+          <StatCard label="Project desk" value="Live" detail="Inbox, sources, decisions, open actions, runs, and published updates all live in /projects." />
           <StatCard label="Recent activity" value={lastSignalLabel} detail={activity?.note ?? `State: ${activityStateLabel}`} />
           <StatCard label="Sources" value={evidenceCount} detail="Attached material can be reviewed and carried into project handoff outputs." />
           <StatCard label="Members" value={memberCount} detail={`Source: ${memberSource}`} />
@@ -241,7 +241,7 @@ export default function LandingPage() {
             </div>
             <div>
               <div className="text-[11px] uppercase tracking-[0.32em] text-[#89a598]">Built For</div>
-              <h2 className="text-2xl font-semibold text-white">Keep the thread from first note to final handoff</h2>
+          <h2 className="text-2xl font-semibold text-white">Keep the thread from first note to shipped update</h2>
             </div>
           </div>
 

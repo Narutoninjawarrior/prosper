@@ -46,7 +46,7 @@ export default function PublicNav({ compact = false }: { compact?: boolean }) {
           href="/projects"
           className="rounded-full border border-[#10b981]/35 bg-[#10b981]/12 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#9ff0c4] no-underline"
         >
-          Open Desk
+          Open Packet Desk
         </a>
       </div>
     </header>

@@ -236,6 +236,34 @@ export interface ProjectContextItem {
   assets?: ProjectEvidenceAsset[];
 }
 
+export type ProjectProposalType = 'run' | 'run_step' | 'decision' | 'scope_note' | 'source' | 'open_action';
+export type ProjectProposalReviewState = 'proposed' | 'accepted' | 'rejected' | 'deferred';
+
+export interface ProjectProposalPromotionTarget {
+  kind: 'run' | 'run_step' | 'decision' | 'context_item' | 'commitment';
+  id: string;
+  label: string;
+  parent_run_id?: string;
+}
+
+export interface ProjectProposalRecord {
+  id: string;
+  proposal_type: ProjectProposalType;
+  proposal_source: string;
+  proposed_at: string;
+  proposal_summary: string;
+  payload_summary: string;
+  review_state: ProjectProposalReviewState;
+  proposed_by?: string;
+  source_label?: string;
+  target_id?: string;
+  target_title?: string;
+  parent_run_id?: string;
+  promoted_target?: ProjectProposalPromotionTarget;
+  reviewed_at?: string;
+  review_note?: string;
+}
+
 export interface Project {
   id: string;
   title: string;
@@ -253,7 +281,9 @@ export interface Project {
   review_packets?: ProjectReviewPacket[];
   context?: ProjectContext;
   context_items?: ProjectContextItem[];
+  proposal_history?: ProjectProposalRecord[];
   next_step?: string;
+  runs?: any[];
 }
 
 interface DerivedAgentSummary {
@@ -2484,6 +2514,7 @@ function normalizeProject(project: unknown, index: number): Project {
   const captureItems = normalizeCaptureItems(item.capture_items);
   const reviewPackets = normalizeReviewPackets(item.review_packets);
   const contextItems = normalizeContextItems(item.context_items);
+  const proposalHistory = normalizeProposalHistory(item.proposal_history);
   const updatedAt = typeof item.updated_at === 'string' ? item.updated_at : nowIso();
   return {
     id: item.id || `project_${index}`,
@@ -2500,10 +2531,123 @@ function normalizeProject(project: unknown, index: number): Project {
     capture_items: captureItems,
     review_packets: reviewPackets,
     context_items: contextItems,
+    proposal_history: proposalHistory,
     activity: deriveActivity(item.activity, messages, artifacts, updatedAt, typeof item.category === 'string' ? item.category : 'workbench'),
     context: item.context && typeof item.context === 'object' ? item.context : undefined,
-    next_step: typeof item.next_step === 'string' ? item.next_step : ''
+    next_step: typeof item.next_step === 'string' ? item.next_step : '',
+    runs: Array.isArray(item.runs) ? item.runs : []
   };
+}
+
+function normalizeProposalHistory(value: unknown): ProjectProposalRecord[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((proposal, index) => {
+      const item = proposal as Partial<ProjectProposalRecord>;
+      const proposalType: ProjectProposalType =
+        item.proposal_type === 'run' ||
+        item.proposal_type === 'run_step' ||
+        item.proposal_type === 'decision' ||
+        item.proposal_type === 'scope_note' ||
+        item.proposal_type === 'source' ||
+        item.proposal_type === 'open_action'
+          ? item.proposal_type
+          : 'scope_note';
+      const reviewState: ProjectProposalReviewState =
+        item.review_state === 'proposed' ||
+        item.review_state === 'accepted' ||
+        item.review_state === 'rejected' ||
+        item.review_state === 'deferred'
+          ? item.review_state
+          : 'proposed';
+      const promotedTarget =
+        item.promoted_target &&
+        typeof item.promoted_target === 'object' &&
+        typeof item.promoted_target.id === 'string' &&
+        typeof item.promoted_target.label === 'string' &&
+        typeof item.promoted_target.kind === 'string'
+          ? {
+              kind: item.promoted_target.kind as ProjectProposalPromotionTarget['kind'],
+              id: item.promoted_target.id,
+              label: item.promoted_target.label,
+              parent_run_id:
+                typeof item.promoted_target.parent_run_id === 'string' ? item.promoted_target.parent_run_id : undefined
+            }
+          : undefined;
+
+      return {
+        id: typeof item.id === 'string' ? item.id : `proposal_${index}`,
+        proposal_type: proposalType,
+        proposal_source: typeof item.proposal_source === 'string' ? item.proposal_source : 'agent_intake',
+        proposed_at: typeof item.proposed_at === 'string' ? item.proposed_at : nowIso(),
+        proposal_summary: typeof item.proposal_summary === 'string' ? item.proposal_summary : 'Untitled proposal',
+        payload_summary: typeof item.payload_summary === 'string' ? item.payload_summary : '',
+        review_state: reviewState,
+        proposed_by: typeof item.proposed_by === 'string' ? item.proposed_by : undefined,
+        source_label: typeof item.source_label === 'string' ? item.source_label : undefined,
+        target_id: typeof item.target_id === 'string' ? item.target_id : undefined,
+        target_title: typeof item.target_title === 'string' ? item.target_title : undefined,
+        parent_run_id: typeof item.parent_run_id === 'string' ? item.parent_run_id : undefined,
+        promoted_target: promotedTarget,
+        reviewed_at: typeof item.reviewed_at === 'string' ? item.reviewed_at : undefined,
+        review_note: typeof item.review_note === 'string' ? item.review_note : undefined
+      };
+    })
+    .sort((a, b) => new Date(b.proposed_at).getTime() - new Date(a.proposed_at).getTime());
+}
+
+function getProposalTypeLabel(proposalType: ProjectProposalType) {
+  switch (proposalType) {
+    case 'run':
+      return 'Proposed Run';
+    case 'run_step':
+      return 'Proposed Step';
+    case 'decision':
+      return 'Proposed Decision';
+    case 'scope_note':
+      return 'Proposed Scope Note';
+    case 'source':
+      return 'Proposed Source';
+    case 'open_action':
+      return 'Proposed Open Action';
+    default:
+      return 'Proposal';
+  }
+}
+
+function getProposalReviewStateLabel(reviewState: ProjectProposalReviewState) {
+  switch (reviewState) {
+    case 'accepted':
+      return 'Accepted into Packet';
+    case 'rejected':
+      return 'Rejected in Review';
+    case 'deferred':
+      return 'Deferred';
+    default:
+      return 'Waiting for Judgment';
+  }
+}
+
+function buildProposalPayloadSummary(payload: any) {
+  if (!payload || typeof payload !== 'object') return 'No payload summary provided.';
+
+  const parts = [
+    typeof payload.title === 'string' && payload.title.trim().length > 0 ? `Title: ${payload.title.trim()}` : '',
+    typeof payload.description === 'string' && payload.description.trim().length > 0
+      ? `Description: ${payload.description.trim()}`
+      : '',
+    typeof payload.rationale === 'string' && payload.rationale.trim().length > 0 ? `Reason: ${payload.rationale.trim()}` : '',
+    typeof payload.body === 'string' && payload.body.trim().length > 0 ? `Body: ${payload.body.trim()}` : '',
+    typeof payload.next_action === 'string' && payload.next_action.trim().length > 0
+      ? `Next: ${payload.next_action.trim()}`
+      : '',
+    typeof payload.done_when === 'string' && payload.done_when.trim().length > 0
+      ? `Done when: ${payload.done_when.trim()}`
+      : '',
+    Array.isArray(payload.actions) && payload.actions.length > 0 ? `${payload.actions.length} proposed step${payload.actions.length === 1 ? '' : 's'}` : ''
+  ].filter(Boolean);
+
+  return parts.length > 0 ? parts.join(' | ') : JSON.stringify(payload);
 }
 
 function deriveAgentSummary(project: Project | null): DerivedAgentSummary {
@@ -3108,6 +3252,10 @@ export function useProjects() {
     });
     saveProjects(updated);
   };
+  const updateProject = (updatedProject: Project) => {
+    saveProjects(projects.map(p => p.id === updatedProject.id ? updatedProject : p));
+  };
+
   const updateNextStep = (projectId: string, nextStep: string) => {
     const timestamp = nowIso();
     const updated = projects.map((project) => {
@@ -4006,7 +4154,8 @@ export function useProjects() {
 
   return { 
     projects, 
-    addProject, 
+    addProject,
+    updateProject, 
     addMessage, 
     updateNextStep, 
     updateArtifactReviewState, 
@@ -4033,7 +4182,8 @@ export function useProjects() {
 export default function ProjectsPage() {
   const { 
     projects, 
-    addProject, 
+    addProject,
+    updateProject, 
     updateNextStep, 
     updateArtifactReviewState, 
     updateArtifactReviewSignal,
@@ -4054,6 +4204,10 @@ export default function ProjectsPage() {
     promoteDecisionToContext
   } = useProjects();
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [isAgentIntakeOpen, setIsAgentIntakeOpen] = useState(false);
+  const [agentIntakePayload, setAgentIntakePayload] = useState('');
+  const [agentIntakeError, setAgentIntakeError] = useState('');
+
   const [commitmentFocusFilter, setCommitmentFocusFilter] = useState<'all' | 'active' | 'blocked' | 'at_risk' | 'completed'>('all');
   const [reflections, setReflections] = useState<PeerReflection[]>([]);
   const [bellowsState, setBellowsState] = useState<BellowsStateSnapshot | null>(null);
@@ -4256,6 +4410,7 @@ export default function ProjectsPage() {
   const [activeSignerForProposalId, setActiveSignerForProposalId] = useState<Record<string, string>>({});
   const [rejectReasonForProposalId, setRejectReasonForProposalId] = useState<Record<string, string>>({});
   const [isRejectingProposalId, setIsRejectingProposalId] = useState<string | null>(null);
+  const [proposalReviewNoteById, setProposalReviewNoteById] = useState<Record<string, string>>({});
 
   // Checkpointing States
   const [isSavingCheckpoint, setIsSavingCheckpoint] = useState<boolean>(false);
@@ -4484,6 +4639,23 @@ export default function ProjectsPage() {
   const approvedArtifacts = useMemo(
     () => (selectedProject?.artifacts || []).filter((artifact) => isArtifactApproved(artifact)),
     [selectedProject]
+  );
+  const proposalHistory = useMemo(() => selectedProject?.proposal_history || [], [selectedProject]);
+  const pendingProposalHistory = useMemo(
+    () => proposalHistory.filter((proposal) => proposal.review_state === 'proposed'),
+    [proposalHistory]
+  );
+  const acceptedProposalHistory = useMemo(
+    () => proposalHistory.filter((proposal) => proposal.review_state === 'accepted'),
+    [proposalHistory]
+  );
+  const rejectedProposalHistory = useMemo(
+    () => proposalHistory.filter((proposal) => proposal.review_state === 'rejected'),
+    [proposalHistory]
+  );
+  const deferredProposalHistory = useMemo(
+    () => proposalHistory.filter((proposal) => proposal.review_state === 'deferred'),
+    [proposalHistory]
   );
   const flaggedArtifacts = useMemo(
     () => (selectedProject?.artifacts || []).filter((artifact) => isArtifactFlagged(artifact)),
@@ -5922,6 +6094,7 @@ export default function ProjectsPage() {
     const approved = artifacts.filter((artifact) => isArtifactApproved(artifact));
     const flagged = artifacts.filter((artifact) => isArtifactFlagged(artifact));
     const pending = artifacts.filter((artifact) => !isArtifactApproved(artifact) && !isArtifactFlagged(artifact));
+    const proposalHistory = selectedProject.proposal_history || [];
 
     return {
       canonical_context: canonical_context.map((item) => ({
@@ -6117,7 +6290,30 @@ export default function ProjectsPage() {
               target_view: deskNextAction.targetView,
               target_element_id: deskNextAction.targetElementId || null
             }
-          : null
+          : null,
+        proposal_review: {
+          waiting_for_judgment: proposalHistory.filter((proposal) => proposal.review_state === 'proposed').length,
+          accepted_into_packet: proposalHistory.filter((proposal) => proposal.review_state === 'accepted').length,
+          rejected_in_review: proposalHistory.filter((proposal) => proposal.review_state === 'rejected').length,
+          deferred: proposalHistory.filter((proposal) => proposal.review_state === 'deferred').length,
+          records: proposalHistory.map((proposal) => ({
+            id: proposal.id,
+            proposal_type: proposal.proposal_type,
+            proposal_source: proposal.proposal_source,
+            proposed_at: proposal.proposed_at,
+            proposal_summary: proposal.proposal_summary,
+            payload_summary: proposal.payload_summary,
+            review_state: proposal.review_state,
+            proposed_by: proposal.proposed_by || null,
+            source_label: proposal.source_label || null,
+            target_id: proposal.target_id || null,
+            target_title: proposal.target_title || null,
+            parent_run_id: proposal.parent_run_id || null,
+            promoted_target: proposal.promoted_target || null,
+            reviewed_at: proposal.reviewed_at || null,
+            review_note: proposal.review_note || null
+          }))
+        }
       },
       checkpoint: latestReviewPacket
         ? {
@@ -6147,6 +6343,10 @@ export default function ProjectsPage() {
 
     const contextItems = selectedProject.context_items || [];
     const accepted = contextItems.filter((item) => item.context_state === 'accepted');
+    const acceptedProposalMemory = (selectedProject.proposal_history || []).filter((proposal) => proposal.review_state === 'accepted');
+    const rejectedProposalMemory = (selectedProject.proposal_history || []).filter(
+      (proposal) => proposal.review_state === 'rejected' || proposal.review_state === 'deferred'
+    );
 
     const currentDirectionItems = accepted.filter((item) => item.context_type === 'working_note');
     const activeConstraintsItems = accepted.filter((item) => item.context_type === 'constraint');
@@ -6281,6 +6481,27 @@ export default function ProjectsPage() {
       [...flaggedArtifacts, ...pendingArtifacts].forEach((artifact) => {
         lines.push(`- ${artifact.title}: ${getArtifactReviewOutcomeLabel(artifact)}`);
         lines.push(`  - Detail: ${(artifact.review_note || getArtifactReviewOutcomeDetail(artifact)).trim()}`);
+      });
+    }
+
+    lines.push('', '## Proposal Review Memory', '');
+    if (acceptedProposalMemory.length === 0 && rejectedProposalMemory.length === 0) {
+      lines.push('- No judged proposals are recorded yet.');
+    } else {
+      acceptedProposalMemory.slice(0, 6).forEach((proposal) => {
+        lines.push(`- Accepted: ${getProposalTypeLabel(proposal.proposal_type)} - ${proposal.proposal_summary}`);
+        lines.push(
+          `  - Result: ${proposal.promoted_target ? `${proposal.promoted_target.label} in packet` : 'Accepted into packet'}`
+        );
+        if (proposal.review_note?.trim()) {
+          lines.push(`  - Review Note: ${proposal.review_note.trim()}`);
+        }
+      });
+      rejectedProposalMemory.slice(0, 6).forEach((proposal) => {
+        lines.push(`- ${getProposalReviewStateLabel(proposal.review_state)}: ${getProposalTypeLabel(proposal.proposal_type)} - ${proposal.proposal_summary}`);
+        if (proposal.review_note?.trim()) {
+          lines.push(`  - Review Note: ${proposal.review_note.trim()}`);
+        }
       });
     }
 
@@ -6818,6 +7039,298 @@ export default function ProjectsPage() {
     window.history.replaceState({}, '', `${url.pathname}${url.search}`);
   }, [effectiveSelectedProjectId]);
 
+
+  const copyAgentProposalSchema = useCallback(() => {
+    const schema = {
+      agent_id: "example_agent_v1",
+      proposals: [
+        { type: "run", payload: { title: "Data extraction", run_type: "extraction", actions: [{ description: "Scan source" }] } },
+        { type: "run_step", run_id: "existing_run_id", payload: { description: "Notify operator" } },
+        { type: "decision", payload: { title: "Approve budget", rationale: "Within limits" } },
+        { type: "open_action", payload: { title: "Review logs", rationale: "Verification needed", next_action: "Read logs", done_when: "Confirmed OK" } },
+        { type: "scope_note", payload: { title: "Discrepancy found", body: "Found 3 mismatched records..." } }
+      ]
+    };
+    navigator.clipboard.writeText(JSON.stringify(schema, null, 2));
+    alert('Agent Proposal Schema copied to clipboard.');
+  }, []);
+
+  const handleReviewProposal = useCallback(
+    (proposalId: string, nextState: ProjectProposalReviewState) => {
+      if (!selectedProject) return;
+
+      const now = nowIso();
+      const proposal = (selectedProject.proposal_history || []).find((item) => item.id === proposalId);
+      if (!proposal) return;
+
+      const reviewNote = (proposalReviewNoteById[proposalId] || '').trim();
+      const noteForState =
+        reviewNote ||
+        (nextState === 'accepted'
+          ? 'Accepted into packet.'
+          : nextState === 'rejected'
+            ? 'Rejected in review.'
+            : 'Deferred for a later call.');
+
+      const updatedRuns = (selectedProject.runs || []).map((run: any) => ({
+        ...run,
+        actions: Array.isArray(run.actions) ? run.actions.map((action: any) => ({ ...action })) : []
+      }));
+      let updatedDecisions = [...(selectedProject.decisions || [])];
+      let updatedCommitments = [...(selectedProject.commitments || [])];
+      let updatedContexts = [...(selectedProject.context_items || [])];
+      let promotedTarget: ProjectProposalPromotionTarget | undefined = proposal.promoted_target;
+      let outcomeTitle = getProposalReviewStateLabel(nextState);
+      let outcomeDetail = noteForState;
+
+      switch (proposal.proposal_type) {
+        case 'run': {
+          if (nextState === 'accepted') {
+            const run = updatedRuns.find((item: any) => item.id === proposal.target_id);
+            if (run) {
+              run.run_state = 'active';
+              run.updated_at = now;
+              promotedTarget = {
+                kind: 'run',
+                id: run.id,
+                label: run.title || proposal.target_title || 'Proposed Run'
+              };
+              outcomeDetail = `${noteForState} Promoted into packet as active run "${promotedTarget.label}".`;
+            }
+          } else {
+            updatedRuns.splice(
+              0,
+              updatedRuns.length,
+              ...updatedRuns.filter((run: any) => run.id !== proposal.target_id)
+            );
+          }
+          break;
+        }
+        case 'run_step': {
+          if (nextState === 'accepted') {
+            updatedRuns.forEach((run: any) => {
+              if (run.id !== proposal.parent_run_id) return;
+              run.actions = (run.actions || []).map((action: any) =>
+                action.id === proposal.target_id ? { ...action, state: 'accepted' } : action
+              );
+              run.updated_at = now;
+              const acceptedAction = (run.actions || []).find((action: any) => action.id === proposal.target_id);
+              if (acceptedAction) {
+                promotedTarget = {
+                  kind: 'run_step',
+                  id: acceptedAction.id,
+                  label: acceptedAction.description || proposal.target_title || 'Proposed Step',
+                  parent_run_id: run.id
+                };
+                outcomeDetail = `${noteForState} Accepted into run "${run.title || 'Untitled Run'}".`;
+              }
+            });
+          } else {
+            updatedRuns.forEach((run: any) => {
+              if (run.id !== proposal.parent_run_id) return;
+              run.actions = (run.actions || []).filter((action: any) => action.id !== proposal.target_id);
+              run.updated_at = now;
+            });
+          }
+          break;
+        }
+        case 'decision': {
+          if (nextState === 'accepted') {
+            updatedDecisions = updatedDecisions.map((decision) =>
+              decision.id === proposal.target_id ? { ...decision, decision_state: 'accepted', timestamp: now } : decision
+            );
+            const decision = updatedDecisions.find((item) => item.id === proposal.target_id);
+            if (decision) {
+              promotedTarget = { kind: 'decision', id: decision.id, label: decision.title };
+              outcomeDetail = `${noteForState} Promoted into packet as accepted decision "${decision.title}".`;
+            }
+          } else if (nextState === 'deferred') {
+            updatedDecisions = updatedDecisions.map((decision) =>
+              decision.id === proposal.target_id ? { ...decision, decision_state: 'deferred', timestamp: now } : decision
+            );
+            const decision = updatedDecisions.find((item) => item.id === proposal.target_id);
+            if (decision) {
+              outcomeDetail = `${noteForState} "${decision.title}" remains visible as a deferred decision.`;
+            }
+          } else {
+            updatedDecisions = updatedDecisions.filter((decision) => decision.id !== proposal.target_id);
+          }
+          break;
+        }
+        case 'scope_note':
+        case 'source': {
+          if (nextState === 'accepted') {
+            updatedContexts = updatedContexts.map((item) =>
+              item.id === proposal.target_id
+                ? {
+                    ...item,
+                    context_state: 'accepted',
+                    review_note: noteForState,
+                    reviewed_at: now,
+                    updated_at: now
+                  }
+                : item
+            );
+            const contextItem = updatedContexts.find((item) => item.id === proposal.target_id);
+            if (contextItem) {
+              promotedTarget = { kind: 'context_item', id: contextItem.id, label: contextItem.title };
+              outcomeDetail = `${noteForState} Promoted into packet as scope note "${contextItem.title}".`;
+            }
+          } else {
+            updatedContexts = updatedContexts.filter((item) => item.id !== proposal.target_id);
+          }
+          break;
+        }
+        case 'open_action': {
+          if (nextState === 'accepted') {
+            updatedCommitments = updatedCommitments.map((commitment) =>
+              commitment.id === proposal.target_id
+                ? { ...commitment, commitment_state: 'active', timestamp: now }
+                : commitment
+            );
+            const commitment = updatedCommitments.find((item) => item.id === proposal.target_id);
+            if (commitment) {
+              promotedTarget = { kind: 'commitment', id: commitment.id, label: commitment.title };
+              outcomeDetail = `${noteForState} Promoted into packet as open action "${commitment.title}".`;
+            }
+          } else {
+            updatedCommitments = updatedCommitments.filter((commitment) => commitment.id !== proposal.target_id);
+          }
+          break;
+        }
+      }
+
+      const updatedProposalHistory = (selectedProject.proposal_history || []).map((item) =>
+        item.id === proposalId
+          ? {
+              ...item,
+              review_state: nextState,
+              reviewed_at: now,
+              review_note: noteForState,
+              promoted_target: nextState === 'accepted' ? promotedTarget : item.promoted_target
+            }
+          : item
+      );
+
+      updateProject({
+        ...selectedProject,
+        updated_at: now,
+        runs: updatedRuns,
+        decisions: updatedDecisions,
+        commitments: updatedCommitments,
+        context_items: updatedContexts,
+        proposal_history: updatedProposalHistory,
+        activity: [
+          ...(selectedProject.activity || []),
+          {
+            id: `act_${Date.now()}`,
+            kind: 'status_update',
+            title: `${getProposalTypeLabel(proposal.proposal_type)} ${outcomeTitle.toLowerCase()}`,
+            detail: `${proposal.proposal_summary} | Source: ${proposal.proposed_by || proposal.proposal_source}. ${outcomeDetail}`,
+            timestamp: now
+          }
+        ]
+      });
+
+      setProposalReviewNoteById((current) => ({ ...current, [proposalId]: '' }));
+    },
+    [proposalReviewNoteById, selectedProject, updateProject]
+  );
+
+  const handleApplyAgentProposals = useCallback(() => {
+    if (!selectedProject) return;
+    try {
+      const payload = JSON.parse(agentIntakePayload);
+      if (!payload.proposals || !Array.isArray(payload.proposals)) {
+        throw new Error('Payload must contain a "proposals" array.');
+      }
+      const newRuns = [...(selectedProject.runs || [])];
+      const newContexts = [...(selectedProject.context_items || [])];
+      const newDecisions = [...(selectedProject.decisions || [])];
+      const newCommitments = [...(selectedProject.commitments || [])];
+      const newProposalHistory = [...(selectedProject.proposal_history || [])];
+      const now = new Date().toISOString();
+      payload.proposals.forEach((p: any, index: number) => {
+        const id = `agent_prop_${Date.now()}_${index}`;
+        const proposalType: ProjectProposalType =
+          p.type === 'run' ||
+          p.type === 'run_step' ||
+          p.type === 'decision' ||
+          p.type === 'scope_note' ||
+          p.type === 'source'
+            ? p.type
+            : 'open_action';
+        let targetId: string | undefined;
+        let targetTitle = p.payload?.title || p.payload?.description || getProposalTypeLabel(proposalType);
+        let parentRunId: string | undefined = typeof p.run_id === 'string' ? p.run_id : undefined;
+        if (p.type === 'run') {
+          targetId = id;
+          newRuns.push({
+            id, title: p.payload?.title || 'Proposed Run', run_type: p.payload?.run_type || 'agent_operation',
+            run_state: 'proposed', created_at: now, updated_at: now,
+            actions: (p.payload?.actions || []).map((a: any, i: number) => ({ id: `${id}_a${i}`, description: a.description || 'Action step', state: 'proposed' })),
+            agent_label: payload.agent_id || 'External Agent'
+          });
+        } else if (p.type === 'run_step' && p.run_id) {
+          const run = newRuns.find(r => r.id === p.run_id);
+          if (run) {
+            targetId = id;
+            targetTitle = p.payload?.description || 'Proposed step';
+            run.actions.push({ id, description: p.payload?.description || 'Proposed step', state: 'proposed' });
+          }
+        } else if (p.type === 'scope_note' || p.type === 'source') {
+          targetId = id;
+          newContexts.push({
+            id, project_id: selectedProject.id, title: p.payload?.title || 'Proposed Note', body: p.payload?.body || '',
+            context_type: p.type === 'source' ? 'working_note' : 'requirement', context_state: 'proposed',
+            created_at: now, updated_at: now, actor_type: 'agent', actor_name: payload.agent_id || 'Agent', source_type: 'agent_proposal'
+          });
+        } else if (p.type === 'decision') {
+          targetId = id;
+          newDecisions.push({ id, timestamp: now, title: p.payload?.title || 'Proposed Decision', rationale: p.payload?.rationale || '', decision_state: 'proposed' });
+        } else if (p.type === 'open_action' || p.type === 'commitment') {
+          targetId = id;
+          newCommitments.push({ id, title: p.payload?.title || 'Proposed Action', timestamp: now, commitment_state: 'proposed', rationale: p.payload?.rationale || '', next_action: p.payload?.next_action || '', done_when: p.payload?.done_when || '' });
+        }
+
+        newProposalHistory.unshift({
+          id: `proposal_record_${Date.now()}_${index}`,
+          proposal_type: proposalType,
+          proposal_source: 'agent_intake',
+          proposed_at: now,
+          proposal_summary: targetTitle,
+          payload_summary: buildProposalPayloadSummary(p.payload),
+          review_state: 'proposed',
+          proposed_by: payload.agent_id || 'Coding Agent',
+          source_label: 'Agent Intake',
+          target_id: targetId,
+          target_title: targetTitle,
+          parent_run_id: parentRunId
+        });
+      });
+      updateProject({
+        ...selectedProject,
+        updated_at: now,
+        runs: newRuns,
+        context_items: newContexts,
+        decisions: newDecisions,
+        commitments: newCommitments,
+        proposal_history: newProposalHistory,
+        activity: [
+          ...(selectedProject.activity || []),
+          {
+            id: `act_${Date.now()}`,
+            kind: 'status_update',
+            title: 'Agent proposals staged for review',
+            detail: `${payload.proposals.length} proposal${payload.proposals.length === 1 ? '' : 's'} entered the review surface from ${payload.agent_id || 'a coding agent'}.`,
+            timestamp: now
+          }
+        ]
+      });
+      setIsAgentIntakeOpen(false); setAgentIntakePayload(''); setAgentIntakeError('');
+    } catch (err: any) { setAgentIntakeError(err.message || 'Invalid JSON payload.'); }
+  }, [selectedProject, agentIntakePayload, updateProject]);
+
   return (
     <div className="flex h-full w-full max-w-7xl flex-col gap-6 p-6 mx-auto font-mono">
       <div className="flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-4">
@@ -6896,7 +7409,7 @@ export default function ProjectsPage() {
           <div className="max-w-2xl">
             <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-300">Shared Projects</div>
             <div className="mt-1 text-sm leading-6 text-slate-300">
-              Keep sources, decisions, comments, approved context, and handoff links together when a client or reviewer needs to step into the project.
+              Keep sources, decisions, proposal review, and published update links together when another engineer or reviewer needs to step into the packet.
             </div>
             {cloudActionMessage && (
               <div className="mt-2 rounded border border-slate-800 bg-slate-950/50 px-3 py-2 text-xs text-slate-300">
@@ -7042,7 +7555,7 @@ export default function ProjectsPage() {
                 </div>
               </div>
               <div className="mt-3 text-xs leading-5 text-slate-400">
-                Projects start in your private workspace. Shared projects add a cloud copy for review, comments, and published handoff links.
+                Projects start in your private workspace. Shared projects add a cloud copy for team review, proposal comments, and published update links.
               </div>
               {selectedHostedRoom && (
                 <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr),minmax(0,1fr)]">
@@ -7435,7 +7948,7 @@ export default function ProjectsPage() {
                   }`}
                 >
                   <div className="text-xs font-bold uppercase tracking-widest">Blank</div>
-                  <div className="mt-2 text-xs text-slate-400">Start with an empty desk and shape the loop yourself.</div>
+                  <div className="mt-2 text-xs text-slate-400">Start with an empty packet desk and shape the engineering loop yourself.</div>
                 </button>
                 {Object.values(PROJECT_TEMPLATES).map((template) => (
                   <button
@@ -8918,7 +9431,7 @@ export default function ProjectsPage() {
                         <div className="rounded border border-sky-900/30 bg-sky-950/10 p-5">
                           <div className="text-[10px] font-bold uppercase tracking-widest text-sky-300">Quick Start</div>
                           <div className="mt-2 text-sm text-slate-200">
-                            A useful project usually starts with one captured input, one reviewed evidence item, one decision, and one commitment.
+                            A useful engineering packet usually starts with one captured input, one reviewed source, one decision, and one open action another engineer or agent can continue.
                           </div>
                           <div className="mt-4">
                             <div className="text-[10px] font-bold uppercase tracking-widest text-sky-300">Guided Templates</div>
@@ -8937,10 +9450,10 @@ export default function ProjectsPage() {
                           </div>
                           <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
                             {[
-                              'Capture one note, link, file reference, or snippet.',
-                              'Review that evidence and mark it approved or flagged.',
-                              'Record one decision based on the evidence.',
-                              'Turn the decision into one commitment and save a checkpoint.'
+                              'Capture one note, link, diff summary, or script output.',
+                              'Review that source or proposal and mark it approved or flagged.',
+                              'Record one decision about what should ship or change next.',
+                              'Turn the decision into one open action and save a checkpoint.'
                             ].map((line) => (
                               <div key={line} className="rounded border border-sky-900/20 bg-slate-950/40 px-3 py-3 text-sm text-slate-300">
                                 {line}
@@ -11289,18 +11802,191 @@ export default function ProjectsPage() {
               {projectViewMode === 'review' && (
                 <div className="flex min-h-0 flex-1 flex-col">
                   <div className="border-b border-slate-800 px-5 py-4">
-                    <h3 className="text-xs font-bold uppercase tracking-widest text-slate-300">Review System</h3>
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-slate-300">Proposal Review</h3>
                     <p className="mt-1 text-xs text-slate-500">
-                      An operational review surface to process inbox captures, make decisions, and prepare handoffs.
+                      Review coding-agent proposals, source changes, decisions, and open actions before they become trusted packet state.
                     </p>
                   </div>
                   <div className="flex-1 overflow-y-auto p-5">
                     <div className="flex flex-col gap-8">
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                        {[
+                          { label: 'Waiting for Judgment', count: pendingProposalHistory.length, classes: 'border-amber-900/30 bg-amber-950/10 text-amber-200' },
+                          { label: 'Accepted into Packet', count: acceptedProposalHistory.length, classes: 'border-emerald-900/30 bg-emerald-950/10 text-emerald-200' },
+                          { label: 'Rejected in Review', count: rejectedProposalHistory.length, classes: 'border-rose-900/30 bg-rose-950/10 text-rose-200' },
+                          { label: 'Deferred', count: deferredProposalHistory.length, classes: 'border-slate-800 bg-slate-950/40 text-slate-300' }
+                        ].map((item) => (
+                          <div key={item.label} className={`rounded border p-4 ${item.classes}`}>
+                            <div className="text-[10px] font-bold uppercase tracking-widest">{item.label}</div>
+                            <div className="mt-2 text-2xl font-bold">{item.count}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="rounded border border-slate-800 bg-slate-950/40 p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/60 pb-3">
+                          <div>
+                            <h4 className="text-[11px] font-bold uppercase tracking-widest text-slate-300">Waiting for Judgment</h4>
+                            <p className="mt-1 text-[10px] text-slate-500">
+                              Each proposal keeps its source, timestamp, payload summary, and final consequence.
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => setIsAgentIntakeOpen(true)}
+                            className="rounded border border-emerald-800 bg-emerald-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-emerald-300 transition-colors hover:bg-emerald-900/40"
+                          >
+                            Agent Intake
+                          </button>
+                        </div>
+                        {pendingProposalHistory.length === 0 ? (
+                          <div className="mt-4 rounded border border-slate-800 bg-slate-950/50 px-3 py-4 text-sm text-slate-400">
+                            No proposals are waiting for judgment right now.
+                          </div>
+                        ) : (
+                          <div className="mt-4 flex flex-col gap-4">
+                            {pendingProposalHistory.map((proposal) => (
+                              <div key={proposal.id} className="rounded border border-amber-900/30 bg-amber-950/10 p-4">
+                                <div className="flex flex-wrap items-start justify-between gap-3 border-b border-amber-900/20 pb-3">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="text-[10px] font-bold uppercase tracking-widest text-amber-300">
+                                      {getProposalTypeLabel(proposal.proposal_type)}
+                                    </div>
+                                    <div className="mt-2 text-sm font-bold text-slate-100">{proposal.proposal_summary}</div>
+                                    <div className="mt-1 text-[11px] uppercase tracking-widest text-slate-500">
+                                      {proposal.proposed_by || proposal.proposal_source} | {formatTimestamp(proposal.proposed_at)}
+                                    </div>
+                                  </div>
+                                  <span className="rounded border border-amber-800 bg-amber-950/30 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-amber-200">
+                                    {getProposalReviewStateLabel(proposal.review_state)}
+                                  </span>
+                                </div>
+                                <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1.2fr),minmax(280px,0.9fr)]">
+                                  <div className="space-y-3">
+                                    <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
+                                      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Payload Summary</div>
+                                      <div className="mt-2 text-sm text-slate-300">{proposal.payload_summary}</div>
+                                    </div>
+                                    <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
+                                      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Staged Target</div>
+                                      <div className="mt-2 text-sm text-slate-300">
+                                        {proposal.target_title || 'Proposal staged for review.'}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="space-y-3">
+                                    <div>
+                                      <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                                        Review Note
+                                      </label>
+                                      <textarea
+                                        value={proposalReviewNoteById[proposal.id] || ''}
+                                        onChange={(event) =>
+                                          setProposalReviewNoteById((current) => ({
+                                            ...current,
+                                            [proposal.id]: event.target.value
+                                          }))
+                                        }
+                                        rows={4}
+                                        placeholder="Why should this become packet truth, get deferred, or stop here?"
+                                        className="mt-2 w-full rounded border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-200 outline-none focus:border-amber-700/50"
+                                      />
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                      <button
+                                        onClick={() => handleReviewProposal(proposal.id, 'accepted')}
+                                        className="rounded border border-emerald-800 bg-emerald-950/30 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-emerald-300 transition-colors hover:bg-emerald-900/40"
+                                      >
+                                        Accept
+                                      </button>
+                                      <button
+                                        onClick={() => handleReviewProposal(proposal.id, 'deferred')}
+                                        className="rounded border border-slate-700 bg-slate-950/60 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-300 transition-colors hover:bg-slate-900/70"
+                                      >
+                                        Defer
+                                      </button>
+                                      <button
+                                        onClick={() => handleReviewProposal(proposal.id, 'rejected')}
+                                        className="rounded border border-rose-800 bg-rose-950/30 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-rose-300 transition-colors hover:bg-rose-900/40"
+                                      >
+                                        Reject
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                        <div className="rounded border border-emerald-900/30 bg-emerald-950/10 p-4">
+                          <div className="border-b border-emerald-900/20 pb-3">
+                            <h4 className="text-[11px] font-bold uppercase tracking-widest text-emerald-300">Accepted into Packet</h4>
+                            <p className="mt-1 text-[10px] text-slate-500">
+                              Clear proof of what became trusted packet state.
+                            </p>
+                          </div>
+                          {acceptedProposalHistory.length === 0 ? (
+                            <div className="mt-4 text-sm text-slate-400">No proposals have been accepted into the packet yet.</div>
+                          ) : (
+                            <div className="mt-4 flex flex-col gap-3">
+                              {acceptedProposalHistory.slice(0, 6).map((proposal) => (
+                                <div key={proposal.id} className="rounded border border-emerald-900/20 bg-slate-950/40 p-3">
+                                  <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-300">
+                                    {getProposalTypeLabel(proposal.proposal_type)}
+                                  </div>
+                                  <div className="mt-1 text-sm font-bold text-slate-100">{proposal.proposal_summary}</div>
+                                  <div className="mt-2 text-sm text-slate-300">
+                                    {proposal.promoted_target
+                                      ? `Promoted into packet as ${proposal.promoted_target.label}.`
+                                      : 'Accepted into packet.'}
+                                  </div>
+                                  <div className="mt-2 text-[11px] text-slate-500">
+                                    {formatTimestamp(proposal.reviewed_at || proposal.proposed_at)}
+                                    {proposal.review_note ? ` | ${proposal.review_note}` : ''}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="rounded border border-rose-900/30 bg-rose-950/10 p-4">
+                          <div className="border-b border-rose-900/20 pb-3">
+                            <h4 className="text-[11px] font-bold uppercase tracking-widest text-rose-300">Rejected in Review</h4>
+                            <p className="mt-1 text-[10px] text-slate-500">
+                              Lightweight memory of what did not become packet truth and why.
+                            </p>
+                          </div>
+                          {rejectedProposalHistory.length === 0 && deferredProposalHistory.length === 0 ? (
+                            <div className="mt-4 text-sm text-slate-400">No rejected or deferred proposals are recorded yet.</div>
+                          ) : (
+                            <div className="mt-4 flex flex-col gap-3">
+                              {[...rejectedProposalHistory, ...deferredProposalHistory].slice(0, 6).map((proposal) => (
+                                <div key={proposal.id} className="rounded border border-rose-900/20 bg-slate-950/40 p-3">
+                                  <div className="text-[10px] font-bold uppercase tracking-widest text-rose-300">
+                                    {getProposalReviewStateLabel(proposal.review_state)}
+                                  </div>
+                                  <div className="mt-1 text-sm font-bold text-slate-100">
+                                    {getProposalTypeLabel(proposal.proposal_type)} - {proposal.proposal_summary}
+                                  </div>
+                                  <div className="mt-2 text-[11px] text-slate-500">
+                                    {formatTimestamp(proposal.reviewed_at || proposal.proposed_at)}
+                                    {proposal.review_note ? ` | ${proposal.review_note}` : ''}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
                       {[
-                        { stage: 'operational_cue', label: 'Operational Cues', desc: 'Runtime and systemic warnings.' },
-                        { stage: 'needs_call', label: 'Needs Call', desc: 'Items that are stuck or awaiting an active decision.' },
-                        { stage: 'ready_to_convert', label: 'Ready to Convert', desc: 'Inbox and open evidence ready to become decisions or commitments.' },
-                        { stage: 'ready_to_carry', label: 'Ready to Carry', desc: 'Reviewed artifacts clear for the handoff packet.' }
+                        { stage: 'operational_cue', label: 'Status Notes', desc: 'Project conditions and review blockers that can slow shipping.' },
+                        { stage: 'needs_call', label: 'Needs Decision', desc: 'Items that are stuck or waiting on a human review call.' },
+                        { stage: 'ready_to_convert', label: 'Ready to Promote', desc: 'Inbox items, sources, or proposals ready to become packet decisions or open actions.' },
+                        { stage: 'ready_to_carry', label: 'Ready to Publish', desc: 'Reviewed artifacts clear for the next project update packet.' }
                       ].map(stageGroup => {
                         const items = projectReviewQueue.filter(i => i.stage === stageGroup.stage);
                         if (items.length === 0) return null;
@@ -11372,6 +12058,37 @@ export default function ProjectsPage() {
           )}
         </section>
       </div>
+
+      {isAgentIntakeOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl border border-emerald-900/30 bg-[#050806] shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800/60 p-6">
+              <div>
+                <h3 className="text-lg font-bold text-slate-200">Agent Proposal Intake</h3>
+                <p className="mt-1 text-sm text-slate-500">Paste structured JSON proposals from a coding agent, local script, or automation worker.</p>
+              </div>
+              <button onClick={() => { setIsAgentIntakeOpen(false); setAgentIntakeError(''); }} className="text-slate-500 hover:text-slate-300">✕</button>
+            </div>
+            <div className="flex flex-col gap-4 overflow-y-auto p-6">
+              {agentIntakeError && (<div className="rounded border border-red-900/50 bg-red-950/20 p-3 text-sm text-red-400">{agentIntakeError}</div>)}
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold uppercase tracking-widest text-slate-400">JSON Payload</label>
+                <button onClick={copyAgentProposalSchema} className="text-[10px] font-bold uppercase tracking-widest text-sky-400 hover:text-sky-300">Copy Agent Schema</button>
+              </div>
+              <textarea
+                value={agentIntakePayload}
+                onChange={e => setAgentIntakePayload(e.target.value)}
+                placeholder='{ "agent_id": "build-bot", "proposals": [...] }'
+                className="h-64 w-full resize-none rounded-xl border border-slate-800 bg-slate-900/50 p-4 font-mono text-sm text-slate-200 placeholder-slate-600 focus:border-emerald-700/50 focus:outline-none"
+              />
+            </div>
+            <div className="flex items-center justify-end gap-3 border-t border-slate-800/60 p-6 bg-slate-950/50 rounded-b-2xl">
+              <button onClick={() => { setIsAgentIntakeOpen(false); setAgentIntakeError(''); }} className="rounded-lg px-4 py-2 text-sm font-semibold text-slate-400 hover:bg-slate-900 hover:text-slate-200">Cancel</button>
+              <button onClick={handleApplyAgentProposals} disabled={!agentIntakePayload.trim()} className="rounded-lg bg-emerald-600 px-6 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50">Stage Proposals for Review</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
