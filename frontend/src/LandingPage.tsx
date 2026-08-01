@@ -8,31 +8,31 @@ const primarySurfaces = [
   {
     title: 'Projects',
     href: '/projects',
-    body: 'Use the daily project desk to capture inputs, review evidence, record decisions, and draft a clean handoff in one place.',
+    body: 'Use one project desk to capture inputs, review sources, record decisions, track open actions, and share a clean handoff.',
     accent: '#34D399',
   },
   {
     title: 'Review',
     href: '/review',
-    body: 'See the current product surface, review package, and bounded system notes without wandering through side routes.',
+    body: 'Open the review workspace to inspect the current flow, scope notes, and share-ready handoff without hunting through side routes.',
     accent: '#A78BFA',
   },
   {
     title: 'Activity',
     href: '/activity',
-    body: 'Inspect recent project updates, signals, and system activity in one feed.',
+    body: 'Track what changed across projects, reviews, and handoffs in one feed.',
     accent: '#F59E0B',
   },
   {
     title: 'Workbench',
     href: '/workbench',
-    body: 'Generate or inspect supporting records and structured outputs that feed project work.',
+    body: 'Generate drafts and supporting outputs that help move project work forward.',
     accent: '#F472B6',
   },
   {
     title: 'Operations',
     href: '/operations',
-    body: 'Inspect exported operational records and local review data when a project needs deeper verification.',
+    body: 'Inspect exported records and review data when a project needs deeper verification.',
     accent: '#38BDF8',
   },
 ];
@@ -40,15 +40,15 @@ const primarySurfaces = [
 const useCases = [
   {
     title: 'Indie builder',
-    body: 'Collect notes, links, and snippets fast, then convert them into evidence and a weekly handoff without losing context.',
+    body: 'Collect notes, links, and snippets fast, then turn them into reviewed sources and a clear weekly handoff.',
   },
   {
     title: 'Small project team',
     body: 'Keep a project record that shows what changed, what was reviewed, what was decided, and what happens next.',
   },
   {
-    title: 'Human + agent workflow',
-    body: 'Give agents a stable project packet instead of scattered notes, then keep the review and decision trail visible to people.',
+    title: 'People + agent handoff',
+    body: 'Give an agent a stable project packet instead of scattered notes, then keep the review and decision trail visible to people.',
   },
 ];
 
@@ -153,11 +153,11 @@ export default function LandingPage() {
                 Prosper
               </div>
               <h1 className="max-w-4xl text-4xl font-semibold tracking-tight text-white md:text-5xl">
-                Project continuity and handoff workspace for humans and agents.
+                Turn messy project notes into a clear handoff.
               </h1>
               <p className="mt-4 max-w-3xl text-base leading-7 text-[#b7c9be] md:text-lg">
-                Collect project inputs, review evidence, record decisions, carry commitments forward,
-                and compile a clean handoff without losing the project thread.
+                Capture inputs, attach sources, record decisions, track what still needs doing,
+                and share a handoff that another person or agent can actually use.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-3">
@@ -165,14 +165,14 @@ export default function LandingPage() {
                   href="/projects"
                   className="inline-flex items-center gap-2 rounded-full bg-[#10b981] px-5 py-3 text-sm font-semibold text-[#041109] transition hover:bg-[#25cf8a]"
                 >
-                  Open Project Desk
+                  Open Projects
                   <ArrowRight size={16} />
                 </a>
                 <a
                   href="/review"
                   className="inline-flex items-center gap-2 rounded-full border border-[#A78BFA]/35 bg-[#A78BFA]/10 px-5 py-3 text-sm font-semibold text-[#ddd6fe] transition hover:bg-[#A78BFA]/16"
                 >
-                  Review Product Surface
+                  Open Review
                   <ScrollText size={16} />
                 </a>
                 <a
@@ -196,8 +196,8 @@ export default function LandingPage() {
               <div className="text-[11px] uppercase tracking-[0.3em] text-[#89a598]">Core Loop</div>
               {[
                 'Capture project inputs before they are lost.',
-                'Review evidence and attach operator judgment.',
-                'Record decisions and carry forward commitments.',
+                'Review sources and attach clear judgment.',
+                'Record decisions and keep open actions visible.',
                 'Draft a project handoff that another person or agent can actually use.',
               ].map((item) => (
                 <div key={item} className="rounded-2xl border border-white/8 bg-black/20 p-4 text-sm leading-6 text-[#d4f7e0]">
@@ -209,9 +209,9 @@ export default function LandingPage() {
         </section>
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <StatCard label="Projects surface" value="Live" detail="Capture, review, decisions, commitments, and handoff are all available in /projects." />
+          <StatCard label="Project desk" value="Live" detail="Inbox, sources, decisions, open actions, and handoff all live in /projects." />
           <StatCard label="Recent activity" value={lastSignalLabel} detail={activity?.note ?? `State: ${activityStateLabel}`} />
-          <StatCard label="Evidence items" value={evidenceCount} detail="Structured items can be reviewed and carried into project handoff outputs." />
+          <StatCard label="Sources" value={evidenceCount} detail="Attached material can be reviewed and carried into project handoff outputs." />
           <StatCard label="Members" value={memberCount} detail={`Source: ${memberSource}`} />
         </section>
 
@@ -226,7 +226,7 @@ export default function LandingPage() {
                 className="mb-3 inline-flex rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.28em]"
                 style={{ background: `${card.accent}22`, color: card.accent }}
               >
-                Product Surface
+                Workspace
               </div>
               <div className="text-xl font-semibold text-white">{card.title}</div>
               <p className="mt-2 text-sm leading-6 text-[#b7c9be]">{card.body}</p>
@@ -240,8 +240,8 @@ export default function LandingPage() {
               <ScrollText size={18} />
             </div>
             <div>
-              <div className="text-[11px] uppercase tracking-[0.32em] text-[#89a598]">What this is for</div>
-              <h2 className="text-2xl font-semibold text-white">A practical memory layer between capture and execution</h2>
+              <div className="text-[11px] uppercase tracking-[0.32em] text-[#89a598]">Built For</div>
+              <h2 className="text-2xl font-semibold text-white">Keep the thread from first note to final handoff</h2>
             </div>
           </div>
 

@@ -96,9 +96,68 @@ export default function HandoffPublicPage() {
           </div>
         </header>
 
-        <article className="prose prose-slate mt-8 max-w-none whitespace-pre-wrap rounded border border-slate-200 bg-white p-6 text-sm leading-7 shadow-sm">
-          {handoff.markdown}
-        </article>
+        <div className="mt-8 space-y-8">
+          {handoff.accepted_context && handoff.accepted_context.length > 0 && (
+            <section className="rounded border border-slate-200 bg-white p-6 shadow-sm">
+              <h2 className="mb-4 text-lg font-bold text-slate-900">Accepted Context</h2>
+              <ul className="space-y-4">
+                {(handoff.accepted_context as any[]).map((c: any, i: number) => (
+                  <li key={i} className="border-l-2 border-emerald-500 pl-4">
+                    <h3 className="font-semibold text-slate-800">{c.title}</h3>
+                    <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{c.body}</p>
+                    {c.evidence_assets && c.evidence_assets.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {c.evidence_assets.map((asset: any, j: number) => (
+                          <a key={j} href={asset.download_url} target="_blank" rel="noreferrer" className="inline-flex items-center rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-700 hover:bg-slate-100">
+                            📎 {asset.file_name}
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {handoff.decisions && handoff.decisions.length > 0 && (
+            <section className="rounded border border-slate-200 bg-white p-6 shadow-sm">
+              <h2 className="mb-4 text-lg font-bold text-slate-900">Decision Log</h2>
+              <ul className="space-y-3 text-sm text-slate-700">
+                {(handoff.decisions as any[]).map((d: any, i: number) => (
+                  <li key={i} className="flex gap-3">
+                    <span className="text-slate-400">•</span>
+                    <div>
+                      <strong>{d.title}</strong>: {d.detail}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {handoff.commitments && handoff.commitments.length > 0 && (
+            <section className="rounded border border-slate-200 bg-white p-6 shadow-sm">
+              <h2 className="mb-4 text-lg font-bold text-slate-900">Commitments Carried Forward</h2>
+              <ul className="space-y-3 text-sm text-slate-700">
+                {(handoff.commitments as any[]).map((c: any, i: number) => (
+                  <li key={i} className="flex gap-3">
+                    <span className="text-emerald-500">→</span>
+                    <div>
+                      <strong>{c.title}</strong>: {c.detail}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {(!handoff.accepted_context?.length && !handoff.decisions?.length && !handoff.commitments?.length) && (
+             <article className="prose prose-slate max-w-none whitespace-pre-wrap rounded border border-slate-200 bg-white p-6 text-sm leading-7 shadow-sm">
+              {handoff.markdown}
+             </article>
+          )}
+        </div>
 
         <footer className="mt-8 rounded border border-slate-200 bg-white p-4 text-xs leading-5 text-slate-500">
           This public page contains only the handoff snapshot the project owner published. Private comments, rejected proposals, member emails, and internal activity are not included.

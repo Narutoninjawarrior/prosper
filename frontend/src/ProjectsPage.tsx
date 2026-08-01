@@ -36,6 +36,8 @@ import {
   type ProjectRoomMember,
   type ProjectRoomPresence,
   type ProjectRoomRole,
+  listenToPublishedHandoffs,
+  type PublishedHandoff,
 } from './projects/cloud';
 
 export type MessageTag = 'useful' | 'question' | 'warning' | 'none';
@@ -414,9 +416,9 @@ interface ProjectTemplateDefinition {
 }
 
 function formatHeartbeatFreshness(lastUpdate?: string) {
-  if (!lastUpdate) return 'No recent Bellows state available.';
+  if (!lastUpdate) return 'No recent system update available.';
   const parsed = new Date(lastUpdate);
-  if (Number.isNaN(parsed.getTime())) return 'No recent Bellows state available.';
+  if (Number.isNaN(parsed.getTime())) return 'No recent system update available.';
   const diffMs = Date.now() - parsed.getTime();
   const diffMinutes = Math.floor(diffMs / 60000);
   if (diffMinutes < 0) return `Heartbeat timestamp: ${formatTimestamp(lastUpdate)}`;
@@ -432,7 +434,7 @@ function getRuntimeCondition(data: BellowsStateSnapshot | null) {
   if (!data) {
     return {
       label: 'Unavailable',
-      detail: 'Bellows details are unavailable right now.',
+      detail: 'Status details are unavailable right now.',
       classes: 'border-slate-800 bg-slate-950/40 text-slate-400'
     };
   }
@@ -496,35 +498,35 @@ function deriveRuntimeCommitmentAdvisory(
 
   if (runtime.label === 'Unavailable') {
     return {
-      label: 'Operational Advisory',
+      label: 'Status Note',
       message:
         lowConfidenceCommitments.length > 0
-          ? 'Bellows details are unavailable. Low-confidence commitments should be reviewed against current Bellows state.'
-          : 'Bellows details are unavailable. Active commitments may need manual verification.',
-      detail: `Commitment impact: ${impactedSummary}.`,
+          ? 'Status details are unavailable. Low-confidence commitments should be reviewed before work continues.'
+          : 'Status details are unavailable. Active commitments may need a manual review.',
+      detail: `Affected open actions: ${impactedSummary}.`,
       classes: 'border-slate-800 bg-slate-950/30 text-slate-300'
     };
   }
 
   if (runtime.label === 'Stale') {
     return {
-      label: 'Runtime Risk',
+      label: 'Needs Attention',
       message:
         lowConfidenceCommitments.length > 0
-          ? 'Bellows state is stale; low-confidence commitments should be reviewed against current Bellows state.'
-          : 'Bellows state is stale; active commitments may need manual verification.',
-      detail: `Commitment impact: ${impactedSummary}.`,
+          ? 'Status is stale; low-confidence commitments should be reviewed before work continues.'
+          : 'Status is stale; active commitments may need manual verification.',
+      detail: `Affected open actions: ${impactedSummary}.`,
       classes: 'border-amber-900/40 bg-amber-950/10 text-amber-200'
     };
   }
 
   return {
-    label: 'Commitment Impact',
+    label: 'Status Note',
     message:
       lowConfidenceCommitments.length > 0
-        ? 'Runtime risk may affect low-confidence commitments. Review constraints against current Bellows state.'
-        : 'Runtime risk may affect active commitments. Review current commitments against Bellows state.',
-    detail: `Commitment impact: ${impactedSummary}.`,
+        ? 'Current status may affect low-confidence commitments. Review constraints before moving forward.'
+        : 'Current status may affect active commitments. Review before moving forward.',
+    detail: `Affected open actions: ${impactedSummary}.`,
     classes: 'border-red-900/40 bg-red-950/10 text-red-200'
   };
 }
@@ -4074,6 +4076,7 @@ export default function ProjectsPage() {
   const [replyingToCommentId, setReplyingToCommentId] = useState<string | null>(null);
   const [replyBody, setReplyBody] = useState('');
   const [lastPublishedHandoffUrl, setLastPublishedHandoffUrl] = useState('');
+  const [publishedHandoffs, setPublishedHandoffs] = useState<PublishedHandoff[]>([]);
   const [inviteToken] = useState(() => new URLSearchParams(window.location.search).get('invite') || '');
   const [invitePreview, setInvitePreview] = useState<ProjectInvitePreview | null>(null);
   const [inviteStatusMessage, setInviteStatusMessage] = useState('');
@@ -4706,6 +4709,21 @@ export default function ProjectsPage() {
       selectedHostedRoom.id,
       setRoomPresence,
       (message) => setCloudActionMessage(`Presence unavailable: ${message}`),
+    );
+    return () => {
+      unsubscribe?.();
+    };
+  }, [authState.status, selectedHostedRoom]);
+
+  useEffect(() => {
+    if (!selectedHostedRoom || authState.status !== 'signed_in') {
+      window.setTimeout(() => setPublishedHandoffs([]), 0);
+      return;
+    }
+    const unsubscribe = listenToPublishedHandoffs(
+      selectedHostedRoom.id,
+      setPublishedHandoffs,
+      (message) => setCloudActionMessage(`Handoffs unavailable: ${message}`),
     );
     return () => {
       unsubscribe?.();
@@ -6866,7 +6884,7 @@ export default function ProjectsPage() {
                 </button>
               )}
               <div className="max-w-xs text-xs leading-5 text-slate-500">
-                Invites add you to the hosted room only. Public handoff links remain read-only unless the owner invites you here.
+                Invites add you to the shared project only. Public handoff links remain read-only unless the owner invites you here.
               </div>
             </div>
           </div>
@@ -6876,9 +6894,9 @@ export default function ProjectsPage() {
       <div className="rounded-xl border border-emerald-900/40 bg-emerald-950/10 p-4">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="max-w-2xl">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-300">Hosted Project Rooms</div>
+            <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-300">Shared Projects</div>
             <div className="mt-1 text-sm leading-6 text-slate-300">
-              Keep evidence, decisions, comments, accepted context, and handoff links together when a client or reviewer needs to enter the room.
+              Keep sources, decisions, comments, approved context, and handoff links together when a client or reviewer needs to step into the project.
             </div>
             {cloudActionMessage && (
               <div className="mt-2 rounded border border-slate-800 bg-slate-950/50 px-3 py-2 text-xs text-slate-300">
@@ -6967,7 +6985,7 @@ export default function ProjectsPage() {
                 </button>
               </div>
               <div className="text-[10px] uppercase tracking-widest text-slate-500">
-                {hostedRooms.length} hosted room{hostedRooms.length === 1 ? '' : 's'} available
+                {hostedRooms.length} shared project{hostedRooms.length === 1 ? '' : 's'} available
               </div>
             </div>
           )}
@@ -6978,9 +6996,9 @@ export default function ProjectsPage() {
             <div className="rounded border border-slate-800 bg-slate-950/40 p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Selected Room</div>
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Sharing</div>
                   <div className="mt-1 text-sm font-bold text-slate-100">
-                    {selectedHostedRoom ? 'Hosted copy connected' : 'Available on this device'}
+                    {selectedHostedRoom ? 'Shared project connected' : 'Private workspace only'}
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -6989,7 +7007,7 @@ export default function ProjectsPage() {
                       onClick={handleImportSelectedProject}
                       className="rounded bg-emerald-600 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-white hover:bg-emerald-500"
                     >
-                      Import Selected
+                      Create Shared Copy
                     </button>
                   ) : (
                     <>
@@ -6999,7 +7017,7 @@ export default function ProjectsPage() {
                         title={selectedRoomPermissions.canEditContent ? 'Sync this project into the hosted room.' : requiresEditorRole}
                         className="rounded border border-emerald-800 bg-emerald-950/30 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-emerald-200 hover:bg-emerald-950/50 disabled:cursor-not-allowed disabled:opacity-40"
                       >
-                        Sync Room
+                        Update Shared Copy
                       </button>
                       <button
                         onClick={handlePublishHostedHandoff}
@@ -7007,7 +7025,7 @@ export default function ProjectsPage() {
                         title={selectedRoomPermissions.canPublishHandoff ? 'Publish a read-only handoff link.' : requiresOwnerRole}
                         className="rounded border border-indigo-800 bg-indigo-950/40 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-indigo-200 hover:bg-indigo-950/60 disabled:cursor-not-allowed disabled:opacity-40"
                       >
-                        Publish Handoff
+                        Publish Milestone
                       </button>
                       {selectedHostedRoom.current_handoff_token && (
                         <button
@@ -7016,7 +7034,7 @@ export default function ProjectsPage() {
                           title={selectedRoomPermissions.canPublishHandoff ? 'Revoke the current handoff link.' : requiresOwnerRole}
                           className="rounded border border-red-900/50 bg-red-950/20 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-red-200 hover:bg-red-950/40 disabled:cursor-not-allowed disabled:opacity-40"
                         >
-                          Revoke Link
+                          Hide Public Link
                         </button>
                       )}
                     </>
@@ -7024,7 +7042,7 @@ export default function ProjectsPage() {
                 </div>
               </div>
               <div className="mt-3 text-xs leading-5 text-slate-400">
-                Browser projects stay on this device until you import them. Hosted rooms preserve a cloud copy for client review, comments, and published handoff links.
+                Projects start in your private workspace. Shared projects add a cloud copy for review, comments, and published handoff links.
               </div>
               {selectedHostedRoom && (
                 <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr),minmax(0,1fr)]">
@@ -7032,7 +7050,7 @@ export default function ProjectsPage() {
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
                         <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Room Access</div>
-                        <div className="mt-1 text-xs text-slate-400">Your hosted-room permission level.</div>
+                        <div className="mt-1 text-xs text-slate-400">Your shared-project permission level.</div>
                       </div>
                       <span className="rounded border border-emerald-800/60 bg-emerald-950/20 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-emerald-200">
                         {selectedRoomRoleLabel}
@@ -7085,13 +7103,73 @@ export default function ProjectsPage() {
               )}
               {(lastPublishedHandoffUrl || selectedHostedRoom?.current_handoff_token) && (
                 <div className="mt-3 rounded border border-indigo-900/40 bg-indigo-950/20 p-2 text-xs text-indigo-100">
-                  <div className="font-bold uppercase tracking-widest text-indigo-300">Current Handoff Link</div>
+                  <div className="font-bold uppercase tracking-widest text-indigo-300">Current Public Handoff</div>
                   <a
                     href={lastPublishedHandoffUrl || `/handoff/${selectedHostedRoom?.current_handoff_token}`}
                     className="mt-1 block break-all text-indigo-100 underline decoration-indigo-500/50"
                   >
                     {lastPublishedHandoffUrl || `${window.location.origin}/handoff/${selectedHostedRoom?.current_handoff_token}`}
                   </a>
+                </div>
+              )}
+              {publishedHandoffs.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Published Milestones</div>
+                  {publishedHandoffs
+                    .sort((a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime())
+                    .map((handoff) => (
+                      <div key={handoff.token} className="rounded border border-slate-700 bg-slate-900/50 p-2 text-xs flex flex-col gap-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-300">{new Date(handoff.published_at).toLocaleString()}</span>
+                          <span className="rounded border border-slate-700 bg-slate-950 px-1 py-0.5 text-[9px] uppercase tracking-widest text-slate-400 truncate max-w-[120px]">
+                            {handoff.published_by.label}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between border-t border-slate-800 pt-2">
+                          <a href={`/handoff/${handoff.token}`} className="text-indigo-300 underline decoration-indigo-500/50 break-all text-[10px] truncate max-w-[200px]">
+                            {handoff.token}
+                          </a>
+                          <div className="flex gap-3">
+                            <button
+                              onClick={() => {
+                                const url = `${window.location.origin}/handoff/${handoff.token}`;
+                                window.navigator.clipboard.writeText(url);
+                                setCloudActionMessage('Link copied to clipboard.');
+                              }}
+                              className="text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-white"
+                              title="Copy Link"
+                            >
+                              Copy
+                            </button>
+                            <a
+                              href={`/handoff/${handoff.token}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-white"
+                              title="View Snapshot"
+                            >
+                              View
+                            </a>
+                            <button
+                              onClick={async () => {
+                                if (!selectedRoomPermissions.canPublishHandoff || !selectedHostedRoom || !currentUser) return;
+                                try {
+                                  await revokePublishedHandoff(selectedHostedRoom.id, handoff.token, currentUser);
+                                  setCloudActionMessage('Milestone revoked.');
+                                } catch (error: any) {
+                                  setCloudActionMessage(error.message);
+                                }
+                              }}
+                              disabled={!selectedRoomPermissions.canPublishHandoff}
+                              className="text-[10px] font-bold uppercase tracking-widest text-red-400 hover:text-red-300 disabled:opacity-50"
+                              title="Revoke Pointer"
+                            >
+                              Revoke
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                 </div>
               )}
             </div>
@@ -8486,8 +8564,8 @@ export default function ProjectsPage() {
                 <div className="mt-4 rounded border border-slate-800 bg-slate-950/20 p-3">
                   <div className="mb-3 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-sky-400">Bellows State</span>
-                      <span className="text-[10px] text-slate-500">Supporting runtime context for this project.</span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-sky-400">Status Notes</span>
+                    <span className="text-[10px] text-slate-500">Supporting project status and system notes.</span>
                     </div>
                     <span className={`rounded border px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${bellowsRuntime.classes}`}>
                       {bellowsRuntime.label}
@@ -8496,20 +8574,20 @@ export default function ProjectsPage() {
 
                   {!bellowsState ? (
                     <div className="rounded border border-dashed border-slate-800 bg-slate-950/40 p-3 text-sm italic text-slate-500">
-                      {bellowsStateError || 'Bellows details are unavailable right now.'}
+                      {bellowsStateError || 'Status details are unavailable right now.'}
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                       <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
-                        <div className="text-[10px] font-bold uppercase tracking-widest text-sky-400">Runtime Condition</div>
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-sky-400">System Status</div>
                         <div className="mt-2 text-sm text-slate-200">{bellowsState.system_status || 'Unknown'}</div>
                         <div className="mt-1 text-xs text-slate-500">{bellowsRuntime.detail}</div>
                       </div>
                       <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
-                        <div className="text-[10px] font-bold uppercase tracking-widest text-sky-400">Heartbeat</div>
-                        <div className="mt-2 text-sm text-slate-200">{bellowsState.current_pulse || 'No recent Bellows state available.'}</div>
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-sky-400">Recent Check-In</div>
+                        <div className="mt-2 text-sm text-slate-200">{bellowsState.current_pulse || 'No recent system update available.'}</div>
                         <div className="mt-1 text-xs text-slate-500">
-                          {bellowsState.last_update ? `Last update: ${formatTimestamp(bellowsState.last_update)}` : 'No recent Bellows state available.'}
+                          {bellowsState.last_update ? `Last update: ${formatTimestamp(bellowsState.last_update)}` : 'No recent system update available.'}
                         </div>
                       </div>
                       <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
@@ -8545,7 +8623,7 @@ export default function ProjectsPage() {
                       )}
                       {(bellowsState.embodiment_goal?.status || bellowsState.latest_receipt_note) && (
                         <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
-                          <div className="text-[10px] font-bold uppercase tracking-widest text-sky-400">Latest Runtime Note</div>
+                          <div className="text-[10px] font-bold uppercase tracking-widest text-sky-400">Latest Status Note</div>
                           <div className="mt-2 text-sm text-slate-200 leading-relaxed">
                             {bellowsState.latest_receipt_note || bellowsState.embodiment_goal?.status}
                           </div>
@@ -8562,7 +8640,7 @@ export default function ProjectsPage() {
                         {runtimeCommitmentAdvisory.label}
                       </span>
                       <span className="text-[10px] text-slate-400">
-                        Advisory only. Commitments are not changed automatically.
+                        Advisory only. Open actions are not changed automatically.
                       </span>
                     </div>
                     <div className="mt-2 text-sm">{runtimeCommitmentAdvisory.message}</div>
@@ -8574,13 +8652,13 @@ export default function ProjectsPage() {
                 <div className="mt-4 rounded border border-slate-800 bg-slate-950/20 p-3">
                   <div className="mb-3 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-400">Peer Reflections</span>
-                      <span className="text-[10px] text-slate-500">Local agent reflections recorded by the Bellows</span>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-400">System Notes</span>
+                      <span className="text-[10px] text-slate-500">Recent agent-side notes recorded alongside this workspace</span>
                     </div>
                   </div>
                   {reflections.length === 0 ? (
                     <div className="text-xs italic text-slate-600 p-2 border border-slate-900/60 rounded bg-slate-950/40">
-                      No local agent reflections recorded yet.
+                      No recent system notes recorded yet.
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">

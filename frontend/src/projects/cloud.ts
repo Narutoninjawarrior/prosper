@@ -121,7 +121,19 @@ export interface PublishedHandoff {
   handoff_version: string;
   markdown: string;
   json: unknown;
+  accepted_context: unknown[];
+  approved_evidence: unknown[];
+  decisions: unknown[];
+  commitments: unknown[];
+  checkpoint_metadata: Record<string, unknown>;
+}
+
+export interface PublicHandoffPointer {
+  token: string;
+  project_id: string;
   revoked: boolean;
+  revoked_at?: string;
+  revoked_by?: string;
 }
 
 export interface CloudProjectRoom {
@@ -780,10 +792,23 @@ export async function publishProjectHandoff(
     handoff_version: `v${(project.review_packets || []).length + 1}`,
     markdown,
     json,
-    revoked: false,
+    accepted_context: project.context_items?.filter(c => c.context_state === 'accepted') || [],
+    approved_evidence: [],
+    decisions: project.activity?.filter(a => a.kind.startsWith('decision')) || [],
+    commitments: project.activity?.filter(a => a.kind.startsWith('commitment')) || [],
+    checkpoint_metadata: {
+      exported_at: publishedAt,
+      version: `v${(project.review_packets || []).length + 1}`
+    }
   };
 
   await setDoc(doc(dbResult.value, 'published_handoffs', token), payload);
+  await setDoc(doc(dbResult.value, 'public_handoff_pointers', token), {
+    token,
+    project_id: roomId,
+    revoked: false
+  });
+  
   await updateDoc(doc(dbResult.value, 'project_rooms', roomId), {
     visibility: 'published',
     current_handoff_token: token,
@@ -805,7 +830,7 @@ export async function publishProjectHandoff(
 export async function revokePublishedHandoff(roomId: string, token: string, user: User): Promise<CloudResult<string>> {
   const dbResult = getDbOrError();
   if (!dbResult.ok || !dbResult.value) return cloudError<string>(dbResult.error);
-  await updateDoc(doc(dbResult.value, 'published_handoffs', token), {
+  await updateDoc(doc(dbResult.value, 'public_handoff_pointers', token), {
     revoked: true,
     revoked_at: serverTimestamp(),
     revoked_by: user.uid,
@@ -821,11 +846,32 @@ export async function revokePublishedHandoff(roomId: string, token: string, user
 export async function fetchPublishedHandoff(token: string): Promise<CloudResult<PublishedHandoff>> {
   const dbResult = getDbOrError();
   if (!dbResult.ok || !dbResult.value) return cloudError<PublishedHandoff>(dbResult.error);
+  
+  const pointerSnapshot = await getDoc(doc(dbResult.value, 'public_handoff_pointers', token));
+  if (pointerSnapshot.exists() && pointerSnapshot.data().revoked) {
+    return { ok: false, error: 'This handoff link has been revoked.' };
+  }
+
   const snapshot = await getDoc(doc(dbResult.value, 'published_handoffs', token));
   if (!snapshot.exists()) return { ok: false, error: 'This handoff link was not found.' };
+  
   const handoff = snapshot.data() as PublishedHandoff;
-  if (handoff.revoked) return { ok: false, error: 'This handoff link has been revoked.' };
   return { ok: true, value: handoff };
+}
+
+export function listenToPublishedHandoffs(roomId: string, onHandoffs: (handoffs: PublishedHandoff[]) => void, onError: (message: string) => void): Unsubscribe | null {
+  const dbResult = getDbOrError();
+  if (!dbResult.ok || !dbResult.value) {
+    onError(dbResult.error || 'Published handoffs are unavailable.');
+    return null;
+  }
+  return onSnapshot(
+    query(collection(dbResult.value, 'published_handoffs'), where('project_id', '==', roomId), orderBy('published_at', 'desc'), limit(50)),
+    (snapshot) => {
+      onHandoffs(snapshot.docs.map((doc) => doc.data() as PublishedHandoff));
+    },
+    (error) => onError(error.message),
+  );
 }
 
 export async function deleteHostedRoom(roomId: string): Promise<CloudResult<string>> {

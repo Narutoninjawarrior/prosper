@@ -226,7 +226,7 @@ function App() {
 
   if (pathname === '/review') {
     return (
-      <SuspendedPublicShell className="h-screen w-screen bg-[#050806] text-gray-200" label="Loading Review Guide..." showAudio={false}>
+      <SuspendedPublicShell className="h-screen w-screen bg-[#050806] text-gray-200" label="Loading review..." showAudio={false}>
         <div className="h-full overflow-y-auto">
           <ReviewPage />
         </div>
@@ -312,7 +312,7 @@ function App() {
 
   if (pathname === '/entitlements') {
     return (
-      <SuspendedPublicShell className="min-h-screen w-screen bg-[#050806] text-gray-200" label="Loading entitlements console..." showAudio={false}>
+      <SuspendedPublicShell className="min-h-screen w-screen bg-[#050806] text-gray-200" label="Loading access settings..." showAudio={false}>
         <div className="h-full overflow-y-auto p-4 max-w-5xl mx-auto">
           <BotCapabilityCatalog />
         </div>

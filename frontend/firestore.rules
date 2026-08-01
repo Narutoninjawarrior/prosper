@@ -339,15 +339,20 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /public_handoff_pointers/{token} {
+      allow read: if true;
+      allow create: if signedIn() && canManageProjectRoom(request.resource.data.project_id);
+      allow update: if signedIn() && canManageProjectRoom(resource.data.project_id);
+      allow delete: if false;
+    }
+
     match /published_handoffs/{token} {
-      allow read: if resource.data.revoked != true;
+      allow read: if exists(/databases/$(database)/documents/public_handoff_pointers/$(token)) &&
+        get(/databases/$(database)/documents/public_handoff_pointers/$(token)).data.revoked != true;
       allow create: if signedIn() &&
         canManageProjectRoom(request.resource.data.project_id) &&
         request.resource.data.published_by.uid == request.auth.uid;
-      allow update: if signedIn() &&
-        canManageProjectRoom(resource.data.project_id) &&
-        resource.data.published_by.uid == request.auth.uid &&
-        request.resource.data.project_id == resource.data.project_id;
+      allow update: if false;
       allow delete: if false;
     }
 

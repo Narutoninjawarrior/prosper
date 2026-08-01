@@ -2,12 +2,10 @@ import { Flame } from 'lucide-react'
 
 const LINKS = [
   { href: '/projects', label: 'Projects' },
-  { href: '/review', label: 'Review' },
   { href: '/activity', label: 'Activity' },
+  { href: '/review', label: 'Review' },
   { href: '/workbench', label: 'Workbench' },
   { href: '/operations', label: 'Operations' },
-  { href: '/proof-log', label: 'Proof Log' },
-  { href: '/route-health', label: 'Health (Beta)' },
 ]
 
 export default function PublicNav({ compact = false }: { compact?: boolean }) {
@@ -45,10 +43,10 @@ export default function PublicNav({ compact = false }: { compact?: boolean }) {
           </nav>
         )}
         <a
-          href="/hearth"
+          href="/projects"
           className="rounded-full border border-[#10b981]/35 bg-[#10b981]/12 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#9ff0c4] no-underline"
         >
-          Workspace
+          Open Desk
         </a>
       </div>
     </header>
