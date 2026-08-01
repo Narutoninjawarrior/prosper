@@ -4327,6 +4327,18 @@ export default function ProjectsPage() {
       ? 'owner'
       : currentRoomMember?.role || 'viewer';
   const selectedRoomPermissions = useMemo(() => permissionsForRole(selectedRoomRole), [selectedRoomRole]);
+  const selectedRoomRoleLabel = selectedRoomRole.charAt(0).toUpperCase() + selectedRoomRole.slice(1);
+  const roomAccessSummary =
+    selectedRoomRole === 'owner'
+      ? 'Owner access: manage invites, publish handoffs, sync room content, and participate in review threads.'
+      : selectedRoomRole === 'editor'
+        ? 'Editor access: sync room content and participate in review threads. Invites and public handoff publishing require Owner role.'
+        : selectedRoomRole === 'reviewer'
+          ? 'Reviewer access: read the room and participate in review threads. Content changes require Editor role.'
+          : 'Viewer access: read-only room access. Commenting requires Reviewer role; content changes require Editor role.';
+  const requiresOwnerRole = 'Requires Owner role';
+  const requiresEditorRole = 'Requires Editor or Owner role';
+  const requiresReviewerRole = 'Requires Reviewer, Editor, or Owner role';
   const agentSummary = useMemo(() => deriveAgentSummary(selectedProject), [selectedProject]);
   const projectRelevance = useMemo(() => deriveProjectRelevance(selectedProject), [selectedProject]);
   const latestReflection = useMemo(() => reflections[reflections.length - 1] || null, [reflections]);
@@ -4846,6 +4858,10 @@ export default function ProjectsPage() {
 
   const handleSyncSelectedProject = async () => {
     if (!selectedProject || !selectedHostedRoom || !currentUser) return;
+    if (!selectedRoomPermissions.canEditContent) {
+      setCloudActionMessage('Syncing this room requires Editor role.');
+      return;
+    }
     setCloudActionMessage('Syncing selected room...');
     const result = await syncProjectRoom(selectedProject, selectedHostedRoom.id, currentUser);
     setCloudActionMessage(result.ok ? 'Hosted room updated from this Desk.' : result.error || 'Sync failed.');
@@ -4853,6 +4869,10 @@ export default function ProjectsPage() {
 
   const handleCreateInvite = async () => {
     if (!selectedHostedRoom || !inviteEmail.trim() || !currentUser) return;
+    if (!selectedRoomPermissions.canManageProject) {
+      setCloudActionMessage('Creating invites requires Owner role.');
+      return;
+    }
     const result = await createProjectRoomInvite(selectedHostedRoom.id, inviteEmail, inviteRole, currentUser);
     if (result.ok && result.value) {
       setInviteEmail('');
@@ -4871,6 +4891,10 @@ export default function ProjectsPage() {
 
   const handleRevokeInvite = async (inviteId: string) => {
     if (!selectedHostedRoom) return;
+    if (!selectedRoomPermissions.canManageProject) {
+      setCloudActionMessage('Revoking invites requires Owner role.');
+      return;
+    }
     const result = await revokeProjectRoomInvite(selectedHostedRoom.id, inviteId);
     if (result.ok) {
       setRoomInvites((current) => current.map((invite) => (invite.id === inviteId ? { ...invite, status: 'revoked' } : invite)));
@@ -4908,6 +4932,10 @@ export default function ProjectsPage() {
 
   const handlePostRoomComment = async () => {
     if (!selectedHostedRoom || !currentUser || !roomCommentBody.trim()) return;
+    if (!selectedRoomPermissions.canComment) {
+      setCloudActionMessage('Starting review threads requires Reviewer role.');
+      return;
+    }
     const optimisticId = `optimistic_${Date.now()}`;
     const optimisticComment: ProjectRoomComment = {
       id: optimisticId,
@@ -4937,6 +4965,10 @@ export default function ProjectsPage() {
 
   const handlePostRoomReply = async (parentComment: ProjectRoomComment) => {
     if (!selectedHostedRoom || !currentUser || !replyBody.trim()) return;
+    if (!selectedRoomPermissions.canComment) {
+      setCloudActionMessage('Replying to review threads requires Reviewer role.');
+      return;
+    }
     const optimisticId = `optimistic_reply_${Date.now()}`;
     const optimisticReply: ProjectRoomComment = {
       id: optimisticId,
@@ -4976,6 +5008,10 @@ export default function ProjectsPage() {
 
   const handlePublishHostedHandoff = async () => {
     if (!selectedProject || !selectedHostedRoom || !currentUser) return;
+    if (!selectedRoomPermissions.canPublishHandoff) {
+      setCloudActionMessage('Publishing handoff links requires Owner role.');
+      return;
+    }
     const packet = buildProjectHandoffPacket();
     if (!packet) return;
     const result = await publishProjectHandoff(
@@ -5001,6 +5037,10 @@ export default function ProjectsPage() {
 
   const handleRevokeHostedHandoff = async () => {
     if (!selectedHostedRoom?.current_handoff_token || !currentUser) return;
+    if (!selectedRoomPermissions.canPublishHandoff) {
+      setCloudActionMessage('Revoking handoff links requires Owner role.');
+      return;
+    }
     const result = await revokePublishedHandoff(selectedHostedRoom.id, selectedHostedRoom.current_handoff_token, currentUser);
     if (result.ok) {
       setLastPublishedHandoffUrl('');
@@ -6706,13 +6746,16 @@ export default function ProjectsPage() {
                     <>
                       <button
                         onClick={handleSyncSelectedProject}
-                        className="rounded border border-emerald-800 bg-emerald-950/30 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-emerald-200 hover:bg-emerald-950/50"
+                        disabled={!selectedRoomPermissions.canEditContent}
+                        title={selectedRoomPermissions.canEditContent ? 'Sync this project into the hosted room.' : requiresEditorRole}
+                        className="rounded border border-emerald-800 bg-emerald-950/30 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-emerald-200 hover:bg-emerald-950/50 disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         Sync Room
                       </button>
                       <button
                         onClick={handlePublishHostedHandoff}
                         disabled={!selectedRoomPermissions.canPublishHandoff}
+                        title={selectedRoomPermissions.canPublishHandoff ? 'Publish a read-only handoff link.' : requiresOwnerRole}
                         className="rounded border border-indigo-800 bg-indigo-950/40 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-indigo-200 hover:bg-indigo-950/60 disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         Publish Handoff
@@ -6720,7 +6763,9 @@ export default function ProjectsPage() {
                       {selectedHostedRoom.current_handoff_token && (
                         <button
                           onClick={handleRevokeHostedHandoff}
-                          className="rounded border border-red-900/50 bg-red-950/20 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-red-200 hover:bg-red-950/40"
+                          disabled={!selectedRoomPermissions.canPublishHandoff}
+                          title={selectedRoomPermissions.canPublishHandoff ? 'Revoke the current handoff link.' : requiresOwnerRole}
+                          className="rounded border border-red-900/50 bg-red-950/20 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-red-200 hover:bg-red-950/40 disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           Revoke Link
                         </button>
@@ -6733,7 +6778,26 @@ export default function ProjectsPage() {
                 Browser projects stay on this device until you import them. Hosted rooms preserve a cloud copy for client review, comments, and published handoff links.
               </div>
               {selectedHostedRoom && (
-                <div className="mt-3 rounded border border-slate-800 bg-slate-950/50 p-3">
+                <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr),minmax(0,1fr)]">
+                  <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Room Access</div>
+                        <div className="mt-1 text-xs text-slate-400">Your hosted-room permission level.</div>
+                      </div>
+                      <span className="rounded border border-emerald-800/60 bg-emerald-950/20 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-emerald-200">
+                        {selectedRoomRoleLabel}
+                      </span>
+                    </div>
+                    <div className="mt-3 text-xs leading-5 text-slate-400">{roomAccessSummary}</div>
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-[10px] uppercase tracking-widest text-slate-500 sm:grid-cols-4">
+                      <span className={selectedRoomPermissions.canComment ? 'text-emerald-300' : 'text-slate-600'}>Comment</span>
+                      <span className={selectedRoomPermissions.canEditContent ? 'text-emerald-300' : 'text-slate-600'}>Edit</span>
+                      <span className={selectedRoomPermissions.canPublishHandoff ? 'text-emerald-300' : 'text-slate-600'}>Publish</span>
+                      <span className={selectedRoomPermissions.canManageProject ? 'text-emerald-300' : 'text-slate-600'}>Invites</span>
+                    </div>
+                  </div>
+                  <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Who's Here</div>
@@ -6768,6 +6832,7 @@ export default function ProjectsPage() {
                     Firestore presence is freshness-based: active under 90 seconds, recently active under 5 minutes. Hard disconnect cleanup requires a later Realtime Database presence bridge.
                   </div>
                 </div>
+                </div>
               )}
               {(lastPublishedHandoffUrl || selectedHostedRoom?.current_handoff_token) && (
                 <div className="mt-3 rounded border border-indigo-900/40 bg-indigo-950/20 p-2 text-xs text-indigo-100">
@@ -6799,11 +6864,15 @@ export default function ProjectsPage() {
                       value={inviteEmail}
                       onChange={(event) => setInviteEmail(event.target.value)}
                       placeholder="reviewer@example.com"
+                      disabled={!selectedRoomPermissions.canManageProject}
+                      title={selectedRoomPermissions.canManageProject ? 'Email label for a copied invite link.' : requiresOwnerRole}
                       className="rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-500"
                     />
                     <select
                       value={inviteRole}
                       onChange={(event) => setInviteRole(event.target.value as Exclude<ProjectRoomRole, 'owner'>)}
+                      disabled={!selectedRoomPermissions.canManageProject}
+                      title={selectedRoomPermissions.canManageProject ? 'Role to grant through this invite.' : requiresOwnerRole}
                       className="rounded border border-slate-700 bg-slate-950 px-2 py-2 text-xs font-bold uppercase tracking-widest text-slate-300 outline-none focus:border-emerald-500"
                     >
                       <option value="reviewer">Reviewer</option>
@@ -6813,6 +6882,7 @@ export default function ProjectsPage() {
                     <button
                       onClick={handleCreateInvite}
                       disabled={!selectedRoomPermissions.canManageProject}
+                      title={selectedRoomPermissions.canManageProject ? 'Create and copy an invite link.' : requiresOwnerRole}
                       className="rounded border border-emerald-800 bg-emerald-950/30 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-emerald-200 hover:bg-emerald-950/50 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       Copy Invite
@@ -6824,7 +6894,12 @@ export default function ProjectsPage() {
                         <div key={invite.id} className="flex flex-wrap items-center justify-between gap-2 rounded border border-slate-800 bg-slate-900/40 px-2 py-1.5 text-xs text-slate-300">
                           <span className="min-w-0 truncate">{invite.email} - {invite.role} - {invite.status}</span>
                           {invite.status === 'pending' && (
-                            <button onClick={() => handleRevokeInvite(invite.id)} className="text-[10px] font-bold uppercase tracking-widest text-red-300 hover:text-red-200">
+                            <button
+                              onClick={() => handleRevokeInvite(invite.id)}
+                              disabled={!selectedRoomPermissions.canManageProject}
+                              title={selectedRoomPermissions.canManageProject ? 'Revoke this invite.' : requiresOwnerRole}
+                              className="text-[10px] font-bold uppercase tracking-widest text-red-300 hover:text-red-200 disabled:cursor-not-allowed disabled:opacity-40"
+                            >
                               Revoke
                             </button>
                           )}
@@ -6836,12 +6911,15 @@ export default function ProjectsPage() {
                     <input
                       value={roomCommentBody}
                       onChange={(event) => setRoomCommentBody(event.target.value)}
-                      placeholder="Start a review thread..."
+                      placeholder={selectedRoomPermissions.canComment ? 'Start a review thread...' : 'Requires Reviewer role to comment'}
+                      disabled={!selectedRoomPermissions.canComment}
+                      title={selectedRoomPermissions.canComment ? 'Start a review thread.' : requiresReviewerRole}
                       className="rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-500"
                     />
                     <button
                       onClick={handlePostRoomComment}
                       disabled={!selectedRoomPermissions.canComment || !roomCommentBody.trim()}
+                      title={selectedRoomPermissions.canComment ? 'Post this review thread.' : requiresReviewerRole}
                       className="rounded border border-slate-700 bg-slate-900 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       Start Thread
@@ -6893,12 +6971,15 @@ export default function ProjectsPage() {
                                   <input
                                     value={replyBody}
                                     onChange={(event) => setReplyBody(event.target.value)}
-                                    placeholder="Reply to this thread..."
+                                    placeholder={selectedRoomPermissions.canComment ? 'Reply to this thread...' : 'Requires Reviewer role to reply'}
+                                    disabled={!selectedRoomPermissions.canComment}
+                                    title={selectedRoomPermissions.canComment ? 'Reply to this thread.' : requiresReviewerRole}
                                     className="rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-100 outline-none focus:border-emerald-500"
                                   />
                                   <button
                                     onClick={() => handlePostRoomReply(comment)}
                                     disabled={!selectedRoomPermissions.canComment || !replyBody.trim()}
+                                    title={selectedRoomPermissions.canComment ? 'Post this reply.' : requiresReviewerRole}
                                     className="rounded border border-emerald-900/60 bg-emerald-950/20 px-2 py-1.5 text-[10px] font-bold uppercase tracking-widest text-emerald-200 hover:bg-emerald-950/40 disabled:cursor-not-allowed disabled:opacity-40"
                                   >
                                     Reply
@@ -6920,6 +7001,7 @@ export default function ProjectsPage() {
                                     setReplyBody('');
                                   }}
                                   disabled={!selectedRoomPermissions.canComment}
+                                  title={selectedRoomPermissions.canComment ? 'Reply to this thread.' : requiresReviewerRole}
                                   className="mt-2 text-[10px] font-bold uppercase tracking-widest text-emerald-300 hover:text-emerald-200 disabled:cursor-not-allowed disabled:opacity-40"
                                 >
                                   Reply

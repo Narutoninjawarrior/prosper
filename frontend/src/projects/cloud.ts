@@ -330,13 +330,16 @@ export async function syncProjectRoom(project: Project, roomId: string, user: Us
   const dbResult = getDbOrError();
   if (!dbResult.ok || !dbResult.value) return cloudError<string>(dbResult.error);
 
+  const roomSnapshot = await getDoc(doc(dbResult.value, 'project_rooms', roomId));
+  const existingRoom = roomSnapshot.exists() ? normalizeCloudRoom(roomSnapshot.id, roomSnapshot.data()) : null;
+
   await updateDoc(doc(dbResult.value, 'project_rooms', roomId), {
     title: project.title,
     description: project.description,
     status: project.status || 'active',
     next_step: project.next_step || '',
     project,
-    member_uids: [user.uid],
+    member_uids: existingRoom?.member_uids?.length ? existingRoom.member_uids : [user.uid],
     updated_at: serverTimestamp(),
   });
   return { ok: true, value: roomId };

@@ -21,6 +21,7 @@ function normalizeMillis(value: unknown): number {
 }
 
 export const mirrorProjectRoomPresence = functions.database
+  .instance('fellowship-of-the-hearth-default-rtdb')
   .ref('/project_room_presence/{roomId}/{uid}')
   .onWrite(async (change, context) => {
     const roomId = String(context.params.roomId || '');

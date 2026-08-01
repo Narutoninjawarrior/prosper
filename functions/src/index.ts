@@ -722,3 +722,4 @@ export const forge_execute = functions.https.onRequest(async (req, res) => {
 export { policyEngineApi } from './policyEngine';
 export { witnessRecord, witnessVerify, witnessGenerateKey } from './witnessApi';
 export { marketplaceWebhook, marketplaceComplete } from './marketplaceApi';
+export { mirrorProjectRoomPresence } from './roomPresenceMirror';
