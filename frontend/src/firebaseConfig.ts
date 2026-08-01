@@ -1,5 +1,6 @@
 import { getApp, getApps, initializeApp, type FirebaseApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 
 type FirebaseWebConfig = {
   apiKey: string;
@@ -116,6 +117,17 @@ export function getFirestoreDb() {
     return getFirestore(app);
   } catch (error) {
     console.error('Firestore initialization failed:', error);
+    return null;
+  }
+}
+
+export function getFirebaseStorage() {
+  const app = getFirebaseApp();
+  if (!app) return null;
+  try {
+    return getStorage(app);
+  } catch (error) {
+    console.error('Firebase Storage initialization failed:', error);
     return null;
   }
 }

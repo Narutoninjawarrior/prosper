@@ -17,8 +17,14 @@ import {
   where,
   type Unsubscribe,
 } from 'firebase/firestore';
-import { getFirestoreDb } from '../firebaseConfig';
-import type { Project } from '../ProjectsPage';
+import {
+  getDownloadURL,
+  ref as storageRef,
+  uploadBytesResumable,
+  type UploadTaskSnapshot,
+} from 'firebase/storage';
+import { getFirebaseStorage, getFirestoreDb } from '../firebaseConfig';
+import type { Project, ProjectEvidenceAsset } from '../ProjectsPage';
 
 export type ProjectRoomRole = 'owner' | 'editor' | 'reviewer' | 'viewer';
 export type ProjectRoomCommentParent = 'project' | 'evidence' | 'decision' | 'commitment' | 'handoff';
@@ -142,6 +148,16 @@ export interface CloudResult<T> {
   error?: string;
 }
 
+const ROOM_ASSET_MAX_BYTES = 25 * 1024 * 1024;
+const ROOM_ASSET_ALLOWED_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'application/pdf',
+  'text/plain',
+  'application/json',
+]);
+
 export interface PermissionSet {
   canManageProject: boolean;
   canEditContent: boolean;
@@ -166,6 +182,17 @@ function getDbOrError(): CloudResult<NonNullable<ReturnType<typeof getFirestoreD
   return { ok: true, value: db };
 }
 
+function getStorageOrError(): CloudResult<NonNullable<ReturnType<typeof getFirebaseStorage>>> {
+  const storage = getFirebaseStorage();
+  if (!storage) {
+    return {
+      ok: false,
+      error: 'Asset uploads unavailable. Firebase Storage is not configured.',
+    };
+  }
+  return { ok: true, value: storage };
+}
+
 function safeIso(value: unknown): string | undefined {
   if (typeof value === 'string' && value.trim()) return value;
   if (value && typeof value === 'object' && 'toDate' in value && typeof value.toDate === 'function') {
@@ -186,6 +213,11 @@ function randomToken(prefix: string) {
   return `${prefix}_${encoded}`;
 }
 
+function safeStorageFileName(name: string) {
+  const cleaned = name.trim().replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/-+/g, '-');
+  return cleaned || 'evidence-asset';
+}
+
 export function permissionsForRole(role: ProjectRoomRole): PermissionSet {
   return {
     canManageProject: role === 'owner',
@@ -195,6 +227,71 @@ export function permissionsForRole(role: ProjectRoomRole): PermissionSet {
     canPublishHandoff: role === 'owner',
     canComment: role !== 'viewer',
   };
+}
+
+export async function uploadProjectRoomEvidenceAsset(
+  roomId: string,
+  file: File,
+  user: User,
+  onProgress?: (percent: number) => void,
+): Promise<CloudResult<ProjectEvidenceAsset>> {
+  const storageResult = getStorageOrError();
+  if (!storageResult.ok || !storageResult.value) return cloudError<ProjectEvidenceAsset>(storageResult.error);
+
+  if (!ROOM_ASSET_ALLOWED_TYPES.has(file.type)) {
+    return cloudError<ProjectEvidenceAsset>('Asset unavailable. This file type is not allowed for evidence review.');
+  }
+
+  if (file.size > ROOM_ASSET_MAX_BYTES) {
+    return cloudError<ProjectEvidenceAsset>('Asset unavailable. Evidence assets must be 25 MB or smaller.');
+  }
+
+  const uploadedAt = new Date().toISOString();
+  const assetId = `asset_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  const fileName = safeStorageFileName(file.name);
+  const path = `project_rooms/${roomId}/assets/${assetId}/${fileName}`;
+  const uploadRef = storageRef(storageResult.value, path);
+  const uploadTask = uploadBytesResumable(uploadRef, file, {
+    contentType: file.type,
+    customMetadata: {
+      room_id: roomId,
+      uploaded_by: user.uid,
+      asset_id: assetId,
+    },
+  });
+
+  return new Promise((resolve) => {
+    uploadTask.on(
+      'state_changed',
+      (snapshot: UploadTaskSnapshot) => {
+        const progress = snapshot.totalBytes > 0 ? Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100) : 0;
+        onProgress?.(progress);
+      },
+      (error) => {
+        resolve(cloudError<ProjectEvidenceAsset>(error.message || 'Asset upload failed.'));
+      },
+      async () => {
+        try {
+          const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
+          resolve({
+            ok: true,
+            value: {
+              id: assetId,
+              file_name: file.name,
+              content_type: file.type,
+              size: file.size,
+              storage_path: path,
+              download_url: downloadUrl,
+              uploaded_by: userLabel(user),
+              uploaded_at: uploadedAt,
+            },
+          });
+        } catch (error) {
+          resolve(cloudError<ProjectEvidenceAsset>(error instanceof Error ? error.message : 'Asset upload completed, but URL lookup failed.'));
+        }
+      },
+    );
+  });
 }
 
 export function normalizeCloudRoom(id: string, data: Record<string, unknown>): CloudProjectRoom | null {

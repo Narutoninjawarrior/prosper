@@ -1,0 +1,46 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function memberPath(roomId) {
+      return /databases/(default)/documents/project_rooms/$(roomId)/members/$(request.auth.uid);
+    }
+
+    function isRoomMember(roomId) {
+      return signedIn() && firestore.exists(memberPath(roomId));
+    }
+
+    function roomRole(roomId) {
+      return firestore.get(memberPath(roomId)).data.role;
+    }
+
+    function canEditRoomAssets(roomId) {
+      return isRoomMember(roomId) && roomRole(roomId) in ['owner', 'editor'];
+    }
+
+    function canManageRoomAssets(roomId) {
+      return isRoomMember(roomId) && roomRole(roomId) == 'owner';
+    }
+
+    function validEvidenceAsset() {
+      return request.resource.size <= 25 * 1024 * 1024 &&
+        request.resource.contentType in [
+          'image/png',
+          'image/jpeg',
+          'image/webp',
+          'application/pdf',
+          'text/plain',
+          'application/json'
+        ];
+    }
+
+    match /project_rooms/{roomId}/assets/{assetId}/{fileName} {
+      allow read: if isRoomMember(roomId);
+      allow create, update: if canEditRoomAssets(roomId) && validEvidenceAsset();
+      allow delete: if canManageRoomAssets(roomId);
+    }
+  }
+}

@@ -25,6 +25,7 @@ import {
   revokeProjectRoomInvite,
   revokePublishedHandoff,
   syncProjectRoom,
+  uploadProjectRoomEvidenceAsset,
   writeProjectRoomPresence,
   type CloudProjectRoom,
   type ProjectInvitePreview,
@@ -109,6 +110,17 @@ export interface ProjectArtifact {
   review_note?: string;
   signed_by?: string;
   signature?: string;
+}
+
+export interface ProjectEvidenceAsset {
+  id: string;
+  file_name: string;
+  content_type: string;
+  size: number;
+  storage_path: string;
+  download_url: string;
+  uploaded_by: string;
+  uploaded_at: string;
 }
 
 export interface ProjectDecision {
@@ -218,6 +230,7 @@ export interface ProjectContextItem {
   reviewed_at?: string;
   signed_by?: string;
   signature?: string;
+  assets?: ProjectEvidenceAsset[];
 }
 
 export interface Project {
@@ -2420,6 +2433,21 @@ function deriveActivity(
 function normalizeContextItems(contextItems: unknown): ProjectContextItem[] {
   if (!Array.isArray(contextItems)) return [];
   return contextItems.map((item: any, idx: number) => {
+    const assets: ProjectEvidenceAsset[] = Array.isArray(item.assets)
+      ? item.assets
+          .map((asset: Partial<ProjectEvidenceAsset>, assetIndex: number) => ({
+            id: typeof asset.id === 'string' ? asset.id : `asset_${idx}_${assetIndex}`,
+            file_name: typeof asset.file_name === 'string' ? asset.file_name : 'Evidence asset',
+            content_type: typeof asset.content_type === 'string' ? asset.content_type : 'application/octet-stream',
+            size: typeof asset.size === 'number' ? asset.size : 0,
+            storage_path: typeof asset.storage_path === 'string' ? asset.storage_path : '',
+            download_url: typeof asset.download_url === 'string' ? asset.download_url : '',
+            uploaded_by: typeof asset.uploaded_by === 'string' ? asset.uploaded_by : 'Unknown',
+            uploaded_at: typeof asset.uploaded_at === 'string' ? asset.uploaded_at : nowIso()
+          }))
+          .filter((asset: ProjectEvidenceAsset) => asset.download_url || asset.storage_path)
+      : [];
+
     return {
       id: item.id || `context_${idx}_${Date.now()}`,
       project_id: item.project_id || '',
@@ -2438,7 +2466,8 @@ function normalizeContextItems(contextItems: unknown): ProjectContextItem[] {
       review_note: item.review_note,
       reviewed_at: item.reviewed_at,
       signed_by: item.signed_by,
-      signature: item.signature
+      signature: item.signature,
+      assets
     };
   });
 }
@@ -3784,7 +3813,9 @@ export function useProjects() {
             id: `act_${Date.now()}`,
             kind: 'status_update' as const,
             title: `Context Item Proposed: ${newItem.title}`,
-            detail: `Type: ${newItem.context_type}, Actor: ${newItem.actor_name || newItem.actor_type}`,
+            detail: `Type: ${newItem.context_type}, Actor: ${newItem.actor_name || newItem.actor_type}${
+              newItem.assets?.length ? `, Assets: ${newItem.assets.map((asset) => asset.file_name).join(', ')}` : ''
+            }`,
             timestamp
           }
         ]
@@ -4207,6 +4238,9 @@ export default function ProjectsPage() {
   const [newContextBody, setNewContextBody] = useState<string>('');
   const [newContextType, setNewContextType] = useState<ProjectContextType>('working_note');
   const [newContextSigner, setNewContextSigner] = useState<string>('Malaky');
+  const [newContextAssetFile, setNewContextAssetFile] = useState<File | null>(null);
+  const [contextAssetUploadProgress, setContextAssetUploadProgress] = useState<number | null>(null);
+  const [contextAssetMessage, setContextAssetMessage] = useState<string>('');
 
   const [isSupersedingItemId, setIsSupersedingItemId] = useState<string | null>(null);
   const [supersedingContextTitle, setSupersedingContextTitle] = useState<string>('');
@@ -4455,6 +4489,17 @@ export default function ProjectsPage() {
     () =>
       (selectedProject?.artifacts || []).filter(
         (artifact) => !isArtifactApproved(artifact) && !isArtifactFlagged(artifact)
+      ),
+    [selectedProject]
+  );
+  const contextEvidenceAssets = useMemo(
+    () =>
+      (selectedProject?.context_items || []).flatMap((item) =>
+        (item.assets || []).map((asset) => ({
+          ...asset,
+          context_title: item.title,
+          context_state: item.context_state
+        }))
       ),
     [selectedProject]
   );
@@ -5212,12 +5257,87 @@ export default function ProjectsPage() {
     }
   };
 
-  const handleCreateContext = () => {
+  const renderEvidenceAssets = (assets?: ProjectEvidenceAsset[]) => {
+    if (!assets || assets.length === 0) return null;
+    return (
+      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {assets.map((asset) => {
+          const isImage = asset.content_type.startsWith('image/');
+          return (
+            <a
+              key={asset.id}
+              href={asset.download_url}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded border border-slate-800 bg-slate-950/60 p-2 transition-colors hover:border-teal-800/70"
+            >
+              {isImage ? (
+                <img
+                  src={asset.download_url}
+                  alt={asset.file_name}
+                  className="mb-2 max-h-40 w-full rounded border border-slate-800 object-cover"
+                />
+              ) : (
+                <div className="mb-2 rounded border border-slate-800 bg-slate-900/60 px-3 py-6 text-center text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                  Evidence Asset
+                </div>
+              )}
+              <div className="truncate text-xs font-bold text-slate-200">{asset.file_name}</div>
+              <div className="mt-1 text-[10px] uppercase tracking-widest text-slate-500">
+                {asset.content_type || 'file'} | {Math.max(1, Math.round(asset.size / 1024))} KB
+              </div>
+              <div className="mt-1 text-[10px] text-slate-500">
+                Uploaded {formatTimestamp(asset.uploaded_at)} by {asset.uploaded_by}
+              </div>
+            </a>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const handleCreateContext = async () => {
     if (!selectedProject || !newContextTitle.trim() || !newContextBody.trim()) return;
+
+    if (newContextAssetFile && !selectedHostedRoom) {
+      setContextAssetMessage('Asset uploads unavailable. Import this project into a hosted room before attaching files.');
+      return;
+    }
+
+    if (newContextAssetFile && !selectedRoomPermissions.canEditContent) {
+      setContextAssetMessage('Requires Editor role to attach evidence assets.');
+      return;
+    }
+
+    if (newContextAssetFile && !currentUser) {
+      setContextAssetMessage('Sign in before attaching evidence assets.');
+      return;
+    }
     
+    let uploadedAssets: ProjectEvidenceAsset[] = [];
+
+    if (newContextAssetFile && selectedHostedRoom && currentUser) {
+      setContextAssetUploadProgress(0);
+      setContextAssetMessage('Uploading evidence asset...');
+      const uploadResult = await uploadProjectRoomEvidenceAsset(
+        selectedHostedRoom.id,
+        newContextAssetFile,
+        currentUser,
+        setContextAssetUploadProgress
+      );
+      if (uploadResult.ok && uploadResult.value) {
+        uploadedAssets = [uploadResult.value];
+        setContextAssetMessage(`Uploaded asset: ${uploadResult.value.file_name}`);
+      } else {
+        setContextAssetMessage(uploadResult.error || 'Asset upload failed.');
+        setContextAssetUploadProgress(null);
+        return;
+      }
+    }
+
     const signaturePayload = `context:${Date.now()}:manual`;
     const signature = generateSimulatedSignature(newContextSigner, signaturePayload);
-    
+
     addProjectContextItem(selectedProject.id, {
       project_id: selectedProject.id,
       title: newContextTitle,
@@ -5228,12 +5348,15 @@ export default function ProjectsPage() {
       actor_name: newContextSigner,
       source_type: 'manual',
       signed_by: newContextSigner,
-      signature: signature
+      signature,
+      assets: uploadedAssets
     });
     
     setNewContextTitle('');
     setNewContextBody('');
     setNewContextType('working_note');
+    setNewContextAssetFile(null);
+    setContextAssetUploadProgress(null);
     setIsCreatingContext(false);
   };
 
@@ -5742,6 +5865,16 @@ export default function ProjectsPage() {
         source_type: item.source_type,
         source_id: item.source_id || null,
         evidence_ids: item.evidence_ids || [],
+        assets: (item.assets || []).map((asset) => ({
+          id: asset.id,
+          file_name: asset.file_name,
+          content_type: asset.content_type,
+          size: asset.size,
+          storage_path: asset.storage_path,
+          download_url: asset.download_url,
+          uploaded_by: asset.uploaded_by,
+          uploaded_at: asset.uploaded_at
+        })),
         created_at: item.created_at,
         updated_at: item.updated_at,
         signed_by: item.signed_by || null,
@@ -5757,6 +5890,16 @@ export default function ProjectsPage() {
         source_type: item.source_type,
         source_id: item.source_id || null,
         evidence_ids: item.evidence_ids || [],
+        assets: (item.assets || []).map((asset) => ({
+          id: asset.id,
+          file_name: asset.file_name,
+          content_type: asset.content_type,
+          size: asset.size,
+          storage_path: asset.storage_path,
+          download_url: asset.download_url,
+          uploaded_by: asset.uploaded_by,
+          uploaded_at: asset.uploaded_at
+        })),
         created_at: item.created_at,
         updated_at: item.updated_at
       })),
@@ -5771,6 +5914,16 @@ export default function ProjectsPage() {
         source_type: item.source_type,
         source_id: item.source_id || null,
         evidence_ids: item.evidence_ids || [],
+        assets: (item.assets || []).map((asset) => ({
+          id: asset.id,
+          file_name: asset.file_name,
+          content_type: asset.content_type,
+          size: asset.size,
+          storage_path: asset.storage_path,
+          download_url: asset.download_url,
+          uploaded_by: asset.uploaded_by,
+          uploaded_at: asset.uploaded_at
+        })),
         supersedes_id: item.supersedes_id || null,
         review_note: item.review_note || null,
         reviewed_at: item.reviewed_at || null,
@@ -5817,6 +5970,18 @@ export default function ProjectsPage() {
             review_outcome: getArtifactReviewOutcomeLabel(artifact)
           }))
         },
+        evidence_assets: contextEvidenceAssets.map((asset) => ({
+          id: asset.id,
+          file_name: asset.file_name,
+          content_type: asset.content_type,
+          size: asset.size,
+          storage_path: asset.storage_path,
+          download_url: asset.download_url,
+          uploaded_by: asset.uploaded_by,
+          uploaded_at: asset.uploaded_at,
+          context_title: asset.context_title,
+          context_state: asset.context_state
+        })),
         decisions: decisions.map((decision) => ({
           id: decision.id,
           title: decision.title,
@@ -5904,7 +6069,8 @@ export default function ProjectsPage() {
     latestReviewPacket,
     handoffReadiness,
     stewardshipJournal,
-    deskNextAction
+    deskNextAction,
+    contextEvidenceAssets
   ]);
 
   const buildProjectHandoffMarkdown = useCallback(() => {
@@ -5940,6 +6106,9 @@ export default function ProjectsPage() {
     } else {
       currentDirectionItems.forEach((item) => {
         lines.push(`- **${item.title}**: ${item.body}`);
+        (item.assets || []).forEach((asset) => {
+          lines.push(`  - Evidence Asset: [${asset.file_name}](${asset.download_url}) (${asset.content_type}, uploaded ${formatTimestamp(asset.uploaded_at)})`);
+        });
       });
     }
     lines.push(`- Next step baseline: ${selectedProject.next_step?.trim() || 'No next step baseline recorded yet.'}`);
@@ -5954,6 +6123,9 @@ export default function ProjectsPage() {
     } else {
       activeConstraintsItems.forEach((item) => {
         lines.push(`- **${item.title}**: ${item.body} (Signed by ${item.signed_by || 'operator'})`);
+        (item.assets || []).forEach((asset) => {
+          lines.push(`  - Evidence Asset: [${asset.file_name}](${asset.download_url}) (${asset.content_type}, uploaded ${formatTimestamp(asset.uploaded_at)})`);
+        });
       });
     }
 
@@ -5963,6 +6135,9 @@ export default function ProjectsPage() {
     } else {
       acceptedDecisionsItems.forEach((item) => {
         lines.push(`- **${item.title}**: ${item.body} (Signed by ${item.signed_by || 'operator'})`);
+        (item.assets || []).forEach((asset) => {
+          lines.push(`  - Evidence Asset: [${asset.file_name}](${asset.download_url}) (${asset.content_type}, uploaded ${formatTimestamp(asset.uploaded_at)})`);
+        });
       });
     }
 
@@ -5972,6 +6147,9 @@ export default function ProjectsPage() {
     } else {
       activeAssumptionsItems.forEach((item) => {
         lines.push(`- **${item.title}**: ${item.body} (Signed by ${item.signed_by || 'operator'})`);
+        (item.assets || []).forEach((asset) => {
+          lines.push(`  - Evidence Asset: [${asset.file_name}](${asset.download_url}) (${asset.content_type}, uploaded ${formatTimestamp(asset.uploaded_at)})`);
+        });
       });
     }
 
@@ -5981,6 +6159,9 @@ export default function ProjectsPage() {
     } else {
       knownWarningsItems.forEach((item) => {
         lines.push(`- **${item.title}**: ${item.body} (Signed by ${item.signed_by || 'operator'})`);
+        (item.assets || []).forEach((asset) => {
+          lines.push(`  - Evidence Asset: [${asset.file_name}](${asset.download_url}) (${asset.content_type}, uploaded ${formatTimestamp(asset.uploaded_at)})`);
+        });
       });
     }
 
@@ -5990,6 +6171,22 @@ export default function ProjectsPage() {
     } else {
       nextStepItems.forEach((item) => {
         lines.push(`- **${item.title}**: ${item.body} (Signed by ${item.signed_by || 'operator'})`);
+        (item.assets || []).forEach((asset) => {
+          lines.push(`  - Evidence Asset: [${asset.file_name}](${asset.download_url}) (${asset.content_type}, uploaded ${formatTimestamp(asset.uploaded_at)})`);
+        });
+      });
+    }
+
+    lines.push('', '## Evidence Assets', '');
+    if (contextEvidenceAssets.length === 0) {
+      lines.push('- No evidence assets attached yet.');
+    } else {
+      contextEvidenceAssets.forEach((asset) => {
+        lines.push(`- [${asset.file_name}](${asset.download_url})`);
+        lines.push(`  - Type: ${asset.content_type}`);
+        lines.push(`  - Size: ${Math.max(1, Math.round(asset.size / 1024))} KB`);
+        lines.push(`  - Context: ${asset.context_title} (${asset.context_state})`);
+        lines.push(`  - Uploaded: ${formatTimestamp(asset.uploaded_at)} by ${asset.uploaded_by}`);
       });
     }
 
@@ -6068,7 +6265,8 @@ export default function ProjectsPage() {
     bellowsRuntime,
     runtimeCommitmentAdvisory,
     stewardshipJournal,
-    reviewPacketDelta
+    reviewPacketDelta,
+    contextEvidenceAssets
   ]);
 
   const buildProjectDailyNote = useCallback(() => {
@@ -9756,6 +9954,9 @@ export default function ProjectsPage() {
                         setNewContextTitle('');
                         setNewContextBody('');
                         setNewContextType('working_note');
+                        setNewContextAssetFile(null);
+                        setContextAssetMessage('');
+                        setContextAssetUploadProgress(null);
                       }}
                       className="rounded border border-teal-800 bg-teal-950/30 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-teal-300 transition-colors hover:bg-teal-900/40"
                     >
@@ -9844,6 +10045,64 @@ export default function ProjectsPage() {
                                 className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-200 outline-none focus:border-teal-500 font-mono"
                               />
                             </div>
+
+                            <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
+                              <div className="flex flex-wrap items-start justify-between gap-3">
+                                <div>
+                                  <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Attach Evidence Asset</div>
+                                  <div className="mt-1 text-xs text-slate-500">
+                                    Optional image, PDF, text, or JSON reference attached to this context item.
+                                  </div>
+                                </div>
+                                <span className="rounded border border-slate-800 px-2 py-1 text-[10px] uppercase tracking-widest text-slate-500">
+                                  {selectedHostedRoom ? selectedRoomRoleLabel : 'Hosted room required'}
+                                </span>
+                              </div>
+                              <input
+                                type="file"
+                                accept="image/png,image/jpeg,image/webp,application/pdf,text/plain,application/json"
+                                disabled={!selectedHostedRoom || !selectedRoomPermissions.canEditContent || contextAssetUploadProgress !== null}
+                                title={
+                                  selectedRoomPermissions.canEditContent
+                                    ? 'Attach an evidence asset to this context item.'
+                                    : requiresEditorRole
+                                }
+                                onChange={(event) => {
+                                  setNewContextAssetFile(event.target.files?.[0] || null);
+                                  setContextAssetMessage('');
+                                  setContextAssetUploadProgress(null);
+                                }}
+                                className="mt-3 block w-full text-xs text-slate-300 file:mr-3 file:rounded file:border-0 file:bg-teal-900/50 file:px-3 file:py-1.5 file:text-[10px] file:font-bold file:uppercase file:tracking-widest file:text-teal-100 disabled:cursor-not-allowed disabled:opacity-50"
+                              />
+                              <div className="mt-2 text-[10px] leading-4 text-slate-500">
+                                {!selectedHostedRoom
+                                  ? 'Asset uploads unavailable until this project is imported into a hosted room.'
+                                  : selectedRoomPermissions.canEditContent
+                                    ? 'Evidence assets upload to the hosted room and appear in handoff metadata.'
+                                    : 'Requires Editor role to attach evidence assets.'}
+                              </div>
+                              {newContextAssetFile && (
+                                <div className="mt-2 rounded border border-slate-800 bg-slate-950/70 px-2 py-1.5 text-xs text-slate-300">
+                                  Selected: {newContextAssetFile.name} ({Math.max(1, Math.round(newContextAssetFile.size / 1024))} KB)
+                                </div>
+                              )}
+                              {contextAssetUploadProgress !== null && (
+                                <div className="mt-3">
+                                  <div className="h-1.5 overflow-hidden rounded bg-slate-900">
+                                    <div
+                                      className="h-full bg-teal-500 transition-all"
+                                      style={{ width: `${contextAssetUploadProgress}%` }}
+                                    />
+                                  </div>
+                                  <div className="mt-1 text-[10px] uppercase tracking-widest text-teal-300">
+                                    Uploading {contextAssetUploadProgress}%
+                                  </div>
+                                </div>
+                              )}
+                              {contextAssetMessage && (
+                                <div className="mt-2 text-[10px] text-slate-400">{contextAssetMessage}</div>
+                              )}
+                            </div>
                             
                             <div className="flex items-center justify-between border-t border-slate-900 pt-3">
                               <div className="text-[9px] text-slate-400 italic">
@@ -9855,6 +10114,9 @@ export default function ProjectsPage() {
                                     setIsCreatingContext(false);
                                     setNewContextTitle('');
                                     setNewContextBody('');
+                                    setNewContextAssetFile(null);
+                                    setContextAssetMessage('');
+                                    setContextAssetUploadProgress(null);
                                   }}
                                   className="rounded border border-slate-750 bg-slate-950/60 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-300 hover:bg-slate-900/60"
                                 >
@@ -9862,7 +10124,8 @@ export default function ProjectsPage() {
                                 </button>
                                 <button
                                   onClick={handleCreateContext}
-                                  className="rounded border border-teal-700 bg-teal-900/40 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-teal-200 hover:bg-teal-900/60"
+                                  disabled={!newContextTitle.trim() || !newContextBody.trim() || contextAssetUploadProgress !== null}
+                                  className="rounded border border-teal-700 bg-teal-900/40 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-teal-200 hover:bg-teal-900/60 disabled:cursor-not-allowed disabled:opacity-40"
                                 >
                                   Confirm & Sign Proposal
                                 </button>
@@ -9956,6 +10219,7 @@ export default function ProjectsPage() {
                                     </div>
                                   </div>
                                   <p className="whitespace-pre-wrap font-mono text-xs text-slate-300 leading-relaxed bg-slate-950/40 rounded p-2.5">{item.body}</p>
+                                  {renderEvidenceAssets(item.assets)}
                                   
                                   {item.source_type && (
                                     <div className="mt-2 text-[9px] text-slate-500">
@@ -10026,6 +10290,7 @@ export default function ProjectsPage() {
                                   </div>
                                   
                                   <p className="whitespace-pre-wrap font-mono text-xs text-slate-300 leading-relaxed bg-slate-950/40 rounded p-2.5">{item.body}</p>
+                                  {renderEvidenceAssets(item.assets)}
                                   
                                   {item.supersedes_id && (
                                     <div className="mt-2 text-[9px] text-slate-500 font-mono">
@@ -10174,6 +10439,7 @@ export default function ProjectsPage() {
                                     </div>
                                   </div>
                                   <p className="font-mono text-xs text-slate-500 bg-slate-950/20 rounded p-2 line-through">{item.body}</p>
+                                  {renderEvidenceAssets(item.assets)}
                                   {item.review_note && (
                                     <div className="mt-2 text-[10px] text-indigo-400/80 italic">
                                       Note: "{item.review_note}"
@@ -10218,6 +10484,9 @@ export default function ProjectsPage() {
                             </span>
                             <span className="rounded border border-slate-700 bg-slate-950/70 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-300">
                               {pendingArtifacts.length} Needs Review
+                            </span>
+                            <span className="rounded border border-teal-900/40 bg-teal-950/10 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-teal-300">
+                              {contextEvidenceAssets.length} Assets
                             </span>
                           </div>
                         </div>
@@ -10449,6 +10718,44 @@ export default function ProjectsPage() {
                               ))
                             )}
                           </div>
+                        </div>
+                      </div>
+
+                      <div className="rounded border border-slate-800 bg-slate-950/40 p-5">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Evidence Assets</div>
+                            <div className="mt-1 text-xs text-slate-500">
+                              Uploaded files attached to context items. Handoff exports include metadata and links only.
+                            </div>
+                          </div>
+                          <div className="text-[10px] uppercase tracking-widest text-slate-500">{contextEvidenceAssets.length} attached</div>
+                        </div>
+                        <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                          {contextEvidenceAssets.length === 0 ? (
+                            <div className="rounded border border-dashed border-slate-800 p-4 text-sm text-slate-500">
+                              No evidence assets have been attached yet.
+                            </div>
+                          ) : (
+                            contextEvidenceAssets.map((asset) => (
+                              <a
+                                key={`handoff-asset-${asset.id}`}
+                                href={asset.download_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="rounded border border-slate-800 bg-slate-950/60 p-3 transition-colors hover:border-teal-800/70"
+                              >
+                                <div className="text-sm font-bold text-slate-100">{asset.file_name}</div>
+                                <div className="mt-1 text-[10px] uppercase tracking-widest text-slate-500">
+                                  {asset.content_type} | {Math.max(1, Math.round(asset.size / 1024))} KB
+                                </div>
+                                <div className="mt-2 text-xs text-slate-400">Context: {asset.context_title}</div>
+                                <div className="mt-1 text-[10px] text-slate-500">
+                                  Uploaded {formatTimestamp(asset.uploaded_at)} by {asset.uploaded_by}
+                                </div>
+                              </a>
+                            ))
+                          )}
                         </div>
                       </div>
 
