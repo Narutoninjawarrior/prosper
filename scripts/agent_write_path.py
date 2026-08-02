@@ -153,6 +153,22 @@ def submit_bundle(endpoint: str, id_token: str, bundle: Dict[str, Any]) -> Tuple
         return exc.code, payload
 
 
+def build_success_result(bundle: Dict[str, Any], brief: Dict[str, Any], output: str | None = None) -> Dict[str, Any]:
+    result: Dict[str, Any] = {
+        "ok": True,
+        "bundle_id": bundle["bundle_id"],
+        "room_id": bundle["room_id"],
+        "packet_version_seen": bundle["packet_version_seen"],
+        "client_request_id": bundle["client_request_id"],
+        "proposal_count": len(bundle["proposals"]),
+        "allowed_proposal_types": brief.get("proposal_write_path", {}).get("allowed_proposal_types", sorted(ALLOWED_TYPES)),
+        "next_step": "Submit remotely or import this bundle into Agent Proposal Intake so it lands in Waiting for Judgment.",
+    }
+    if output:
+        result["output"] = output
+    return result
+
+
 def infer_endpoint(brief: Dict[str, Any]) -> str | None:
     remote_submission = brief.get("remote_submission", {})
     if isinstance(remote_submission, dict):
@@ -186,19 +202,10 @@ def main() -> int:
         print(json.dumps({"ok": False, "errors": errors}, indent=2))
         return 1
 
-    result: Dict[str, Any] = {
-        "ok": True,
-        "bundle_id": bundle["bundle_id"],
-        "room_id": bundle["room_id"],
-        "packet_version_seen": bundle["packet_version_seen"],
-        "client_request_id": bundle["client_request_id"],
-        "proposal_count": len(bundle["proposals"]),
-        "next_step": "Import this JSON into the Prosper Agent Proposal Intake gateway."
-    }
+    result = build_success_result(bundle, brief, args.output if (not args.dry_run and args.output) else None)
 
     if not args.dry_run and args.output:
         write_bundle(Path(args.output), bundle)
-        result["output"] = args.output
 
     if args.submit:
         if args.dry_run:
@@ -235,11 +242,19 @@ def main() -> int:
             return 1
 
         if status >= 400 or payload.get("ok") is False:
+            stale_hint = None
+            message = payload.get("message") if isinstance(payload, dict) else None
+            if isinstance(message, str) and "packet_version_seen is stale" in message:
+                stale_hint = {
+                    "refresh_brief": True,
+                    "next_step": "Export a fresh Agent Brief, rebuild the bundle against the new packet version, and submit again with a new client_request_id.",
+                }
             print(json.dumps({
                 "ok": False,
                 "status": status,
                 "endpoint": endpoint,
                 "response": payload,
+                "stale_hint": stale_hint,
             }, indent=2))
             return 1
 
@@ -247,6 +262,10 @@ def main() -> int:
             "ok": True,
             "endpoint": endpoint,
             "status": status,
+            "bundle_id": bundle["bundle_id"],
+            "client_request_id": bundle["client_request_id"],
+            "packet_version_seen": bundle["packet_version_seen"],
+            "next_step": "Bundle staged successfully. Open /review to judge it into accepted truth, rejection, or deferral.",
             "response": payload,
         }, indent=2))
         return 0

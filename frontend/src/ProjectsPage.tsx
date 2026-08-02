@@ -9295,7 +9295,21 @@ export default function ProjectsPage() {
                     </div>
                   </div>
                   <div className="mt-3 text-xs leading-5 text-slate-400">
-                    The Agent Brief is the smallest stable loading object for a coding agent. The room export stays broader and includes full review memory, room role context, accepted truth, runs, playbooks, checkpoint state, and publish state.
+                    The Agent Brief is the official read path for a coding agent. Load it first, build a valid proposal bundle against the current packet version, then use the remote submission endpoint or local intake to stage work for judgment.
+                  </div>
+                  <div className="mt-3 grid gap-3 md:grid-cols-3">
+                    <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Read</div>
+                      <div className="mt-2 text-xs leading-5 text-slate-300">Agent Brief with room goal, accepted truth, open judgment, and packet version.</div>
+                    </div>
+                    <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Write</div>
+                      <div className="mt-2 text-xs leading-5 text-slate-300">Valid Proposal Bundle with room_id, packet_version_seen, client_request_id, and supported proposal types.</div>
+                    </div>
+                    <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Result</div>
+                      <div className="mt-2 text-xs leading-5 text-slate-300">Waiting for Judgment first. Accepted truth only changes after human review inside the shared packet room.</div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -11447,10 +11461,10 @@ export default function ProjectsPage() {
                             </div>
                           </div>
                         </div>
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          <button
-                            onClick={handleCopyAgentBriefJson}
-                            className="rounded border border-fuchsia-800 bg-fuchsia-950/20 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-fuchsia-200 transition-colors hover:bg-fuchsia-900/30"
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <button
+                          onClick={handleCopyAgentBriefJson}
+                          className="rounded border border-fuchsia-800 bg-fuchsia-950/20 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-fuchsia-200 transition-colors hover:bg-fuchsia-900/30"
                           >
                             Copy Agent Brief
                           </button>
@@ -11480,6 +11494,44 @@ export default function ProjectsPage() {
                               Open Shared Room
                             </button>
                           )}
+                        </div>
+                      </div>
+
+                      <div className="rounded border border-sky-900/20 bg-sky-950/10 p-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-sky-300">After Review</div>
+                            <div className="mt-1 text-sm font-bold text-slate-100">
+                              {changedPacketTruthSummary.lastBundleLine}
+                            </div>
+                          </div>
+                          <span className={`rounded border px-2 py-1 text-[10px] font-bold uppercase tracking-widest ${stalePublishedUpdate ? 'border-cyan-800 bg-cyan-950/20 text-cyan-300' : 'border-emerald-800 bg-emerald-950/20 text-emerald-300'}`}>
+                            {stalePublishedUpdate ? 'Publish recommended' : 'Publish aligned'}
+                          </span>
+                        </div>
+                        <div className="mt-3 grid gap-3 md:grid-cols-3">
+                          <div className="rounded border border-white/10 bg-slate-950/50 p-3">
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Accepted Truth</div>
+                            <div className="mt-2 text-xs leading-5 text-slate-300">
+                              {changedPacketTruthSummary.acceptedLines[0] || 'No accepted change has landed yet.'}
+                            </div>
+                          </div>
+                          <div className="rounded border border-white/10 bg-slate-950/50 p-3">
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Next Move</div>
+                            <div className="mt-2 text-xs leading-5 text-slate-300">
+                              {safeNextProposal.title} — {safeNextProposal.explanation}
+                            </div>
+                          </div>
+                          <div className="rounded border border-white/10 bg-slate-950/50 p-3">
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Publish Check</div>
+                            <div className="mt-2 text-xs leading-5 text-slate-300">
+                              {latestPublishedUpdate
+                                ? stalePublishedUpdate
+                                  ? 'Packet truth changed after the last published update. Publish again when this review pass is complete.'
+                                  : 'The latest published update already reflects current packet truth.'
+                                : 'No published update yet. Publish when this packet becomes the right outward checkpoint.'}
+                            </div>
+                          </div>
                         </div>
                       </div>
 
@@ -12931,9 +12983,9 @@ export default function ProjectsPage() {
               {projectViewMode === 'handoff' && (
                 <div id="project-handoff-root" className="flex min-h-0 flex-1 flex-col">
                   <div className="border-b border-slate-800 px-5 py-4">
-                    <h3 className="text-xs font-bold uppercase tracking-widest text-slate-300">Project Handoff</h3>
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-slate-300">Published Update</h3>
                     <p className="mt-1 text-xs text-slate-500">
-                      A compiled project record built from reviewed evidence, decisions, commitments, and the current next step.
+                      A clean outward slice of accepted packet truth built from reviewed sources, decisions, open actions, and the current next step.
                     </p>
                   </div>
                   <div className="flex-1 overflow-y-auto p-5">
@@ -12968,7 +13020,7 @@ export default function ProjectsPage() {
 
                       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.15fr),minmax(320px,0.85fr)]">
                         <div className="rounded border border-slate-800 bg-slate-950/40 p-5">
-                          <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Current Handoff</div>
+                          <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Current Published Update</div>
                           <div className="mt-4 space-y-3 text-sm text-slate-300">
                             <div className="rounded border border-slate-800 bg-slate-950/60 p-3">
                               <div className="text-[10px] uppercase tracking-widest text-slate-500">Current Direction</div>
@@ -12979,11 +13031,11 @@ export default function ProjectsPage() {
                               <div className="mt-1 text-slate-200">{selectedProject.next_step?.trim() || 'No next step recorded yet.'}</div>
                             </div>
                             <div className="rounded border border-slate-800 bg-slate-950/60 p-3">
-                              <div className="text-[10px] uppercase tracking-widest text-slate-500">Return Focus</div>
+                              <div className="text-[10px] uppercase tracking-widest text-slate-500">What Matters On Return</div>
                               <div className="mt-1 text-slate-200">{projectRelevance.returnFocus}</div>
                             </div>
                             <div className="rounded border border-slate-800 bg-slate-950/60 p-3">
-                              <div className="text-[10px] uppercase tracking-widest text-slate-500">Review Focus</div>
+                              <div className="text-[10px] uppercase tracking-widest text-slate-500">Suggested Review Focus</div>
                               <div className="mt-1 text-slate-200">{agentSummary.suggestedReviewFocus[0] || 'No special review focus is active.'}</div>
                             </div>
                             <div className="rounded border border-slate-800 bg-slate-950/60 p-3">
@@ -12995,22 +13047,22 @@ export default function ProjectsPage() {
                         </div>
 
                         <div className="rounded border border-slate-800 bg-slate-950/40 p-5">
-                          <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Runtime Context</div>
+                          <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Packet Status Notes</div>
                           <div className="mt-4 space-y-3 text-sm text-slate-300">
                             <div className={`rounded border p-3 ${bellowsRuntime.classes}`}>
-                              <div className="text-[10px] uppercase tracking-widest">Runtime Condition</div>
+                              <div className="text-[10px] uppercase tracking-widest">Status Note</div>
                               <div className="mt-1 font-bold">{bellowsRuntime.label}</div>
                               <div className="mt-1 text-xs">{bellowsRuntime.detail}</div>
                             </div>
                             {runtimeCommitmentAdvisory ? (
                               <div className={`rounded border p-3 ${runtimeCommitmentAdvisory.classes}`}>
-                                <div className="text-[10px] uppercase tracking-widest">{runtimeCommitmentAdvisory.label}</div>
+                                <div className="text-[10px] uppercase tracking-widest">Needs Attention</div>
                                 <div className="mt-1 text-sm">{runtimeCommitmentAdvisory.message}</div>
                                 <div className="mt-2 text-xs">{runtimeCommitmentAdvisory.detail}</div>
                               </div>
                             ) : (
                               <div className="rounded border border-slate-800 bg-slate-950/60 p-3 text-sm text-slate-300">
-                                No runtime advisory is currently changing this handoff.
+                                No status note is currently changing this published update.
                               </div>
                             )}
                           </div>
@@ -13022,7 +13074,7 @@ export default function ProjectsPage() {
                           <div>
                             <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Since Last Packet</div>
                             <div className="mt-1 text-xs text-slate-500">
-                              The continuity delta between the latest saved checkpoint and the current handoff state.
+                              The change summary between the latest saved checkpoint and the current published update.
                             </div>
                           </div>
                           <div className="text-[10px] uppercase tracking-widest text-slate-500">{reviewPacketDelta.checkpointLabel}</div>
@@ -13283,7 +13335,7 @@ export default function ProjectsPage() {
                         {selectedFrame ? `${selectedFrame.title} Frame` : 'Frame Detail'}
                       </h3>
                       <p className="mt-1 text-xs text-slate-500">
-                        Organize the room by evidence, decisions, commitments, runtime pressure, and next moves.
+                        Organize the room by sources, decisions, open actions, status notes, and next moves.
                       </p>
                     </div>
                     <div className="flex-1 overflow-y-auto p-5">

@@ -12,7 +12,7 @@ const ProjectsPage = lazy(() => import('./ProjectsPage'));
 const DossierRoute = lazy(() => import('./DossierRoute'));
 const HandoffPublicPage = lazy(() => import('./HandoffPublicPage'));
 
-function LoadingSurface({ label = 'Loading vessel surface...' }: { label?: string }) {
+function LoadingSurface({ label = 'Loading workspace...' }: { label?: string }) {
   return (
     <div className="flex h-full min-h-[240px] items-center justify-center bg-[#020804] px-6 text-center text-sm uppercase tracking-[0.28em] text-[#8a7a64]">
       {label}
@@ -67,7 +67,7 @@ function App() {
 
   if (pathname === '/hall') {
     return (
-      <SuspendedPublicShell className="min-h-screen w-screen bg-[#020804] text-gray-200" label="Loading hall...">
+      <SuspendedPublicShell className="min-h-screen w-screen bg-[#020804] text-gray-200" label="Loading directory...">
         <div className="h-full overflow-y-auto">
           <HallOfHonor />
         </div>
@@ -97,7 +97,7 @@ function App() {
 
   if (pathname.startsWith('/handoff/')) {
     return (
-      <Suspense fallback={<LoadingSurface label="Loading handoff..." />}>
+      <Suspense fallback={<LoadingSurface label="Loading published update..." />}>
         <HandoffPublicPage />
       </Suspense>
     );
@@ -105,7 +105,7 @@ function App() {
 
   if (pathname === '/handoff') {
     return (
-      <Suspense fallback={<LoadingSurface label="Decrypting Dossier..." />}>
+      <Suspense fallback={<LoadingSurface label="Loading published updates..." />}>
         <DossierRoute />
       </Suspense>
     );

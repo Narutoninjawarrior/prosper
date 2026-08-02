@@ -62,7 +62,7 @@ function acceptedCompletedCount(run: any) {
 export default function HandoffPublicPage() {
   const token = useMemo(() => tokenFromPath(), []);
   const [handoff, setHandoff] = useState<PublishedHandoff | null>(null);
-  const [error, setError] = useState<string | null>(() => (token ? null : 'This handoff link is missing its share token.'));
+  const [error, setError] = useState<string | null>(() => (token ? null : 'This published update link is missing its share token.'));
   const [loading, setLoading] = useState(() => Boolean(token));
 
   useEffect(() => {
@@ -76,11 +76,11 @@ export default function HandoffPublicPage() {
           setHandoff(result.value);
           setError(null);
         } else {
-          setError(result.error || 'This handoff is unavailable.');
+          setError(result.error || 'This published update is unavailable.');
         }
       })
       .catch((fetchError) => {
-        if (!cancelled) setError(fetchError instanceof Error ? fetchError.message : 'This handoff is unavailable.');
+        if (!cancelled) setError(fetchError instanceof Error ? fetchError.message : 'This published update is unavailable.');
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -94,7 +94,7 @@ export default function HandoffPublicPage() {
   if (loading) {
     return (
       <main className="min-h-screen bg-slate-950 px-6 py-12 text-slate-100">
-        <div className="mx-auto max-w-3xl rounded border border-slate-800 bg-slate-900/50 p-6">Loading handoff...</div>
+        <div className="mx-auto max-w-3xl rounded border border-slate-800 bg-slate-900/50 p-6">Loading published update...</div>
       </main>
     );
   }
@@ -156,13 +156,13 @@ export default function HandoffPublicPage() {
           </div>
           <div className="mt-5 flex flex-wrap gap-3">
             <button
-              onClick={() => downloadText(`${handoff.project_id}-handoff.md`, handoff.markdown, 'text/markdown;charset=utf-8')}
+              onClick={() => downloadText(`${handoff.project_id}-published-update.md`, handoff.markdown, 'text/markdown;charset=utf-8')}
               className="rounded bg-slate-950 px-4 py-2 text-sm font-semibold text-white"
             >
               Download Markdown
             </button>
             <button
-              onClick={() => downloadText(`${handoff.project_id}-handoff.json`, JSON.stringify(handoff.json, null, 2), 'application/json;charset=utf-8')}
+              onClick={() => downloadText(`${handoff.project_id}-published-update.json`, JSON.stringify(handoff.json, null, 2), 'application/json;charset=utf-8')}
               className="rounded border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-900"
             >
               Download JSON
@@ -347,9 +347,9 @@ export default function HandoffPublicPage() {
 
           {runs.length > 0 && (
             <section className="rounded border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="mb-2 text-lg font-bold text-slate-900">Run Review Trace</h2>
+          <h2 className="mb-2 text-lg font-bold text-slate-900">Run Trace</h2>
               <p className="mb-4 text-sm leading-6 text-slate-600">
-                These supervised runs show how work was proposed, reviewed, and carried through against the packet.
+                These supervised runs show how work moved through proposal, review, and accepted packet truth.
               </p>
               <div className="space-y-4">
                 {(runs as any[]).map((run: any, index: number) => (
@@ -384,7 +384,7 @@ export default function HandoffPublicPage() {
                     )}
                     {Array.isArray(run.actions) && run.actions.length > 0 && (
                       <div className="mt-3">
-                        <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Reviewed Steps</div>
+                        <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Accepted Steps</div>
                         <ul className="mt-2 space-y-2 text-sm text-slate-700">
                           {run.actions.slice(0, 5).map((action: any, actionIndex: number) => (
                             <li key={`run-action-${index}-${actionIndex}`} className="flex gap-2">
@@ -455,7 +455,7 @@ function FeedbackSection({ handoff }: { handoff: PublishedHandoff }) {
       <section className="rounded border border-emerald-200 bg-emerald-50 p-6 shadow-sm">
         <h2 className="mb-2 text-lg font-bold text-emerald-900">Feedback Submitted</h2>
         <p className="text-sm leading-6 text-emerald-800">
-          Your feedback has been sent directly to the project inbox. The team will review it and carry it forward.
+          Your feedback has been sent directly to the review queue. The team will judge it and carry it forward.
         </p>
         <button
           onClick={() => setSubmitted(false)}
@@ -471,7 +471,7 @@ function FeedbackSection({ handoff }: { handoff: PublishedHandoff }) {
     <section className="rounded border border-indigo-200 bg-indigo-50/50 p-6 shadow-sm">
       <h2 className="mb-2 text-lg font-bold text-slate-900">Leave Feedback</h2>
       <p className="mb-4 text-sm leading-6 text-slate-600">
-        Reviewing this update? Leave notes, questions, or corrections here. They will drop directly into the project owner&apos;s inbox.
+        Reviewing this update? Leave notes, questions, or corrections here. They will drop directly into the team&apos;s review inbox so the next packet decision can happen in the same judged workflow.
       </p>
 
       {error && (
@@ -512,7 +512,7 @@ function FeedbackSection({ handoff }: { handoff: PublishedHandoff }) {
           disabled={submitting || !feedback.trim()}
           className="rounded bg-indigo-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
         >
-          {submitting ? 'Sending...' : 'Send to Project Inbox'}
+          {submitting ? 'Sending...' : 'Send to Review Queue'}
         </button>
       </form>
     </section>

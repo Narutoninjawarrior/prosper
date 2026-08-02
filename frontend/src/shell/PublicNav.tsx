@@ -3,7 +3,7 @@ import { Flame } from 'lucide-react'
 const LINKS = [
   { href: '/projects', label: 'Projects' },
   { href: '/review', label: 'Review' },
-  { href: '/hall', label: 'Hall' },
+  { href: '/hall', label: 'Directory' },
 ]
 
 export default function PublicNav({ compact = false }: { compact?: boolean }) {
@@ -44,7 +44,7 @@ export default function PublicNav({ compact = false }: { compact?: boolean }) {
           href="/projects"
           className="rounded-full border border-[#10b981]/35 bg-[#10b981]/12 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#9ff0c4] no-underline"
         >
-          Open Packet Desk
+          Open Projects
         </a>
       </div>
     </header>

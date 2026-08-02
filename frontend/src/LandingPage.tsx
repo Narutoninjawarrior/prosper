@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, Bot, Boxes, ClipboardList, ScrollText } from 'lucide-react';
+import { ArrowRight, Bot, ClipboardList, ScrollText } from 'lucide-react';
 import { fetchActivityBundle, type ActivityRow } from './lib/activityFeed';
 import { fetchLiveMembersPreview } from './lib/lodgeFirestore';
 import { sanctuaryBridge, useContract, type ArtifactContract, type MemberContract } from './lib/sanctuaryBridge';
@@ -8,31 +8,25 @@ const primarySurfaces = [
   {
     title: 'Projects',
     href: '/projects',
-    body: 'Use one packet desk to capture coding-agent output, review sources, record decisions, track open actions, and publish a clean project update.',
+    body: 'Keep accepted project truth in one packet: sources, decisions, open actions, runs, and the next publishable update.',
     accent: '#34D399',
   },
   {
     title: 'Review',
     href: '/review',
-    body: 'Open the review workspace to inspect proposals, scope notes, and release-ready packet changes without hunting through side routes.',
+    body: 'Judge incoming proposal bundles and external feedback before anything becomes accepted packet truth.',
     accent: '#A78BFA',
   },
   {
-    title: 'Activity',
-    href: '/activity',
-    body: 'Track what changed across packets, reviews, runs, and published updates in one feed.',
+    title: 'Published Updates',
+    href: '/projects',
+    body: 'Publish a clean outward slice of judged work so the next engineer, teammate, or reviewer can pick it up fast.',
     accent: '#F59E0B',
   },
   {
-    title: 'Workbench',
-    href: '/workbench',
-    body: 'Generate drafts and supporting outputs that help move project work forward.',
-    accent: '#F472B6',
-  },
-  {
-    title: 'Operations',
-    href: '/operations',
-    body: 'Inspect exported records and review data when a project needs deeper verification.',
+    title: 'Shared Rooms',
+    href: '/projects',
+    body: 'Work inside a shared packet room where coding agents can propose changes and humans keep final authority.',
     accent: '#38BDF8',
   },
 ];
@@ -40,15 +34,15 @@ const primarySurfaces = [
 const useCases = [
   {
     title: 'Coding-agent build loop',
-    body: 'Collect notes, links, diffs, and agent proposals fast, then turn them into reviewed sources and a weekly project update.',
+    body: 'Collect notes, links, diffs, and agent proposals fast, then turn them into reviewed packet truth and a clean published update.',
   },
   {
     title: 'Small shipping team',
-    body: 'Keep one packet that shows what changed, what was reviewed, what was decided, and what still needs to ship.',
+    body: 'Keep one packet that shows what changed, what was judged, what was accepted, and what still needs to ship.',
   },
   {
     title: 'People + coding agents',
-    body: 'Give coding agents a stable packet instead of scattered chat context, then keep the review and decision trail visible to people.',
+    body: 'Give coding agents a stable packet instead of scattered chat context, then keep the judgment trail visible to the team.',
   },
 ];
 
@@ -157,7 +151,7 @@ export default function LandingPage() {
               </h1>
               <p className="mt-4 max-w-3xl text-base leading-7 text-[#b7c9be] md:text-lg">
                 Capture inputs, attach sources, review agent proposals, record decisions, track open actions,
-                and publish a project update that another engineer or agent can pick up without a reset.
+                and publish an update another engineer or agent can pick up without a reset.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-3">
@@ -176,18 +170,11 @@ export default function LandingPage() {
                   <ScrollText size={16} />
                 </a>
                 <a
-                  href="/activity"
+                  href="/projects"
                   className="inline-flex items-center gap-2 rounded-full border border-[#34D399]/35 bg-[#34D399]/10 px-5 py-3 text-sm font-semibold text-[#9ff0c4] transition hover:bg-[#34D399]/16"
                 >
-                  View Activity
+                  Open Shared Rooms
                   <Bot size={16} />
-                </a>
-                <a
-                  href="/workbench"
-                  className="inline-flex items-center gap-2 rounded-full border border-[#F472B6]/35 bg-[#F472B6]/10 px-5 py-3 text-sm font-semibold text-[#fbcfe8] transition hover:bg-[#F472B6]/16"
-                >
-                  Open Workbench
-                  <Boxes size={16} />
                 </a>
               </div>
             </div>
@@ -196,9 +183,9 @@ export default function LandingPage() {
               <div className="text-[11px] uppercase tracking-[0.3em] text-[#89a598]">Core Loop</div>
               {[
                 'Capture project inputs and coding-agent output before they are lost.',
-                'Review sources and proposals with clear human judgment.',
+                'Judge proposals and source changes before they become accepted truth.',
                 'Record decisions and keep open actions visible across runs.',
-                'Publish a project update that another engineer or agent can actually use.',
+                'Publish a project update another engineer or agent can actually use.',
               ].map((item) => (
                 <div key={item} className="rounded-2xl border border-white/8 bg-black/20 p-4 text-sm leading-6 text-[#d4f7e0]">
                   {item}
@@ -209,9 +196,9 @@ export default function LandingPage() {
         </section>
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <StatCard label="Project desk" value="Live" detail="Inbox, sources, decisions, open actions, runs, and published updates all live in /projects." />
-          <StatCard label="Recent activity" value={lastSignalLabel} detail={activity?.note ?? `State: ${activityStateLabel}`} />
-          <StatCard label="Sources" value={evidenceCount} detail="Attached material can be reviewed and carried into project handoff outputs." />
+          <StatCard label="Packet room" value="Live" detail="Sources, decisions, open actions, runs, and published updates all live in /projects." />
+          <StatCard label="Review queue" value={lastSignalLabel} detail={activity?.note ?? `State: ${activityStateLabel}`} />
+          <StatCard label="Sources" value={evidenceCount} detail="Attached material can be reviewed and carried into accepted packet truth." />
           <StatCard label="Members" value={memberCount} detail={`Source: ${memberSource}`} />
         </section>
 
@@ -241,7 +228,7 @@ export default function LandingPage() {
             </div>
             <div>
               <div className="text-[11px] uppercase tracking-[0.32em] text-[#89a598]">Built For</div>
-          <h2 className="text-2xl font-semibold text-white">Keep the thread from first note to shipped update</h2>
+          <h2 className="text-2xl font-semibold text-white">Keep the thread from first note to accepted truth to shipped update</h2>
             </div>
           </div>
 
