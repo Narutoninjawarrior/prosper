@@ -82,6 +82,7 @@ interface BundleResultSummary {
   closedAt: string;
   packetVersionLine: string;
   changedTruth: string[];
+  downstreamWork: string[];
   rejectedOrDeferred: string[];
   beforeSummaries: string[];
   reviewNotes: string[];
@@ -1080,6 +1081,13 @@ export default function ReviewPage() {
         const changedTruth = accepted
           .map((proposal) => proposal.promoted_target?.label || proposal.target_title || proposal.proposal_summary)
           .slice(0, 4);
+        const downstreamWork = Array.from(
+          new Set(
+            accepted
+              .map((proposal) => proposal.downstream_work_target?.label?.trim())
+              .filter((label): label is string => Boolean(label)),
+          ),
+        ).slice(0, 4);
         const rejectedSummaries = rejectedOrDeferred
           .map((proposal) => {
             const prefix = proposal.review_state === 'deferred' ? 'Deferred' : 'Rejected';
@@ -1115,6 +1123,7 @@ export default function ReviewPage() {
           closedAt,
           packetVersionLine,
           changedTruth,
+          downstreamWork,
           rejectedOrDeferred: rejectedSummaries,
           beforeSummaries,
           reviewNotes,
@@ -2532,7 +2541,7 @@ export default function ReviewPage() {
                         </div>
                       </div>
 
-                      <div className="mt-4 grid gap-3 md:grid-cols-2">
+                      <div className="mt-4 grid gap-3 md:grid-cols-3">
                         <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-3">
                           <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">Before</div>
                           <div className="mt-2 space-y-1 text-sm leading-6 text-slate-300">
@@ -2548,6 +2557,16 @@ export default function ReviewPage() {
                               result.changedTruth.map((line) => <div key={line}>- {line}</div>)
                             ) : (
                               <div className="text-slate-500">No packet object was accepted from this bundle.</div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl border border-sky-900/20 bg-sky-950/10 p-3">
+                          <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-sky-300">Created or updated work</div>
+                          <div className="mt-2 space-y-1 text-sm leading-6 text-slate-300">
+                            {result.downstreamWork.length > 0 ? (
+                              result.downstreamWork.map((line) => <div key={line}>- {line}</div>)
+                            ) : (
+                              <div className="text-slate-500">No downstream open action was created from this bundle.</div>
                             )}
                           </div>
                         </div>
@@ -2670,7 +2689,7 @@ export default function ReviewPage() {
                       <div className="mt-2 text-sm leading-6 text-slate-300">{proposal.review_note || 'No review note recorded.'}</div>
                       <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/50 p-3 text-xs text-slate-300">
                         <div className="font-medium text-white">Traceable acceptance</div>
-                        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                        <div className="mt-2 grid gap-2 sm:grid-cols-3">
                           <div>
                             <div className="uppercase tracking-[0.18em] text-slate-500">Before</div>
                             <div className="mt-1">{proposal.payload_summary || 'No proposal payload summary recorded.'}</div>
@@ -2679,6 +2698,12 @@ export default function ReviewPage() {
                             <div className="uppercase tracking-[0.18em] text-slate-500">After</div>
                             <div className="mt-1">
                               {proposal.promoted_target?.label || proposal.target_title || 'No packet object was created.'}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="uppercase tracking-[0.18em] text-slate-500">Work created</div>
+                            <div className="mt-1">
+                              {proposal.downstream_work_target?.label || 'No downstream open action was created.'}
                             </div>
                           </div>
                         </div>
@@ -2699,6 +2724,12 @@ export default function ReviewPage() {
                           <dt>Promoted target</dt>
                           <dd className="text-right text-slate-200">
                             {proposal.promoted_target ? proposal.promoted_target.label : 'No packet object created'}
+                          </dd>
+                        </div>
+                        <div className="flex items-start justify-between gap-3">
+                          <dt>Downstream work</dt>
+                          <dd className="text-right text-slate-200">
+                            {proposal.downstream_work_target ? proposal.downstream_work_target.label : 'No open action created'}
                           </dd>
                         </div>
                         <div className="flex items-start justify-between gap-3">

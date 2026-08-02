@@ -277,6 +277,7 @@ export interface ProjectProposalRecord {
   target_title?: string;
   parent_run_id?: string;
   promoted_target?: ProjectProposalPromotionTarget;
+  downstream_work_target?: ProjectProposalPromotionTarget;
   reviewed_at?: string;
   review_note?: string;
   reviewed_by?: string;
@@ -397,6 +398,7 @@ interface DerivedSafeNextProposal {
 interface DerivedChangedPacketTruthSummary {
   acceptedLines: string[];
   rejectedLines: string[];
+  workLines: string[];
   lastBundleLine: string;
 }
 
@@ -2652,6 +2654,22 @@ function normalizeProposalHistory(value: unknown): ProjectProposalRecord[] {
                 typeof item.promoted_target.parent_run_id === 'string' ? item.promoted_target.parent_run_id : undefined
             }
           : undefined;
+      const downstreamWorkTarget =
+        item.downstream_work_target &&
+        typeof item.downstream_work_target === 'object' &&
+        typeof item.downstream_work_target.id === 'string' &&
+        typeof item.downstream_work_target.label === 'string' &&
+        typeof item.downstream_work_target.kind === 'string'
+          ? {
+              kind: item.downstream_work_target.kind as ProjectProposalPromotionTarget['kind'],
+              id: item.downstream_work_target.id,
+              label: item.downstream_work_target.label,
+              parent_run_id:
+                typeof item.downstream_work_target.parent_run_id === 'string'
+                  ? item.downstream_work_target.parent_run_id
+                  : undefined
+            }
+          : undefined;
 
       return {
         id: typeof item.id === 'string' ? item.id : `proposal_${index}`,
@@ -2695,6 +2713,7 @@ function normalizeProposalHistory(value: unknown): ProjectProposalRecord[] {
         target_title: typeof item.target_title === 'string' ? item.target_title : undefined,
         parent_run_id: typeof item.parent_run_id === 'string' ? item.parent_run_id : undefined,
         promoted_target: promotedTarget,
+        downstream_work_target: downstreamWorkTarget,
         reviewed_at: typeof item.reviewed_at === 'string' ? item.reviewed_at : undefined,
         review_note: typeof item.review_note === 'string' ? item.review_note : undefined,
         reviewed_by: typeof item.reviewed_by === 'string' ? item.reviewed_by : undefined,
@@ -5235,6 +5254,10 @@ export default function ProjectsPage() {
     const acceptedLines = acceptedProposalHistory
       .slice(0, 3)
       .map((proposal) => `${getProposalTypeLabel(proposal.proposal_type)}: ${proposal.promoted_target?.label || proposal.proposal_summary}`);
+    const workLines = acceptedProposalHistory
+      .filter((proposal) => proposal.downstream_work_target)
+      .slice(0, 3)
+      .map((proposal) => `Open Action: ${proposal.downstream_work_target?.label}`);
     const rejectedLines = [...rejectedProposalHistory, ...deferredProposalHistory]
       .slice(0, 3)
       .map((proposal) => `${getProposalReviewStateLabel(proposal.review_state)}: ${proposal.proposal_summary}`);
@@ -5246,6 +5269,7 @@ export default function ProjectsPage() {
     return {
       acceptedLines,
       rejectedLines,
+      workLines,
       lastBundleLine
     };
   }, [acceptedProposalHistory, rejectedProposalHistory, deferredProposalHistory, proposalBundles]);
@@ -8278,8 +8302,72 @@ export default function ProjectsPage() {
       let updatedCommitments = [...(baseProject.commitments || [])];
       let updatedContexts = [...(baseProject.context_items || [])];
       let promotedTarget: ProjectProposalPromotionTarget | undefined = proposal.promoted_target;
+      let downstreamWorkTarget: ProjectProposalPromotionTarget | undefined = proposal.downstream_work_target;
       const outcomeTitle = getProposalReviewStateLabel(nextState);
       let outcomeDetail = noteForState;
+      const proposalPayload =
+        proposal.proposal_payload && typeof proposal.proposal_payload === 'object' ? proposal.proposal_payload : {};
+
+      const maybeCreateDownstreamWork = (sourceTitle: string, linkedDecisionId?: string) => {
+        if (proposal.proposal_type === 'open_action') return;
+        const nextAction =
+          typeof proposalPayload.next_action === 'string' && proposalPayload.next_action.trim()
+            ? proposalPayload.next_action.trim()
+            : null;
+        const doneWhen =
+          typeof proposalPayload.done_when === 'string' && proposalPayload.done_when.trim()
+            ? proposalPayload.done_when.trim()
+            : null;
+        if (!nextAction && !doneWhen) return;
+
+        const downstreamId =
+          typeof proposalPayload.follow_up_commitment_id === 'string' && proposalPayload.follow_up_commitment_id.trim()
+            ? proposalPayload.follow_up_commitment_id.trim()
+            : `commitment_followup_${proposal.id}`;
+        const downstreamTitle =
+          typeof proposalPayload.follow_up_title === 'string' && proposalPayload.follow_up_title.trim()
+            ? proposalPayload.follow_up_title.trim()
+            : `Follow through on ${sourceTitle}`;
+        const downstreamRationale =
+          typeof proposalPayload.follow_up_rationale === 'string' && proposalPayload.follow_up_rationale.trim()
+            ? proposalPayload.follow_up_rationale.trim()
+            : `Accepted from ${getProposalTypeLabel(proposal.proposal_type).toLowerCase()} "${sourceTitle}".`;
+        const nextCommitment: ProjectCommitment = {
+          id: downstreamId,
+          title: downstreamTitle,
+          timestamp: now,
+          commitment_state: 'active',
+          rationale: downstreamRationale,
+          next_action: nextAction || `Advance ${sourceTitle}.`,
+          done_when: doneWhen || 'A reviewer can confirm the accepted truth is now carried into real work.',
+          decision_id: linkedDecisionId,
+          confidence:
+            proposalPayload.confidence === 'high' || proposalPayload.confidence === 'medium' || proposalPayload.confidence === 'low'
+              ? proposalPayload.confidence
+              : undefined,
+          work_package:
+            typeof proposalPayload.work_package === 'string' && proposalPayload.work_package.trim()
+              ? proposalPayload.work_package.trim()
+              : undefined,
+          constraints:
+            typeof proposalPayload.constraints === 'string' && proposalPayload.constraints.trim()
+              ? proposalPayload.constraints.trim()
+              : undefined
+        };
+        const existing = updatedCommitments.find((item) => item.id === downstreamId);
+        if (existing) {
+          updatedCommitments = updatedCommitments.map((item) =>
+            item.id === downstreamId ? { ...item, ...nextCommitment } : item
+          );
+        } else {
+          updatedCommitments = [nextCommitment, ...updatedCommitments];
+        }
+        downstreamWorkTarget = {
+          kind: 'commitment',
+          id: downstreamId,
+          label: downstreamTitle
+        };
+      };
 
       switch (proposal.proposal_type) {
         case 'run': {
@@ -8294,6 +8382,7 @@ export default function ProjectsPage() {
                 label: run.title || proposal.target_title || 'Proposed Run'
               };
               outcomeDetail = `${noteForState} Promoted into packet as active run "${promotedTarget.label}".`;
+              maybeCreateDownstreamWork(promotedTarget.label);
             }
           } else {
             updatedRuns.splice(0, updatedRuns.length, ...updatedRuns.filter((run: any) => run.id !== proposal.target_id));
@@ -8337,6 +8426,7 @@ export default function ProjectsPage() {
             if (decision) {
               promotedTarget = { kind: 'decision', id: decision.id, label: decision.title };
               outcomeDetail = `${noteForState} Promoted into packet as accepted decision "${decision.title}".`;
+              maybeCreateDownstreamWork(decision.title, decision.id);
             }
           } else if (nextState === 'deferred') {
             updatedDecisions = updatedDecisions.map((decision) =>
@@ -8369,6 +8459,7 @@ export default function ProjectsPage() {
             if (contextItem) {
               promotedTarget = { kind: 'context_item', id: contextItem.id, label: contextItem.title };
               outcomeDetail = `${noteForState} Promoted into packet as scope note "${contextItem.title}".`;
+              maybeCreateDownstreamWork(contextItem.title);
             }
           } else {
             updatedContexts = updatedContexts.filter((item) => item.id !== proposal.target_id);
@@ -8392,6 +8483,10 @@ export default function ProjectsPage() {
         }
       }
 
+      if (nextState === 'accepted' && downstreamWorkTarget) {
+        outcomeDetail = `${outcomeDetail} Created downstream open action "${downstreamWorkTarget.label}".`;
+      }
+
       const updatedProposalHistory = (baseProject.proposal_history || []).map((item) =>
         item.id === proposalId
           ? {
@@ -8401,7 +8496,8 @@ export default function ProjectsPage() {
               review_note: noteForState,
               reviewed_by: currentReviewerLabel,
               reviewed_by_role: selectedHostedRoom ? selectedRoomRole : undefined,
-              promoted_target: nextState === 'accepted' ? promotedTarget : item.promoted_target
+              promoted_target: nextState === 'accepted' ? promotedTarget : item.promoted_target,
+              downstream_work_target: nextState === 'accepted' ? downstreamWorkTarget : item.downstream_work_target
             }
           : item
       );
@@ -11623,6 +11719,12 @@ export default function ProjectsPage() {
                               {changedPacketTruthSummary.acceptedLines[0] || 'No accepted change has landed yet.'}
                             </div>
                           </div>
+                          <div className="rounded border border-sky-900/20 bg-sky-950/10 p-3">
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-sky-300">Work Created</div>
+                            <div className="mt-2 text-xs leading-5 text-slate-300">
+                              {changedPacketTruthSummary.workLines[0] || 'No downstream open action was created from the last accepted bundle.'}
+                            </div>
+                          </div>
                           <div className="rounded border border-white/10 bg-slate-950/50 p-3">
                             <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Next Move</div>
                             <div className="mt-2 text-xs leading-5 text-slate-300">
@@ -11650,7 +11752,7 @@ export default function ProjectsPage() {
                               The shortest honest view of what review changed in the packet.
                             </div>
                           </div>
-                          <div className="mt-4 grid gap-3 md:grid-cols-2">
+                          <div className="mt-4 grid gap-3 md:grid-cols-3">
                             <div className="rounded border border-emerald-900/20 bg-emerald-950/10 p-3">
                               <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-300">Accepted Into Packet</div>
                               <div className="mt-2 space-y-1 text-xs leading-5 text-slate-300">
@@ -11668,6 +11770,16 @@ export default function ProjectsPage() {
                                   changedPacketTruthSummary.rejectedLines.map((line) => <div key={line}>- {line}</div>)
                                 ) : (
                                   <div className="text-slate-500">No rejected review memory yet.</div>
+                                )}
+                              </div>
+                            </div>
+                            <div className="rounded border border-sky-900/20 bg-sky-950/10 p-3">
+                              <div className="text-[10px] font-bold uppercase tracking-widest text-sky-300">Work Created</div>
+                              <div className="mt-2 space-y-1 text-xs leading-5 text-slate-300">
+                                {changedPacketTruthSummary.workLines.length > 0 ? (
+                                  changedPacketTruthSummary.workLines.map((line) => <div key={line}>- {line}</div>)
+                                ) : (
+                                  <div className="text-slate-500">No downstream open actions were created from recent judgments.</div>
                                 )}
                               </div>
                             </div>
@@ -13821,6 +13933,16 @@ export default function ProjectsPage() {
                                 changedPacketTruthSummary.rejectedLines.map((line) => <div key={line}>- {line}</div>)
                               ) : (
                                 <div className="text-slate-500">No rejected or deferred review memory yet.</div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="rounded border border-sky-900/20 bg-sky-950/10 p-3">
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-sky-300">Work Created</div>
+                            <div className="mt-2 space-y-1 text-xs leading-5 text-slate-300">
+                              {changedPacketTruthSummary.workLines.length > 0 ? (
+                                changedPacketTruthSummary.workLines.map((line) => <div key={line}>- {line}</div>)
+                              ) : (
+                                <div className="text-slate-500">No downstream open actions were created from recent judgments.</div>
                               )}
                             </div>
                           </div>

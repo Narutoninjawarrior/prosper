@@ -189,12 +189,75 @@ function applyProposalReviewToProject(
   let updatedCommitments = asArray<Record<string, unknown>>(baseProject.commitments).map((commitment) => ({ ...commitment }));
   let updatedContexts = asArray<Record<string, unknown>>(baseProject.context_items).map((item) => ({ ...item }));
   let promotedTarget = isRecord(proposal.promoted_target) ? { ...proposal.promoted_target } : undefined;
+  let downstreamWorkTarget = isRecord(proposal.downstream_work_target) ? { ...proposal.downstream_work_target } : undefined;
   const outcomeTitle = getProposalReviewStateLabel(nextState);
   let outcomeDetail = noteForState;
   const proposalType = proposal.proposal_type as ProposalType;
   const targetId = typeof proposal.target_id === 'string' ? proposal.target_id : undefined;
   const targetTitle = typeof proposal.target_title === 'string' ? proposal.target_title : undefined;
   const parentRunId = typeof proposal.parent_run_id === 'string' ? proposal.parent_run_id : undefined;
+  const proposalPayload = isRecord(proposal.proposal_payload) ? proposal.proposal_payload : {};
+
+  const maybeCreateDownstreamWork = (sourceTitle: string, linkedDecisionId?: string) => {
+    if (proposalType === 'open_action') return;
+    const nextAction =
+      typeof proposalPayload.next_action === 'string' && proposalPayload.next_action.trim()
+        ? proposalPayload.next_action.trim()
+        : '';
+    const doneWhen =
+      typeof proposalPayload.done_when === 'string' && proposalPayload.done_when.trim()
+        ? proposalPayload.done_when.trim()
+        : '';
+    if (!nextAction && !doneWhen) return;
+
+    const downstreamId =
+      typeof proposalPayload.follow_up_commitment_id === 'string' && proposalPayload.follow_up_commitment_id.trim()
+        ? proposalPayload.follow_up_commitment_id.trim()
+        : `commitment_followup_${proposalId}`;
+    const downstreamTitle =
+      typeof proposalPayload.follow_up_title === 'string' && proposalPayload.follow_up_title.trim()
+        ? proposalPayload.follow_up_title.trim()
+        : `Follow through on ${sourceTitle}`;
+    const downstreamRationale =
+      typeof proposalPayload.follow_up_rationale === 'string' && proposalPayload.follow_up_rationale.trim()
+        ? proposalPayload.follow_up_rationale.trim()
+        : `Accepted from ${getProposalTypeLabel(proposalType).toLowerCase()} "${sourceTitle}".`;
+
+    const nextCommitment = {
+      id: downstreamId,
+      title: downstreamTitle,
+      timestamp: now,
+      commitment_state: 'active',
+      rationale: downstreamRationale,
+      next_action: nextAction || `Advance ${sourceTitle}.`,
+      done_when: doneWhen || 'A reviewer can confirm the accepted truth is now carried into real work.',
+      decision_id: linkedDecisionId,
+      confidence:
+        proposalPayload.confidence === 'high' || proposalPayload.confidence === 'medium' || proposalPayload.confidence === 'low'
+          ? proposalPayload.confidence
+          : undefined,
+      work_package:
+        typeof proposalPayload.work_package === 'string' && proposalPayload.work_package.trim()
+          ? proposalPayload.work_package.trim()
+          : undefined,
+      constraints:
+        typeof proposalPayload.constraints === 'string' && proposalPayload.constraints.trim()
+          ? proposalPayload.constraints.trim()
+          : undefined,
+    };
+
+    const existing = updatedCommitments.find((item) => item.id === downstreamId);
+    if (existing) {
+      updatedCommitments = updatedCommitments.map((item) => (item.id === downstreamId ? { ...item, ...nextCommitment } : item));
+    } else {
+      updatedCommitments = [nextCommitment, ...updatedCommitments];
+    }
+    downstreamWorkTarget = {
+      kind: 'commitment',
+      id: downstreamId,
+      label: downstreamTitle,
+    };
+  };
 
   switch (proposalType) {
     case 'run': {
@@ -209,6 +272,7 @@ function applyProposalReviewToProject(
             label: typeof run.title === 'string' && run.title.trim() ? run.title.trim() : targetTitle || 'Proposed Run',
           };
           outcomeDetail = `${noteForState} Promoted into packet as active run "${promotedTarget.label}".`;
+          maybeCreateDownstreamWork(typeof promotedTarget.label === 'string' ? promotedTarget.label : targetTitle || 'Proposed Run');
         }
       } else {
         const filteredRuns = updatedRuns.filter((run) => run.id !== targetId);
@@ -260,6 +324,10 @@ function applyProposalReviewToProject(
             label: typeof decision.title === 'string' ? decision.title : targetTitle || 'Proposed Decision',
           };
           outcomeDetail = `${noteForState} Promoted into packet as accepted decision "${promotedTarget.label}".`;
+          maybeCreateDownstreamWork(
+            typeof promotedTarget.label === 'string' ? promotedTarget.label : targetTitle || 'Proposed Decision',
+            String(decision.id),
+          );
         }
       } else if (nextState === 'deferred') {
         updatedDecisions = updatedDecisions.map((decision) =>
@@ -296,6 +364,9 @@ function applyProposalReviewToProject(
             label: typeof contextItem.title === 'string' ? contextItem.title : targetTitle || 'Proposed Scope Note',
           };
           outcomeDetail = `${noteForState} Promoted into packet as scope note "${promotedTarget.label}".`;
+          maybeCreateDownstreamWork(
+            typeof promotedTarget.label === 'string' ? promotedTarget.label : targetTitle || 'Proposed Scope Note',
+          );
         }
       } else {
         updatedContexts = updatedContexts.filter((item) => item.id !== targetId);
@@ -323,6 +394,10 @@ function applyProposalReviewToProject(
     }
   }
 
+  if (nextState === 'accepted' && downstreamWorkTarget) {
+    outcomeDetail = `${outcomeDetail} Created downstream open action "${downstreamWorkTarget.label}".`;
+  }
+
   const updatedProposalHistory = proposalHistory.map((item) =>
     item.id === proposalId
       ? {
@@ -333,6 +408,7 @@ function applyProposalReviewToProject(
           reviewed_by: reviewerLabel,
           reviewed_by_role: reviewerRole,
           promoted_target: nextState === 'accepted' ? promotedTarget : item.promoted_target,
+          downstream_work_target: nextState === 'accepted' ? downstreamWorkTarget : item.downstream_work_target,
         }
       : item,
   );
