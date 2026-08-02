@@ -828,6 +828,7 @@ export async function publishProjectHandoff(
     checkpoint_metadata: {
       exported_at: publishedAt,
       version: `v${(project.review_packets || []).length + 1}`,
+      packet_version: project.packet_version || 1,
       checkpoint_title: typeof checkpoint?.title === 'string' ? checkpoint.title : null,
       checkpoint_timestamp: typeof checkpoint?.timestamp === 'string' ? checkpoint.timestamp : null
     }

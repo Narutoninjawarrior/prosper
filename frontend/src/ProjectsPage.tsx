@@ -273,6 +273,7 @@ export interface Project {
   description: string;
   category: string;
   status: string;
+  packet_version?: number;
   updated_at: string;
   pinned_note: string;
   messages: ProjectMessage[];
@@ -324,7 +325,7 @@ interface DerivedProjectBrief {
   artifactReadiness: string[];
 }
 
-type ProjectViewMode = 'desk' | 'overview' | 'frames' | 'room' | 'review' | 'handoff' | 'context';
+type ProjectViewMode = 'desk' | 'packet' | 'frames' | 'room' | 'review' | 'handoff' | 'context';
 
 interface DerivedProposalBundleSummary {
   id: string;
@@ -337,7 +338,24 @@ interface DerivedProposalBundleSummary {
   deferredCount: number;
   pendingCount: number;
   outcomeLabel: 'waiting' | 'fully_accepted' | 'partially_accepted' | 'rejected' | 'deferred';
+  changedKinds: string[];
+  changedSummary: string;
+  unresolvedSummary: string;
+  unresolvedItems: string[];
+  fullyClosed: boolean;
   proposals: ProjectProposalRecord[];
+}
+
+interface DerivedSafeNextProposal {
+  title: string;
+  explanation: string;
+  basedOn: string[];
+}
+
+interface DerivedChangedPacketTruthSummary {
+  acceptedLines: string[];
+  rejectedLines: string[];
+  lastBundleLine: string;
 }
 
 interface ProjectRoomObject {
@@ -619,7 +637,7 @@ function deriveProjectDailyWorkItem(project: Project): ProjectDailyWorkItem | nu
       reason: 'Blocked commitment',
       detail: `${blockedCommitments[0].title}${blockedCommitments.length > 1 ? ` +${blockedCommitments.length - 1} more` : ''} is stalled and needs a next move.`,
       actionLabel: 'Unblock commitment',
-      targetView: 'overview',
+      targetView: 'packet',
       priority: 0,
       updatedAt: project.updated_at,
       accentClasses: 'border-red-900/40 bg-red-950/15 text-red-200'
@@ -635,7 +653,7 @@ function deriveProjectDailyWorkItem(project: Project): ProjectDailyWorkItem | nu
       reason: 'Evidence needs review',
       detail: `${flaggedEvidence[0].title}${flaggedEvidence.length > 1 ? ` +${flaggedEvidence.length - 1} more` : ''} is flagged before it can support downstream work.`,
       actionLabel: 'Review evidence',
-      targetView: 'overview',
+      targetView: 'packet',
       priority: 1,
       updatedAt: project.updated_at,
       accentClasses: 'border-amber-900/40 bg-amber-950/15 text-amber-200',
@@ -652,7 +670,7 @@ function deriveProjectDailyWorkItem(project: Project): ProjectDailyWorkItem | nu
       reason: 'Inbox waiting',
       detail: `${captureInbox.length} captured item${captureInbox.length === 1 ? '' : 's'} still need to be sorted into evidence, decisions, or commitments.`,
       actionLabel: 'Process inbox',
-      targetView: 'overview',
+      targetView: 'packet',
       priority: 2,
       updatedAt: project.updated_at,
       accentClasses: 'border-sky-900/40 bg-sky-950/15 text-sky-200'
@@ -668,7 +686,7 @@ function deriveProjectDailyWorkItem(project: Project): ProjectDailyWorkItem | nu
       reason: 'Evidence still open',
       detail: `${pendingEvidence[0].title}${pendingEvidence.length > 1 ? ` +${pendingEvidence.length - 1} more` : ''} still needs a review outcome before handoff.`,
       actionLabel: 'Finish evidence review',
-      targetView: 'overview',
+      targetView: 'packet',
       priority: 3,
       updatedAt: project.updated_at,
       accentClasses: 'border-cyan-900/40 bg-cyan-950/15 text-cyan-200',
@@ -685,7 +703,7 @@ function deriveProjectDailyWorkItem(project: Project): ProjectDailyWorkItem | nu
       reason: 'Decision still open',
       detail: `${unresolvedDecisions[0].title}${unresolvedDecisions.length > 1 ? ` +${unresolvedDecisions.length - 1} more` : ''} still needs a clear outcome.`,
       actionLabel: 'Resolve decision',
-      targetView: 'overview',
+      targetView: 'packet',
       priority: 4,
       updatedAt: project.updated_at,
       accentClasses: 'border-indigo-900/40 bg-indigo-950/15 text-indigo-200'
@@ -701,7 +719,7 @@ function deriveProjectDailyWorkItem(project: Project): ProjectDailyWorkItem | nu
       reason: 'Low-confidence commitment',
       detail: `${lowConfidenceActiveCommitments[0].title}${lowConfidenceActiveCommitments.length > 1 ? ` +${lowConfidenceActiveCommitments.length - 1} more` : ''} is moving forward without enough confidence yet.`,
       actionLabel: 'Review commitment',
-      targetView: 'overview',
+      targetView: 'packet',
       priority: 5,
       updatedAt: project.updated_at,
       accentClasses: 'border-amber-900/40 bg-amber-950/10 text-amber-200'
@@ -717,7 +735,7 @@ function deriveProjectDailyWorkItem(project: Project): ProjectDailyWorkItem | nu
       reason: 'Next step missing',
       detail: `${activeCommitments.length} active commitment${activeCommitments.length === 1 ? '' : 's'} exist, but the project does not yet say what moves next.`,
       actionLabel: 'Set next step',
-      targetView: 'overview',
+      targetView: 'packet',
       priority: 6,
       updatedAt: project.updated_at,
       accentClasses: 'border-emerald-900/40 bg-emerald-950/15 text-emerald-200'
@@ -733,7 +751,7 @@ function deriveProjectDailyWorkItem(project: Project): ProjectDailyWorkItem | nu
       reason: 'Active work in motion',
       detail: `${activeCommitments[0].title}${activeCommitments.length > 1 ? ` +${activeCommitments.length - 1} more` : ''} is active and ready to resume.`,
       actionLabel: 'Resume project',
-      targetView: 'overview',
+      targetView: 'packet',
       priority: 7,
       updatedAt: project.updated_at,
       accentClasses: 'border-slate-700 bg-slate-950/40 text-slate-200'
@@ -749,7 +767,7 @@ function deriveProjectDailyWorkItem(project: Project): ProjectDailyWorkItem | nu
       reason: 'Needs re-entry',
       detail: `This project has been quiet for ${staleDays} day${staleDays === 1 ? '' : 's'}. Reconfirm the next step before it drifts.`,
       actionLabel: 'Re-enter project',
-      targetView: 'overview',
+      targetView: 'packet',
       priority: 8,
       updatedAt: project.updated_at,
       accentClasses: 'border-slate-800 bg-slate-950/30 text-slate-300'
@@ -765,7 +783,7 @@ function deriveProjectDailyWorkItem(project: Project): ProjectDailyWorkItem | nu
       reason: 'Project still empty',
       detail: 'Start by dropping raw inputs into the inbox so the project can begin to accumulate evidence.',
       actionLabel: 'Start project',
-      targetView: 'overview',
+      targetView: 'packet',
       priority: 9,
       updatedAt: project.updated_at,
       accentClasses: 'border-slate-800 bg-slate-950/30 text-slate-300'
@@ -1100,7 +1118,7 @@ function deriveDeskNextAction(
       title: 'Start the project loop',
       explanation: 'This project is still empty. Add one captured input so the evidence, decision, and handoff flow has something real to work with.',
       actionLabel: 'Open Inbox',
-      targetView: 'overview',
+      targetView: 'packet',
       targetElementId: 'project-capture-inbox',
       actionKind: 'start_project'
     };
@@ -1112,7 +1130,7 @@ function deriveDeskNextAction(
       explanation: blockedCommitments[0].blocker_note || 'A blocked commitment is the strongest thing holding the project back right now.',
       actionLabel: 'Resume Commitment',
       secondaryActionLabel: 'Open Handoff',
-      targetView: 'overview',
+      targetView: 'packet',
       targetElementId: 'project-commitments',
       actionKind: 'resume_commitment'
     };
@@ -1128,7 +1146,7 @@ function deriveDeskNextAction(
         'This evidence still needs a review call before the project can move cleanly forward.',
       actionLabel: 'Review Evidence',
       secondaryActionLabel: 'Open Handoff',
-      targetView: 'overview',
+      targetView: 'packet',
       targetElementId: 'project-evidence-review',
       artifactId: artifact.id,
       actionKind: 'review_evidence'
@@ -1141,7 +1159,7 @@ function deriveDeskNextAction(
       explanation: 'A decision is still open. Resolving it will tighten the next move and reduce drift in the project record.',
       actionLabel: 'Resolve Decision',
       secondaryActionLabel: 'Open Handoff',
-      targetView: 'overview',
+      targetView: 'packet',
       targetElementId: 'project-decisions',
       actionKind: 'resolve_decision'
     };
@@ -1152,7 +1170,7 @@ function deriveDeskNextAction(
       title: captures[0].title,
       explanation: `${captures.length} inbox item${captures.length === 1 ? '' : 's'} are waiting to be turned into usable project evidence or a decision draft.`,
       actionLabel: 'Open Inbox',
-      targetView: 'overview',
+      targetView: 'packet',
       targetElementId: 'project-capture-inbox',
       actionKind: 'open_inbox'
     };
@@ -1164,7 +1182,7 @@ function deriveDeskNextAction(
       explanation: 'The project has useful material, but it still does not say what should happen next.',
       actionLabel: 'Define Next Step',
       secondaryActionLabel: 'Open Handoff',
-      targetView: 'overview',
+      targetView: 'packet',
       targetElementId: 'project-next-step',
       actionKind: 'define_next_step'
     };
@@ -1176,7 +1194,7 @@ function deriveDeskNextAction(
       explanation: 'There is an active commitment in force. Re-enter there first so the project keeps moving without reconstruction.',
       actionLabel: 'Resume Commitment',
       secondaryActionLabel: 'Open Handoff',
-      targetView: 'overview',
+      targetView: 'packet',
       targetElementId: 'project-commitments',
       actionKind: 'resume_commitment'
     };
@@ -2539,6 +2557,7 @@ function normalizeProject(project: unknown, index: number): Project {
     description: typeof item.description === 'string' ? item.description : '',
     category: typeof item.category === 'string' ? item.category : 'workbench',
     status: typeof item.status === 'string' ? item.status : 'PLANNING',
+    packet_version: typeof item.packet_version === 'number' && Number.isFinite(item.packet_version) && item.packet_version > 0 ? Math.floor(item.packet_version) : 1,
     updated_at: updatedAt,
     pinned_note: typeof item.pinned_note === 'string' ? item.pinned_note : '',
     messages,
@@ -2701,6 +2720,33 @@ function deriveProposalBundles(proposals: ProjectProposalRecord[]): DerivedPropo
         outcomeLabel = 'deferred';
       }
 
+      const changedKinds = Array.from(
+        new Set(
+          sorted
+            .filter((proposal) => proposal.review_state === 'accepted')
+            .map((proposal) => getProposalTypeLabel(proposal.proposal_type))
+        )
+      );
+      const changedTargets = sorted
+        .filter((proposal) => proposal.review_state === 'accepted')
+        .map((proposal) => proposal.promoted_target?.label || proposal.target_title || proposal.proposal_summary)
+        .filter(Boolean)
+        .slice(0, 3);
+      const unresolvedItems = sorted
+        .filter((proposal) => proposal.review_state === 'proposed' || proposal.review_state === 'deferred')
+        .map((proposal) => proposal.proposal_summary);
+      const fullyClosed = pendingCount === 0;
+      const changedSummary = acceptedCount > 0
+        ? `Accepted ${acceptedCount} item${acceptedCount === 1 ? '' : 's'} into packet truth${changedTargets.length > 0 ? `: ${changedTargets.join(', ')}` : '.'}`
+        : rejectedCount > 0 && deferredCount === 0 && pendingCount === 0
+          ? 'No packet truth was accepted from this bundle.'
+          : 'This bundle has not changed packet truth yet.';
+      const unresolvedSummary = unresolvedItems.length > 0
+        ? `${unresolvedItems.length} item${unresolvedItems.length === 1 ? '' : 's'} still need judgment: ${unresolvedItems.slice(0, 2).join(', ')}${unresolvedItems.length > 2 ? ', ...' : ''}`
+        : deferredCount > 0
+          ? `${deferredCount} item${deferredCount === 1 ? '' : 's'} remain deferred for a later call.`
+          : 'This bundle is fully closed.';
+
       return {
         id: bundleId,
         label: first.proposal_bundle_label || `Proposal Bundle ${bundleId.slice(-6)}`,
@@ -2712,10 +2758,26 @@ function deriveProposalBundles(proposals: ProjectProposalRecord[]): DerivedPropo
         deferredCount,
         pendingCount,
         outcomeLabel,
+        changedKinds,
+        changedSummary,
+        unresolvedSummary,
+        unresolvedItems,
+        fullyClosed,
         proposals: [...sorted].sort((a, b) => Date.parse(b.proposed_at) - Date.parse(a.proposed_at))
       };
     })
     .sort((a, b) => Date.parse(b.submittedAt) - Date.parse(a.submittedAt));
+}
+
+function buildDeterministicFingerprint(value: unknown) {
+  const normalized = JSON.stringify(value);
+  let hash = 2166136261;
+  for (let index = 0; index < normalized.length; index += 1) {
+    hash ^= normalized.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return `fp_${(hash >>> 0).toString(16).padStart(8, '0')}`;
 }
 
 function deriveAgentSummary(project: Project | null): DerivedAgentSummary {
@@ -3287,6 +3349,7 @@ export function useProjects() {
       const newProject: Project = {
         ...project,
         id: `proj_${Date.now()}`,
+        packet_version: project.packet_version || 1,
         updated_at: createdAt,
         messages: [],
         artifacts: project.artifacts || [],
@@ -4383,7 +4446,7 @@ export default function ProjectsPage() {
   const [decisionState, setDecisionState] = useState<DecisionState>('accepted');
   const [decisionImpact, setDecisionImpact] = useState('');
   const [isCreating, setIsCreating] = useState(false);
-  const [projectViewMode, setProjectViewMode] = useState<ProjectViewMode>('desk');
+  const [projectViewMode, setProjectViewMode] = useState<ProjectViewMode>('packet');
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newCategory, setNewCategory] = useState('operations');
@@ -4479,6 +4542,7 @@ export default function ProjectsPage() {
   const [rejectReasonForProposalId, setRejectReasonForProposalId] = useState<Record<string, string>>({});
   const [isRejectingProposalId, setIsRejectingProposalId] = useState<string | null>(null);
   const [proposalReviewNoteById, setProposalReviewNoteById] = useState<Record<string, string>>({});
+  const [bundleReviewNoteById, setBundleReviewNoteById] = useState<Record<string, string>>({});
 
   // Checkpointing States
   const [isSavingCheckpoint, setIsSavingCheckpoint] = useState<boolean>(false);
@@ -4760,6 +4824,43 @@ export default function ProjectsPage() {
     () => (selectedProject?.commitments || []).filter((commitment) => commitment.commitment_state === 'blocked'),
     [selectedProject]
   );
+  const activeRunsNeedingReview = useMemo(
+    () =>
+      (selectedProject?.runs || []).filter(
+        (run: any) =>
+          run &&
+          typeof run === 'object' &&
+          run.run_state === 'active' &&
+          Array.isArray(run.actions) &&
+          run.actions.some((action: any) => action?.state === 'proposed')
+      ),
+    [selectedProject]
+  );
+  const activeOrCompletedRuns = useMemo(
+    () =>
+      (selectedProject?.runs || []).filter(
+        (run: any) =>
+          run &&
+          typeof run === 'object' &&
+          (run.run_state === 'active' || run.run_state === 'completed')
+      ),
+    [selectedProject]
+  );
+  const attachedPlaybooks = useMemo(
+    () =>
+      activeOrCompletedRuns
+        .map((run: any, index: number) => {
+          const playbook = run?.playbook_definition;
+          if (!playbook || typeof playbook !== 'object') return null;
+          return {
+            id: String(playbook.id || `playbook_${index}`),
+            title: String(playbook.title || 'Reusable playbook'),
+            objective: typeof playbook.objective === 'string' ? playbook.objective : null
+          };
+        })
+        .filter((playbook): playbook is { id: string; title: string; objective: string | null } => Boolean(playbook)),
+    [activeOrCompletedRuns]
+  );
   const handoffReadiness = useMemo(() => {
     const blockers: string[] = [];
     if (approvedArtifacts.length === 0) blockers.push('No evidence has been approved yet.');
@@ -4772,6 +4873,19 @@ export default function ProjectsPage() {
       blockers
     };
   }, [approvedArtifacts, selectedProject, flaggedArtifacts, pendingArtifacts, blockedCommitments]);
+  const latestPublishedUpdate = useMemo(
+    () =>
+      publishedHandoffs.length > 0
+        ? [...publishedHandoffs].sort((a, b) => Date.parse(b.published_at) - Date.parse(a.published_at))[0]
+        : null,
+    [publishedHandoffs]
+  );
+  const stalePublishedUpdate = useMemo(() => {
+    if (!selectedProject || !latestPublishedUpdate) return false;
+    const latestPublishedAt = Date.parse(latestPublishedUpdate.published_at);
+    const latestProjectUpdate = Date.parse(selectedProject.updated_at);
+    return !Number.isNaN(latestProjectUpdate) && latestProjectUpdate > latestPublishedAt;
+  }, [selectedProject, latestPublishedUpdate]);
   const latestReviewPacket = useMemo(
     () => selectedProject?.review_packets?.[0] || null,
     [selectedProject]
@@ -4784,6 +4898,113 @@ export default function ProjectsPage() {
     () => deriveDeskNextAction(selectedProject, latestReviewPacket, handoffReadiness),
     [selectedProject, latestReviewPacket, handoffReadiness]
   );
+  const safeNextProposal = useMemo<DerivedSafeNextProposal>(() => {
+    const unresolvedBundle = proposalBundles.find((bundle) => bundle.pendingCount > 0);
+    if (unresolvedBundle) {
+      return {
+        title: 'Resolve the open proposal bundle first',
+        explanation: `${unresolvedBundle.label} still has ${unresolvedBundle.pendingCount} item${unresolvedBundle.pendingCount === 1 ? '' : 's'} waiting for judgment. Review that bundle before sending another large batch.`,
+        basedOn: ['proposal_bundle_pending']
+      };
+    }
+
+    if (blockedCommitments.length > 0) {
+      const blocked = blockedCommitments[0];
+      return {
+        title: 'Propose an unblock for the current open action',
+        explanation: `"${blocked.title}" is blocked${blocked.blocker_note ? ` because ${blocked.blocker_note}` : ''}. The safest next proposal is a decision, source, or scope note that clears that blocker.`,
+        basedOn: ['blocked_open_action']
+      };
+    }
+
+    if (flaggedArtifacts.length > 0) {
+      const artifact = flaggedArtifacts[0];
+      return {
+        title: 'Propose source clarification for the flagged source',
+        explanation: `"${artifact.title}" is flagged for attention. Propose the smallest source clarification, review note, or decision update that resolves the concern.`,
+        basedOn: ['flagged_source']
+      };
+    }
+
+    if (pendingArtifacts.length > 0) {
+      const artifact = pendingArtifacts[0];
+      return {
+        title: 'Propose source review or packet conversion',
+        explanation: `"${artifact.title}" still needs review. A useful next proposal is a source review note, a decision draft, or an open action derived from that source.`,
+        basedOn: ['source_needs_review']
+      };
+    }
+
+    if (deferredProposalHistory.length > 0) {
+      const deferred = deferredProposalHistory[0];
+      return {
+        title: 'Resolve the deferred proposal',
+        explanation: `"${deferred.proposal_summary}" was deferred. The safest next proposal is a tighter follow-up that answers the open review note and helps it reach a clear call.`,
+        basedOn: ['deferred_proposal']
+      };
+    }
+
+    if (activeRunsNeedingReview.length > 0) {
+      const run = activeRunsNeedingReview[0];
+      return {
+        title: 'Propose the next reviewed run step',
+        explanation: `"${run.title || 'Active run'}" still has proposed steps waiting inside the run. Review or tighten those steps before starting another run.`,
+        basedOn: ['active_run_needs_review']
+      };
+    }
+
+    if (stalePublishedUpdate) {
+      return {
+        title: 'Propose what belongs in the next published update',
+        explanation: 'The packet changed after the last published update. The safest next proposal is the smallest source, decision, or open action that should appear in the next update.',
+        basedOn: ['published_update_stale']
+      };
+    }
+
+    if (selectedProject && !selectedProject.next_step?.trim()) {
+      return {
+        title: 'Propose the next clear open action',
+        explanation: 'This packet still has no explicit next step. Propose an open action or decision that defines what should happen next.',
+        basedOn: ['missing_next_step']
+      };
+    }
+
+    return {
+      title: deskNextAction?.title || 'Advance the packet with the smallest useful proposal',
+      explanation:
+        deskNextAction?.explanation ||
+        'Propose the smallest next run, decision, or open action that advances the packet without widening scope.',
+      basedOn: ['desk_next_action']
+    };
+  }, [
+    proposalBundles,
+    blockedCommitments,
+    flaggedArtifacts,
+    pendingArtifacts,
+    deferredProposalHistory,
+    activeRunsNeedingReview,
+    stalePublishedUpdate,
+    selectedProject,
+    deskNextAction
+  ]);
+  const changedPacketTruthSummary = useMemo<DerivedChangedPacketTruthSummary>(() => {
+    const acceptedLines = acceptedProposalHistory
+      .slice(0, 3)
+      .map((proposal) => `${getProposalTypeLabel(proposal.proposal_type)}: ${proposal.promoted_target?.label || proposal.proposal_summary}`);
+    const rejectedLines = [...rejectedProposalHistory, ...deferredProposalHistory]
+      .slice(0, 3)
+      .map((proposal) => `${getProposalReviewStateLabel(proposal.review_state)}: ${proposal.proposal_summary}`);
+    const lastBundle = proposalBundles[0];
+    const lastBundleLine = lastBundle
+      ? `${lastBundle.label}: ${lastBundle.changedSummary} ${lastBundle.unresolvedSummary}`
+      : 'No proposal bundle history is recorded yet.';
+
+    return {
+      acceptedLines,
+      rejectedLines,
+      lastBundleLine
+    };
+  }, [acceptedProposalHistory, rejectedProposalHistory, deferredProposalHistory, proposalBundles]);
   const rootRoomComments = useMemo(
     () => roomComments.filter((comment) => !comment.parent_comment_id),
     [roomComments]
@@ -5826,7 +6047,7 @@ export default function ProjectsPage() {
         artifact.review_note?.trim() ||
         `Use ${artifact.title} to define the next project decision.`
     );
-    setProjectViewMode('overview');
+    setProjectViewMode('packet');
     setSelectedArtifactId(artifact.id);
   };
 
@@ -6251,6 +6472,7 @@ export default function ProjectsPage() {
           description: selectedProject.description,
           category: selectedProject.category,
           status: selectedProject.status,
+          packet_version: selectedProject.packet_version || 1,
           updated_at: selectedProject.updated_at,
           pinned_note: selectedProject.pinned_note,
           context: selectedProject.context || null
@@ -6365,6 +6587,19 @@ export default function ProjectsPage() {
           accepted_into_packet: proposalHistory.filter((proposal) => proposal.review_state === 'accepted').length,
           rejected_in_review: proposalHistory.filter((proposal) => proposal.review_state === 'rejected').length,
           deferred: proposalHistory.filter((proposal) => proposal.review_state === 'deferred').length,
+          bundles: proposalBundles.map((bundle) => ({
+            id: bundle.id,
+            label: bundle.label,
+            source: bundle.source,
+            submitted_at: bundle.submittedAt,
+            accepted_count: bundle.acceptedCount,
+            rejected_count: bundle.rejectedCount,
+            deferred_count: bundle.deferredCount,
+            pending_count: bundle.pendingCount,
+            changed_summary: bundle.changedSummary,
+            unresolved_summary: bundle.unresolvedSummary,
+            outcome: bundle.outcomeLabel
+          })),
           records: proposalHistory.map((proposal) => ({
             id: proposal.id,
             proposal_type: proposal.proposal_type,
@@ -6404,7 +6639,8 @@ export default function ProjectsPage() {
     handoffReadiness,
     stewardshipJournal,
     deskNextAction,
-    contextEvidenceAssets
+    contextEvidenceAssets,
+    proposalBundles
   ]);
 
   const buildSharedRoomContract = useCallback(() => {
@@ -6414,12 +6650,16 @@ export default function ProjectsPage() {
     const activeConstraints = acceptedContext
       .filter((item) => item.context_type === 'constraint')
       .map((item) => item.body || item.title);
+    const latestPublishedUpdate = publishedHandoffs.length > 0
+      ? [...publishedHandoffs].sort((a, b) => Date.parse(b.published_at) - Date.parse(a.published_at))[0]
+      : null;
     const openJudgment = pendingProposalHistory.map((proposal) => ({
       id: proposal.id,
       type: getProposalTypeLabel(proposal.proposal_type),
       summary: proposal.proposal_summary,
       source: proposal.proposed_by || proposal.proposal_source,
-      bundle_id: proposal.proposal_bundle_id || null
+      bundle_id: proposal.proposal_bundle_id || null,
+      payload_summary: proposal.payload_summary
     }));
     const acceptedRuns = (selectedProject.runs || []).filter((run: any) => run.run_state === 'active' || run.run_state === 'completed');
     const attachedPlaybooks = acceptedRuns
@@ -6430,16 +6670,23 @@ export default function ProjectsPage() {
         title: String(playbook.title || 'Reusable playbook'),
         objective: typeof playbook.objective === 'string' ? playbook.objective : null
       }));
-    const latestPublishedUpdate = publishedHandoffs.length > 0
-      ? [...publishedHandoffs].sort((a, b) => Date.parse(b.published_at) - Date.parse(a.published_at))[0]
-      : null;
-    const safeNextProposal = pendingProposalHistory.length > 0
-      ? 'Resolve open proposal judgment before sending another large proposal bundle.'
-      : handoffReadiness.blockers.length > 0
-        ? 'Propose a source review, decision update, or open action that addresses the current blockers.'
-        : deskNextAction?.explanation || 'Propose the smallest next run, decision, or open action that advances the packet.';
+    const contractFingerprint = buildDeterministicFingerprint({
+      room_id: selectedHostedRoom.id,
+      project_id: selectedProject.id,
+      updated_at: selectedProject.updated_at,
+      next_step: selectedProject.next_step || null,
+      approved_source_ids: approvedArtifacts.map((artifact) => artifact.id),
+      accepted_decision_ids: acceptedDecisions.map((decision) => decision.id),
+      active_open_action_ids: activeCommitments.map((item) => item.id),
+      pending_proposal_ids: pendingProposalHistory.map((proposal) => proposal.id),
+      latest_checkpoint_id: latestReviewPacket?.id || null,
+      latest_published_token: latestPublishedUpdate?.token || null
+    });
 
     return {
+      contract_version: 'shared-packet-room.v2',
+      generated_at: nowIso(),
+      packet_state_fingerprint: contractFingerprint,
       room_identity: {
         id: selectedHostedRoom.id,
         title: selectedHostedRoom.title,
@@ -6447,6 +6694,8 @@ export default function ProjectsPage() {
         role: selectedRoomRole,
         member_count: selectedHostedRoom.member_uids.length
       },
+      room_objective: selectedProject.description || 'No room objective has been written yet.',
+      packet_version: selectedProject.packet_version || 1,
       current_packet_goal: selectedProject.next_step?.trim() || selectedProject.description || 'No current packet goal is recorded yet.',
       current_next_action: deskNextAction
         ? {
@@ -6457,6 +6706,16 @@ export default function ProjectsPage() {
         : null,
       active_constraints: activeConstraints,
       open_proposals_waiting_for_judgment: openJudgment,
+      unresolved_bundles: proposalBundles
+        .filter((bundle) => !bundle.fullyClosed || bundle.pendingCount > 0)
+        .slice(0, 3)
+        .map((bundle) => ({
+          id: bundle.id,
+          label: bundle.label,
+          outcome: bundle.outcomeLabel,
+          changed_summary: bundle.changedSummary,
+          unresolved_summary: bundle.unresolvedSummary
+        })),
       accepted_runs: acceptedRuns.map((run: any) => ({
         id: String(run.id || ''),
         title: String(run.title || 'Untitled run'),
@@ -6472,11 +6731,21 @@ export default function ProjectsPage() {
             prepared_by: latestPublishedUpdate.published_by.label
           }
         : null,
+      latest_checkpoint: latestReviewPacket
+        ? {
+            id: latestReviewPacket.id,
+            title: latestReviewPacket.title,
+            timestamp: latestReviewPacket.timestamp,
+            summary_line: latestReviewPacket.snapshot.summary_line
+          }
+        : null,
       accepted_truth: {
         approved_sources: approvedArtifacts.length,
         accepted_decisions: acceptedDecisions.length,
-        active_open_actions: (selectedProject.commitments || []).filter((item) => item.commitment_state === 'active').length
+        active_open_actions: (selectedProject.commitments || []).filter((item) => item.commitment_state === 'active').length,
+        recent_accepts: changedPacketTruthSummary.acceptedLines
       },
+      changed_packet_truth: changedPacketTruthSummary,
       safe_next_proposal: safeNextProposal
     };
   }, [
@@ -6484,11 +6753,16 @@ export default function ProjectsPage() {
     selectedHostedRoom,
     pendingProposalHistory,
     publishedHandoffs,
-    handoffReadiness.blockers,
     deskNextAction,
     selectedRoomRole,
     approvedArtifacts.length,
-    acceptedDecisions.length
+    approvedArtifacts,
+    acceptedDecisions,
+    activeCommitments,
+    latestReviewPacket,
+    proposalBundles,
+    changedPacketTruthSummary,
+    safeNextProposal
   ]);
 
   const buildSharedRoomExportPacket = useCallback(() => {
@@ -6510,8 +6784,19 @@ export default function ProjectsPage() {
       open_actions: (selectedProject.commitments || []).filter((commitment) => commitment.commitment_state === 'active'),
       scope_notes: (selectedProject.context_items || []).filter((item) => item.context_state === 'accepted')
     };
+    const exportFingerprint = buildDeterministicFingerprint({
+      room_contract_fingerprint: roomContract?.packet_state_fingerprint || null,
+      exported_project_id: selectedProject.id,
+      updated_at: selectedProject.updated_at,
+      proposal_bundle_ids: proposalBundles.map((bundle) => bundle.id),
+      latest_checkpoint_id: latestReviewPacket?.id || null,
+      latest_published_token: latestPublishedUpdate?.token || null
+    });
 
     return {
+      contract_version: 'shared-room-export.v2',
+      exported_at: nowIso(),
+      packet_state_fingerprint: exportFingerprint,
       room_identity: {
         id: selectedHostedRoom.id,
         title: selectedHostedRoom.title,
@@ -6524,6 +6809,7 @@ export default function ProjectsPage() {
       },
       packet_summary: {
         project_id: selectedProject.id,
+        packet_version: selectedProject.packet_version || 1,
         title: selectedProject.title,
         description: selectedProject.description,
         status: selectedProject.status,
@@ -6554,14 +6840,27 @@ export default function ProjectsPage() {
           rejected_count: bundle.rejectedCount,
           deferred_count: bundle.deferredCount,
           pending_count: bundle.pendingCount,
-          outcome: bundle.outcomeLabel
+          outcome: bundle.outcomeLabel,
+          changed_kinds: bundle.changedKinds,
+          changed_summary: bundle.changedSummary,
+          unresolved_summary: bundle.unresolvedSummary,
+          unresolved_items: bundle.unresolvedItems,
+          fully_closed: bundle.fullyClosed
         }))
       },
       accepted_packet_truth: acceptedTruth,
+      changed_packet_truth: changedPacketTruthSummary,
       active_runs: activeRuns,
       reusable_playbooks: activeRuns
         .map((run: any) => run.playbook_definition)
         .filter((playbook: any) => playbook && typeof playbook === 'object'),
+      stability: {
+        latest_checkpoint_id: latestReviewPacket?.id || null,
+        latest_published_token: latestPublishedUpdate?.token || null,
+        proposal_bundle_count: proposalBundles.length,
+        unresolved_proposal_count: pendingProposalHistory.length,
+        stale_published_update: stalePublishedUpdate
+      },
       latest_checkpoint: latestReviewPacket
         ? {
             id: latestReviewPacket.id,
@@ -6594,8 +6893,167 @@ export default function ProjectsPage() {
     proposalBundles,
     latestReviewPacket,
     publishedHandoffs,
-    approvedArtifacts
+    approvedArtifacts,
+    changedPacketTruthSummary,
+    stalePublishedUpdate
   ]);
+
+  const buildAgentBriefPacket = useCallback(() => {
+    if (!selectedProject) return null;
+
+    const roomContract = selectedHostedRoom ? buildSharedRoomContract() : null;
+    const pendingBundles = proposalBundles
+      .filter((bundle) => bundle.pendingCount > 0 || !bundle.fullyClosed)
+      .map((bundle) => ({
+        id: bundle.id,
+        label: bundle.label,
+        source: bundle.source,
+        submitted_at: bundle.submittedAt,
+        waiting_count: bundle.pendingCount,
+        changed_summary: bundle.changedSummary,
+        unresolved_summary: bundle.unresolvedSummary,
+        outcome: bundle.outcomeLabel
+      }));
+
+    return {
+      brief_version: 'agent-brief.v1',
+      exported_at: nowIso(),
+      packet_version: selectedProject.packet_version || 1,
+      packet_state_fingerprint: buildDeterministicFingerprint({
+        project_id: selectedProject.id,
+        packet_version: selectedProject.packet_version || 1,
+        updated_at: selectedProject.updated_at,
+        latest_checkpoint_id: latestReviewPacket?.id || null,
+        latest_published_token: latestPublishedUpdate?.token || null
+      }),
+      room_identity: selectedHostedRoom
+        ? {
+            id: selectedHostedRoom.id,
+            title: selectedHostedRoom.title,
+            visibility: selectedHostedRoom.visibility,
+            current_role: selectedRoomRole,
+            current_role_permissions: selectedRoomPermissions
+          }
+        : {
+            id: selectedProject.id,
+            title: selectedProject.title,
+            visibility: 'private',
+            current_role: 'owner',
+            current_role_permissions: {
+              canManageProject: true,
+              canEditContent: true,
+              canReview: true,
+              canAcceptContext: true,
+              canPublishHandoff: true,
+              canComment: true
+            }
+          },
+      packet_goal: selectedProject.next_step?.trim() || selectedProject.description || 'No packet goal recorded yet.',
+      accepted_truth: {
+        sources: approvedArtifacts.map((artifact) => ({
+          id: artifact.id,
+          title: artifact.title,
+          type: artifact.type,
+          summary: artifact.summary || null,
+          review_note: artifact.review_note || null
+        })),
+        decisions: (selectedProject.decisions || []).filter((decision) => decision.decision_state === 'accepted'),
+        open_actions: (selectedProject.commitments || []).filter((commitment) => commitment.commitment_state === 'active'),
+        scope_notes: (selectedProject.context_items || []).filter((item) => item.context_state === 'accepted')
+      },
+      pending_proposal_bundles: pendingBundles,
+      latest_published_update: latestPublishedUpdate
+        ? {
+            token: latestPublishedUpdate.token,
+            version: latestPublishedUpdate.handoff_version,
+            published_at: latestPublishedUpdate.published_at,
+            prepared_by: latestPublishedUpdate.published_by.label
+          }
+        : null,
+      safe_next_proposal: safeNextProposal,
+      active_constraints: roomContract?.active_constraints || (selectedProject.context_items || [])
+        .filter((item) => item.context_state === 'accepted' && item.context_type === 'constraint')
+        .map((item) => item.body || item.title),
+      active_runs: activeOrCompletedRuns,
+      reusable_playbooks: attachedPlaybooks,
+      latest_checkpoint: latestReviewPacket
+        ? {
+            id: latestReviewPacket.id,
+            title: latestReviewPacket.title,
+            timestamp: latestReviewPacket.timestamp,
+            summary_line: latestReviewPacket.snapshot.summary_line
+          }
+        : null,
+      proposal_write_path: {
+        accepted_truth_changes_require_review: true,
+        allowed_proposal_types: ['run', 'run_step', 'decision', 'scope_note', 'source', 'open_action'],
+        reject_requires_reason: true,
+        defer_requires_reason: true
+      },
+      current_status: {
+        ready_to_publish: handoffReadiness.ready,
+        blockers: handoffReadiness.blockers,
+        changed_packet_truth: changedPacketTruthSummary
+      }
+    };
+  }, [
+    selectedProject,
+    selectedHostedRoom,
+    buildSharedRoomContract,
+    proposalBundles,
+    latestReviewPacket,
+    latestPublishedUpdate,
+    selectedRoomRole,
+    selectedRoomPermissions,
+    approvedArtifacts,
+    safeNextProposal,
+    activeOrCompletedRuns,
+    attachedPlaybooks,
+    handoffReadiness,
+    changedPacketTruthSummary
+  ]);
+
+  const buildAgentBriefMarkdown = useCallback(() => {
+    const brief = buildAgentBriefPacket();
+    if (!brief) return '';
+
+    const lines: string[] = [
+      `# Agent Brief: ${selectedProject?.title || 'Untitled Project'}`,
+      '',
+      `- Packet version: v${brief.packet_version}`,
+      `- Exported at: ${brief.exported_at}`,
+      `- Packet goal: ${brief.packet_goal}`,
+      `- Safe next proposal: ${brief.safe_next_proposal.title}`,
+      '',
+      '## Accepted Truth',
+      ''
+    ];
+
+    if (brief.accepted_truth.sources.length === 0 && brief.accepted_truth.decisions.length === 0 && brief.accepted_truth.open_actions.length === 0) {
+      lines.push('- No accepted packet truth is recorded yet.');
+    } else {
+      brief.accepted_truth.sources.slice(0, 5).forEach((item) => lines.push(`- Source: ${item.title}`));
+      brief.accepted_truth.decisions.slice(0, 5).forEach((item: any) => lines.push(`- Decision: ${item.title}`));
+      brief.accepted_truth.open_actions.slice(0, 5).forEach((item: any) => lines.push(`- Open action: ${item.title}`));
+    }
+
+    lines.push('', '## Pending Proposal Bundles', '');
+    if (brief.pending_proposal_bundles.length === 0) {
+      lines.push('- No open proposal bundles are waiting.');
+    } else {
+      brief.pending_proposal_bundles.forEach((bundle) => {
+        lines.push(`- ${bundle.label}: ${bundle.waiting_count} waiting. ${bundle.unresolved_summary}`);
+      });
+    }
+
+    lines.push('', '## Proposal Write Path', '', '- Agents may propose new work.', '- Accepted truth changes require human review.', '- Reject and defer decisions require a reason.');
+
+    if (brief.latest_published_update) {
+      lines.push('', '## Latest Published Update', '', `- ${brief.latest_published_update.version} published ${brief.latest_published_update.published_at}`);
+    }
+
+    return lines.join('\n');
+  }, [buildAgentBriefPacket, selectedProject]);
 
   const buildProjectHandoffMarkdown = useCallback(() => {
     if (!selectedProject) return '';
@@ -6985,9 +7443,9 @@ export default function ProjectsPage() {
     try {
       await navigator.clipboard.writeText(url);
       alert('Shareable Dossier link copied to clipboard!');
-    } catch (e) {
-      console.error('Failed to copy', e);
-      alert('Failed to copy link. Check console.');
+    } catch {
+      downloadTextArtifact('shareable-dossier-link.txt', url, 'text/plain;charset=utf-8');
+      alert('Clipboard access was unavailable, so the shareable link was downloaded instead.');
     }
   };
 
@@ -7312,8 +7770,16 @@ export default function ProjectsPage() {
         { type: "scope_note", payload: { title: "Discrepancy found", body: "Found 3 mismatched records..." } }
       ]
     };
-    navigator.clipboard.writeText(JSON.stringify(schema, null, 2));
-    alert('Agent Proposal Schema copied to clipboard.');
+    const payload = JSON.stringify(schema, null, 2);
+    navigator.clipboard
+      .writeText(payload)
+      .then(() => {
+        alert('Agent Proposal Schema copied to clipboard.');
+      })
+      .catch(() => {
+        downloadTextArtifact('agent-proposal-schema.json', payload, 'application/json;charset=utf-8');
+        alert('Clipboard access was unavailable, so the schema was downloaded instead.');
+      });
   }, []);
 
   const handleCopySharedRoomContract = useCallback(async () => {
@@ -7350,32 +7816,71 @@ export default function ProjectsPage() {
     downloadJsonArtifact(`shared-room-export-${selectedProject.id}.json`, packet);
   }, [buildSharedRoomExportPacket, selectedProject]);
 
-  const handleReviewProposal = useCallback(
-    (proposalId: string, nextState: ProjectProposalReviewState) => {
-      if (!selectedProject) return;
+  const handleCopyAgentBriefJson = useCallback(async () => {
+    const brief = buildAgentBriefPacket();
+    if (!brief) return;
+    const payload = JSON.stringify(brief, null, 2);
+    try {
+      await navigator.clipboard.writeText(payload);
+    } catch {
+      downloadTextArtifact('agent-brief.json', payload, 'application/json;charset=utf-8');
+    }
+  }, [buildAgentBriefPacket]);
 
+  const handleExportAgentBriefJson = useCallback(() => {
+    const brief = buildAgentBriefPacket();
+    if (!brief || !selectedProject) return;
+    downloadJsonArtifact(`agent-brief-${selectedProject.id}.json`, brief);
+  }, [buildAgentBriefPacket, selectedProject]);
+
+  const handleCopyAgentBriefMarkdown = useCallback(async () => {
+    const markdown = buildAgentBriefMarkdown();
+    if (!markdown) return;
+    try {
+      await navigator.clipboard.writeText(markdown);
+    } catch {
+      downloadTextArtifact('agent-brief.md', markdown, 'text/markdown;charset=utf-8');
+    }
+  }, [buildAgentBriefMarkdown]);
+
+  const handleExportAgentBriefMarkdown = useCallback(() => {
+    const markdown = buildAgentBriefMarkdown();
+    if (!markdown || !selectedProject) return;
+    downloadTextArtifact(`agent-brief-${selectedProject.id}.md`, markdown, 'text/markdown;charset=utf-8');
+  }, [buildAgentBriefMarkdown, selectedProject]);
+
+  const applyProposalReviewToProject = useCallback(
+    (
+      baseProject: Project,
+      proposalId: string,
+      nextState: ProjectProposalReviewState,
+      reviewNote: string
+    ): { ok: true; project: Project } | { ok: false; error: string } => {
       const now = nowIso();
-      const proposal = (selectedProject.proposal_history || []).find((item) => item.id === proposalId);
-      if (!proposal) return;
+      const proposal = (baseProject.proposal_history || []).find((item) => item.id === proposalId);
+      if (!proposal) return { ok: false, error: 'Proposal not found.' };
 
-      const reviewNote = (proposalReviewNoteById[proposalId] || '').trim();
+      if ((nextState === 'rejected' || nextState === 'deferred') && !reviewNote.trim()) {
+        return { ok: false, error: `${getProposalReviewStateLabel(nextState)} requires a review note.` };
+      }
+
       const noteForState =
-        reviewNote ||
+        reviewNote.trim() ||
         (nextState === 'accepted'
           ? 'Accepted into packet.'
           : nextState === 'rejected'
             ? 'Rejected in review.'
             : 'Deferred for a later call.');
 
-      const updatedRuns = (selectedProject.runs || []).map((run: any) => ({
+      const updatedRuns = (baseProject.runs || []).map((run: any) => ({
         ...run,
         actions: Array.isArray(run.actions) ? run.actions.map((action: any) => ({ ...action })) : []
       }));
-      let updatedDecisions = [...(selectedProject.decisions || [])];
-      let updatedCommitments = [...(selectedProject.commitments || [])];
-      let updatedContexts = [...(selectedProject.context_items || [])];
+      let updatedDecisions = [...(baseProject.decisions || [])];
+      let updatedCommitments = [...(baseProject.commitments || [])];
+      let updatedContexts = [...(baseProject.context_items || [])];
       let promotedTarget: ProjectProposalPromotionTarget | undefined = proposal.promoted_target;
-      let outcomeTitle = getProposalReviewStateLabel(nextState);
+      const outcomeTitle = getProposalReviewStateLabel(nextState);
       let outcomeDetail = noteForState;
 
       switch (proposal.proposal_type) {
@@ -7393,11 +7898,7 @@ export default function ProjectsPage() {
               outcomeDetail = `${noteForState} Promoted into packet as active run "${promotedTarget.label}".`;
             }
           } else {
-            updatedRuns.splice(
-              0,
-              updatedRuns.length,
-              ...updatedRuns.filter((run: any) => run.id !== proposal.target_id)
-            );
+            updatedRuns.splice(0, updatedRuns.length, ...updatedRuns.filter((run: any) => run.id !== proposal.target_id));
           }
           break;
         }
@@ -7479,9 +7980,7 @@ export default function ProjectsPage() {
         case 'open_action': {
           if (nextState === 'accepted') {
             updatedCommitments = updatedCommitments.map((commitment) =>
-              commitment.id === proposal.target_id
-                ? { ...commitment, commitment_state: 'active', timestamp: now }
-                : commitment
+              commitment.id === proposal.target_id ? { ...commitment, commitment_state: 'active', timestamp: now } : commitment
             );
             const commitment = updatedCommitments.find((item) => item.id === proposal.target_id);
             if (commitment) {
@@ -7495,7 +7994,7 @@ export default function ProjectsPage() {
         }
       }
 
-      const updatedProposalHistory = (selectedProject.proposal_history || []).map((item) =>
+      const updatedProposalHistory = (baseProject.proposal_history || []).map((item) =>
         item.id === proposalId
           ? {
               ...item,
@@ -7507,29 +8006,106 @@ export default function ProjectsPage() {
           : item
       );
 
-      updateProject({
-        ...selectedProject,
-        updated_at: now,
-        runs: updatedRuns,
-        decisions: updatedDecisions,
-        commitments: updatedCommitments,
-        context_items: updatedContexts,
-        proposal_history: updatedProposalHistory,
-        activity: [
-          ...(selectedProject.activity || []),
-          {
-            id: `act_${Date.now()}`,
-            kind: 'status_update',
-            title: `${getProposalTypeLabel(proposal.proposal_type)} ${outcomeTitle.toLowerCase()}`,
-            detail: `${proposal.proposal_summary} | Source: ${proposal.proposed_by || proposal.proposal_source}. ${outcomeDetail}`,
-            timestamp: now
-          }
-        ]
-      });
-
-      setProposalReviewNoteById((current) => ({ ...current, [proposalId]: '' }));
+      return {
+        ok: true,
+        project: {
+          ...baseProject,
+          updated_at: now,
+          packet_version: nextState === 'accepted' ? (baseProject.packet_version || 1) + 1 : baseProject.packet_version || 1,
+          runs: updatedRuns,
+          decisions: updatedDecisions,
+          commitments: updatedCommitments,
+          context_items: updatedContexts,
+          proposal_history: updatedProposalHistory,
+          activity: [
+            ...(baseProject.activity || []),
+            {
+              id: `act_${Date.now()}_${proposalId}`,
+              kind: 'status_update',
+              title: `${getProposalTypeLabel(proposal.proposal_type)} ${outcomeTitle.toLowerCase()}`,
+              detail: `${proposal.proposal_summary} | Source: ${proposal.proposed_by || proposal.proposal_source}. ${outcomeDetail}${nextState === 'accepted' ? ` Packet version is now v${(baseProject.packet_version || 1) + 1}.` : ''}`,
+              timestamp: now
+            }
+          ]
+        }
+      };
     },
-    [proposalReviewNoteById, selectedProject, updateProject]
+    []
+  );
+
+  const handleReviewProposal = useCallback(
+    (proposalId: string, nextState: ProjectProposalReviewState) => {
+      if (!selectedProject) return;
+      if (selectedHostedRoom && !selectedRoomPermissions.canReview) {
+        setCloudActionMessage('Reviewing proposals in a shared packet room requires Reviewer role or higher.');
+        return;
+      }
+
+      const reviewNote = (proposalReviewNoteById[proposalId] || '').trim();
+      const result = applyProposalReviewToProject(selectedProject, proposalId, nextState, reviewNote);
+      if (!result.ok) {
+        setCloudActionMessage(result.error);
+        return;
+      }
+
+      updateProject(result.project);
+      setProposalReviewNoteById((current) => ({ ...current, [proposalId]: '' }));
+      setCloudActionMessage(`${getProposalReviewStateLabel(nextState)} recorded.`);
+    },
+    [applyProposalReviewToProject, proposalReviewNoteById, selectedProject, selectedHostedRoom, selectedRoomPermissions.canReview]
+  );
+
+  const handleReviewProposalBundle = useCallback(
+    (bundleId: string, nextState: ProjectProposalReviewState) => {
+      if (!selectedProject) return;
+      if (selectedHostedRoom && !selectedRoomPermissions.canReview) {
+        setCloudActionMessage('Reviewing proposal bundles in a shared packet room requires Reviewer role or higher.');
+        return;
+      }
+
+      const bundle = proposalBundles.find((item) => item.id === bundleId);
+      if (!bundle) return;
+      const pendingIds = bundle.proposals.filter((proposal) => proposal.review_state === 'proposed').map((proposal) => proposal.id);
+      if (pendingIds.length === 0) {
+        setCloudActionMessage('This proposal bundle has no waiting items left.');
+        return;
+      }
+
+      const reviewNote = (bundleReviewNoteById[bundleId] || '').trim();
+      if ((nextState === 'rejected' || nextState === 'deferred') && !reviewNote) {
+        setCloudActionMessage(`${getProposalReviewStateLabel(nextState)} requires a bundle review note.`);
+        return;
+      }
+
+      let workingProject = selectedProject;
+      for (const proposalId of pendingIds) {
+        const result = applyProposalReviewToProject(workingProject, proposalId, nextState, reviewNote);
+        if (!result.ok) {
+          setCloudActionMessage(result.error);
+          return;
+        }
+        workingProject = result.project;
+      }
+
+      updateProject(workingProject);
+      setBundleReviewNoteById((current) => ({ ...current, [bundleId]: '' }));
+      setProposalReviewNoteById((current) => {
+        const next = { ...current };
+        pendingIds.forEach((proposalId) => {
+          next[proposalId] = '';
+        });
+        return next;
+      });
+      setCloudActionMessage(`${bundle.label} ${getProposalReviewStateLabel(nextState).toLowerCase()} for ${pendingIds.length} waiting proposal${pendingIds.length === 1 ? '' : 's'}.`);
+    },
+    [
+      applyProposalReviewToProject,
+      bundleReviewNoteById,
+      proposalBundles,
+      selectedProject,
+      selectedHostedRoom,
+      selectedRoomPermissions.canReview
+    ]
   );
 
   const handleApplyAgentProposals = useCallback(() => {
@@ -7951,7 +8527,13 @@ export default function ProjectsPage() {
                       </div>
                       <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
                         <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Safe Next Proposal</div>
-                        <div className="mt-2 text-sm text-slate-200">{sharedRoomContract.safe_next_proposal}</div>
+                        <div className="mt-2 text-sm font-bold text-slate-200">{sharedRoomContract.safe_next_proposal.title}</div>
+                        <div className="mt-2 text-xs leading-5 text-slate-400">{sharedRoomContract.safe_next_proposal.explanation}</div>
+                        {sharedRoomContract.safe_next_proposal.basedOn.length > 0 && (
+                          <div className="mt-2 text-[10px] uppercase tracking-widest text-slate-500">
+                            Based on: {sharedRoomContract.safe_next_proposal.basedOn.join(', ')}
+                          </div>
+                        )}
                       </div>
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
@@ -7964,12 +8546,31 @@ export default function ProjectsPage() {
                           )}
                         </div>
                         <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
-                          <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Latest Published Update</div>
+                          <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Current Public State</div>
                           <div className="mt-2 text-sm text-slate-200">
                             {sharedRoomContract.latest_published_update
                               ? `${sharedRoomContract.latest_published_update.version} on ${formatTimestamp(sharedRoomContract.latest_published_update.published_at)}`
                               : 'No published update yet.'}
                           </div>
+                          <div className="mt-2 text-xs leading-5 text-slate-400">
+                            {sharedRoomContract.latest_checkpoint
+                              ? `Checkpoint: ${sharedRoomContract.latest_checkpoint.title} on ${formatTimestamp(sharedRoomContract.latest_checkpoint.timestamp)}`
+                              : 'No checkpoint saved yet.'}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                        <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
+                          <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Contract Version</div>
+                          <div className="mt-2 text-sm text-slate-200">{sharedRoomContract.contract_version}</div>
+                        </div>
+                        <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
+                          <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Fingerprint</div>
+                          <div className="mt-2 break-all text-sm text-slate-200">{sharedRoomContract.packet_state_fingerprint}</div>
+                        </div>
+                        <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
+                          <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Generated</div>
+                          <div className="mt-2 text-sm text-slate-200">{formatTimestamp(sharedRoomContract.generated_at)}</div>
                         </div>
                       </div>
                       <details className="rounded border border-slate-800 bg-slate-950/50 p-3">
@@ -7999,6 +8600,7 @@ export default function ProjectsPage() {
                               <div key={proposal.id} className="rounded border border-slate-800 bg-slate-950/40 px-3 py-3 text-sm text-slate-300">
                                 <div className="font-bold text-slate-200">{proposal.type}</div>
                                 <div className="mt-1">{proposal.summary}</div>
+                                <div className="mt-2 text-xs leading-5 text-slate-400">{proposal.payload_summary}</div>
                                 <div className="mt-2 text-[10px] uppercase tracking-widest text-slate-500">
                                   {proposal.source}{proposal.bundle_id ? ` | ${proposal.bundle_id}` : ''}
                                 </div>
@@ -8023,10 +8625,52 @@ export default function ProjectsPage() {
                             <div className="text-[10px] uppercase tracking-widest text-slate-500">Open Actions</div>
                           </div>
                         </div>
+                        {sharedRoomContract.accepted_truth.recent_accepts.length > 0 && (
+                          <div className="mt-3 space-y-1 text-xs leading-5 text-slate-300">
+                            {sharedRoomContract.accepted_truth.recent_accepts.map((line) => (
+                              <div key={line}>- {line}</div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Changed Packet Truth</div>
+                        <div className="mt-3 space-y-1 text-xs leading-5 text-slate-300">
+                          {sharedRoomContract.changed_packet_truth.acceptedLines.length > 0 ? (
+                            sharedRoomContract.changed_packet_truth.acceptedLines.map((line) => (
+                              <div key={line}>- {line}</div>
+                            ))
+                          ) : (
+                            <div className="text-slate-500">No accepted packet changes recorded yet.</div>
+                          )}
+                          {sharedRoomContract.changed_packet_truth.rejectedLines.map((line) => (
+                            <div key={line} className="text-slate-400">- {line}</div>
+                          ))}
+                        </div>
+                        <div className="mt-3 text-xs leading-5 text-slate-400">
+                          {sharedRoomContract.changed_packet_truth.lastBundleLine}
+                        </div>
+                      </div>
+                      {sharedRoomContract.unresolved_bundles.length > 0 && (
+                        <div className="rounded border border-amber-900/20 bg-amber-950/10 p-3">
+                          <div className="text-[10px] font-bold uppercase tracking-widest text-amber-300">Unresolved Bundles</div>
+                          <div className="mt-2 space-y-2">
+                            {sharedRoomContract.unresolved_bundles.map((bundle) => (
+                              <div key={bundle.id} className="rounded border border-amber-900/20 bg-slate-950/40 px-3 py-2">
+                                <div className="text-xs font-bold text-slate-200">{bundle.label}</div>
+                                <div className="mt-1 text-[10px] uppercase tracking-widest text-slate-500">
+                                  {bundle.outcome.replace(/_/g, ' ')}
+                                </div>
+                                <div className="mt-2 text-xs text-slate-300">{bundle.changed_summary}</div>
+                                <div className="mt-1 text-xs text-slate-400">{bundle.unresolved_summary}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       </div>
                     </div>
                   </div>
-                </div>
               )}
               {(lastPublishedHandoffUrl || selectedHostedRoom?.current_handoff_token) && (
                 <div className="mt-3 rounded border border-indigo-900/40 bg-indigo-950/20 p-2 text-xs text-indigo-100">
@@ -8060,8 +8704,13 @@ export default function ProjectsPage() {
                             <button
                               onClick={() => {
                                 const url = `${window.location.origin}/handoff/${handoff.token}`;
-                                window.navigator.clipboard.writeText(url);
-                                setCloudActionMessage('Link copied to clipboard.');
+                                window.navigator.clipboard.writeText(url)
+                                  .then(() => {
+                                    setCloudActionMessage('Link copied to clipboard.');
+                                  })
+                                  .catch(() => {
+                                    setCloudActionMessage(`Clipboard access was unavailable. Copy this link: ${url}`);
+                                  });
                               }}
                               className="text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-white"
                               title="Copy Link"
@@ -8103,10 +8752,34 @@ export default function ProjectsPage() {
                 <div className="mt-3 rounded border border-fuchsia-900/30 bg-fuchsia-950/10 p-3">
                   <div className="flex flex-wrap items-start justify-between gap-3 border-b border-fuchsia-900/20 pb-3">
                     <div>
-                      <div className="text-[10px] font-bold uppercase tracking-widest text-fuchsia-300">Bot-ready Room Export</div>
-                      <div className="mt-1 text-sm font-bold text-slate-100">A bounded JSON packet for bots, reviewers, and external workers.</div>
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-fuchsia-300">Agent Brief And Room Export</div>
+                      <div className="mt-1 text-sm font-bold text-slate-100">Load one bounded packet before a coding agent proposes anything new.</div>
                     </div>
                     <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={handleCopyAgentBriefJson}
+                        className="rounded border border-fuchsia-800 bg-fuchsia-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-fuchsia-200 transition-colors hover:bg-fuchsia-900/40"
+                      >
+                        Copy Brief JSON
+                      </button>
+                      <button
+                        onClick={handleExportAgentBriefJson}
+                        className="rounded border border-slate-700 bg-slate-950/60 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-300 transition-colors hover:bg-slate-900/70"
+                      >
+                        Export Brief JSON
+                      </button>
+                      <button
+                        onClick={handleCopyAgentBriefMarkdown}
+                        className="rounded border border-indigo-800 bg-indigo-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-indigo-200 transition-colors hover:bg-indigo-900/40"
+                      >
+                        Copy Brief Markdown
+                      </button>
+                      <button
+                        onClick={handleExportAgentBriefMarkdown}
+                        className="rounded border border-slate-700 bg-slate-950/60 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-300 transition-colors hover:bg-slate-900/70"
+                      >
+                        Export Brief Markdown
+                      </button>
                       <button
                         onClick={handleCopySharedRoomExport}
                         className="rounded border border-fuchsia-800 bg-fuchsia-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-fuchsia-200 transition-colors hover:bg-fuchsia-900/40"
@@ -8122,18 +8795,18 @@ export default function ProjectsPage() {
                     </div>
                   </div>
                   <div className="mt-3 text-xs leading-5 text-slate-400">
-                    Includes room identity, role context, proposal review memory, accepted truth, active runs, latest checkpoint, published update, and the current safe next proposal.
+                    The Agent Brief is the smallest stable loading object for a coding agent. The room export stays broader and includes full review memory, room role context, accepted truth, runs, playbooks, checkpoint state, and publish state.
                   </div>
                 </div>
               )}
             </div>
 
-            <div className="rounded border border-slate-800 bg-slate-950/40 p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Client Review</div>
-                  <div className="mt-1 text-sm font-bold text-slate-100">Invites, threads, and timeline</div>
-                </div>
+              <div className="rounded border border-slate-800 bg-slate-950/40 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Shared Review</div>
+                    <div className="mt-1 text-sm font-bold text-slate-100">Invites, threads, timeline, and bundle history</div>
+                  </div>
                 <span className="rounded border border-slate-800 px-2 py-1 text-[10px] uppercase tracking-widest text-slate-400">
                   {rootRoomComments.length} thread{rootRoomComments.length === 1 ? '' : 's'}
                 </span>
@@ -8361,6 +9034,17 @@ export default function ProjectsPage() {
                               <span>{bundle.deferredCount} deferred</span>
                               <span>{bundle.pendingCount} waiting</span>
                             </div>
+                            <div className="mt-3 rounded border border-slate-800/80 bg-slate-950/50 px-3 py-2 text-xs leading-5 text-slate-300">
+                              {bundle.changedSummary}
+                            </div>
+                            <div className="mt-2 text-xs leading-5 text-slate-400">
+                              {bundle.unresolvedSummary}
+                            </div>
+                            {bundle.changedKinds.length > 0 && (
+                              <div className="mt-2 text-[10px] uppercase tracking-widest text-slate-500">
+                                Created packet truth: {bundle.changedKinds.join(', ')}
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -9780,13 +10464,13 @@ export default function ProjectsPage() {
                         Print Handoff
                       </button>
                       {([
+                        { id: 'packet', label: 'Packet' },
                         { id: 'desk', label: 'Desk' },
-                        { id: 'overview', label: 'Overview' },
-                        { id: 'context', label: 'Accepted Context' },
+                        { id: 'review', label: 'Judgment' },
+                        { id: 'handoff', label: 'Publish' },
+                        { id: 'room', label: 'Shared' },
+                        { id: 'context', label: 'Scope Notes' },
                         { id: 'frames', label: 'Sections' },
-                        { id: 'room', label: 'Links' },
-                        { id: 'review', label: 'Review Queue' },
-                        { id: 'handoff', label: 'Handoff' }
                       ] as Array<{ id: ProjectViewMode; label: string }>).map((view) => {
                         const active = projectViewMode === view.id;
                         return (
@@ -10216,44 +10900,192 @@ export default function ProjectsPage() {
               </div>
               )}
 
-              {projectViewMode === 'overview' && (
+              {projectViewMode === 'packet' && (
               <div className="grid min-h-0 flex-1 grid-cols-1 gap-0 lg:grid-cols-[minmax(0,1.4fr),minmax(320px,0.9fr)]">
                 <div className="flex min-h-0 flex-col border-b border-slate-800 lg:border-b-0 lg:border-r">
                   <div className="border-b border-slate-800 px-5 py-4">
-                    <h3 className="text-xs font-bold uppercase tracking-widest text-slate-300">Project Timeline</h3>
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-slate-300">Project Packet</h3>
                     <p className="mt-1 text-xs text-slate-500">
-                      Durable updates, review calls, and handoff milestones attached to this project.
+                      The packet is the working truth: accepted sources, decisions, open actions, supervised runs, and the next publishable state.
                     </p>
                   </div>
                   <div className="flex-1 overflow-y-auto p-5">
-                    {!selectedProject.activity || selectedProject.activity.length === 0 ? (
-                      <div className="py-8 text-center text-sm italic text-slate-500">No project activity recorded yet.</div>
-                    ) : (
-                      <div className="flex flex-col gap-4">
-                        {selectedProject.activity.map((activity) => (
-                          <div key={activity.id} className="relative ml-2 border-l-2 border-slate-800 pl-4">
-                            <div className={`absolute -left-[5px] top-1.5 h-2 w-2 rounded-full border-2 ${getActivityDotClasses(activity.kind)}`} />
-                            <div className={`rounded border p-3 ${getActivityClasses(activity.kind)}`}>
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <span className="text-sm font-bold">{activity.title}</span>
-                                <span className="text-[10px] uppercase tracking-wider text-slate-400">
-                                  {formatTimestamp(activity.timestamp)}
-                                </span>
-                              </div>
-                              {activity.detail && <p className="mt-2 text-sm text-slate-300">{activity.detail}</p>}
+                    <div className="flex flex-col gap-5">
+                      <div className="rounded border border-slate-800 bg-slate-950/40 p-4">
+                        <div className="grid gap-3 xl:grid-cols-4">
+                          <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Current Direction</div>
+                            <div className="mt-2 text-sm font-bold text-slate-100">
+                              {selectedProject?.next_step?.trim() || selectedProject?.description || 'No next action is recorded yet.'}
                             </div>
                           </div>
-                        ))}
+                          <div className="rounded border border-amber-900/20 bg-amber-950/10 p-3">
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-amber-300">Open Judgment</div>
+                            <div className="mt-2 text-2xl font-bold text-amber-200">
+                              {pendingProposalHistory.length + proposalBundles.filter((bundle) => !bundle.fullyClosed).length}
+                            </div>
+                            <div className="mt-1 text-xs leading-5 text-slate-400">
+                              {pendingProposalHistory.length} waiting proposal{pendingProposalHistory.length === 1 ? '' : 's'} and {proposalBundles.filter((bundle) => !bundle.fullyClosed).length} unresolved bundle{proposalBundles.filter((bundle) => !bundle.fullyClosed).length === 1 ? '' : 's'}.
+                            </div>
+                          </div>
+                          <div className="rounded border border-indigo-900/20 bg-indigo-950/10 p-3">
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-indigo-300">Runs And Reuse</div>
+                            <div className="mt-2 text-2xl font-bold text-indigo-200">{activeOrCompletedRuns.length}</div>
+                            <div className="mt-1 text-xs leading-5 text-slate-400">
+                              {activeRunsNeedingReview.length} run{activeRunsNeedingReview.length === 1 ? '' : 's'} need review and {attachedPlaybooks.length} reusable playbook{attachedPlaybooks.length === 1 ? '' : 's'} are attached.
+                            </div>
+                          </div>
+                          <div className={`rounded border p-3 ${stalePublishedUpdate ? 'border-cyan-900/20 bg-cyan-950/10' : 'border-emerald-900/20 bg-emerald-950/10'}`}>
+                            <div className={`text-[10px] font-bold uppercase tracking-widest ${stalePublishedUpdate ? 'text-cyan-300' : 'text-emerald-300'}`}>Publish State</div>
+                            <div className="mt-2 text-sm font-bold text-slate-100">
+                              {latestPublishedUpdate ? latestPublishedUpdate.handoff_version : 'No published update yet'}
+                            </div>
+                            <div className="mt-1 text-xs leading-5 text-slate-400">
+                              {latestPublishedUpdate
+                                ? `${stalePublishedUpdate ? 'Packet changed after the last publish.' : 'Published state is aligned.'} ${formatTimestamp(latestPublishedUpdate.published_at)}`
+                                : 'Save a checkpoint and publish when this packet is ready to share.'}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <button
+                            onClick={handleCopyAgentBriefJson}
+                            className="rounded border border-fuchsia-800 bg-fuchsia-950/20 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-fuchsia-200 transition-colors hover:bg-fuchsia-900/30"
+                          >
+                            Copy Agent Brief
+                          </button>
+                          <button
+                            onClick={() => setProjectViewMode('desk')}
+                            className="rounded border border-slate-700 bg-slate-950/60 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-300 transition-colors hover:bg-slate-900/70"
+                          >
+                            Open Desk
+                          </button>
+                          <button
+                            onClick={() => setProjectViewMode('review')}
+                            className="rounded border border-amber-800 bg-amber-950/20 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-amber-300 transition-colors hover:bg-amber-900/30"
+                          >
+                            Review Judgment
+                          </button>
+                          <button
+                            onClick={() => setProjectViewMode('handoff')}
+                            className="rounded border border-cyan-800 bg-cyan-950/20 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-cyan-300 transition-colors hover:bg-cyan-900/30"
+                          >
+                            Publish Update
+                          </button>
+                          {selectedHostedRoom && (
+                            <button
+                              onClick={() => setProjectViewMode('room')}
+                              className="rounded border border-indigo-800 bg-indigo-950/20 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-indigo-300 transition-colors hover:bg-indigo-900/30"
+                            >
+                              Open Shared Room
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    )}
+
+                      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr),minmax(280px,0.85fr)]">
+                        <div className="rounded border border-slate-800 bg-slate-950/40 p-4">
+                          <div className="border-b border-slate-800/60 pb-3">
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Changed Packet Truth</div>
+                            <div className="mt-1 text-xs text-slate-500">
+                              The shortest honest view of what review changed in the packet.
+                            </div>
+                          </div>
+                          <div className="mt-4 grid gap-3 md:grid-cols-2">
+                            <div className="rounded border border-emerald-900/20 bg-emerald-950/10 p-3">
+                              <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-300">Accepted Into Packet</div>
+                              <div className="mt-2 space-y-1 text-xs leading-5 text-slate-300">
+                                {changedPacketTruthSummary.acceptedLines.length > 0 ? (
+                                  changedPacketTruthSummary.acceptedLines.map((line) => <div key={line}>- {line}</div>)
+                                ) : (
+                                  <div className="text-slate-500">No accepted changes yet.</div>
+                                )}
+                              </div>
+                            </div>
+                            <div className="rounded border border-rose-900/20 bg-rose-950/10 p-3">
+                              <div className="text-[10px] font-bold uppercase tracking-widest text-rose-300">Rejected Or Deferred</div>
+                              <div className="mt-2 space-y-1 text-xs leading-5 text-slate-300">
+                                {changedPacketTruthSummary.rejectedLines.length > 0 ? (
+                                  changedPacketTruthSummary.rejectedLines.map((line) => <div key={line}>- {line}</div>)
+                                ) : (
+                                  <div className="text-slate-500">No rejected review memory yet.</div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="mt-3 rounded border border-slate-800 bg-slate-950/50 p-3 text-xs leading-5 text-slate-300">
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Last Bundle Change</span>
+                            <div className="mt-2">{changedPacketTruthSummary.lastBundleLine}</div>
+                          </div>
+                        </div>
+
+                        <div className="rounded border border-slate-800 bg-slate-950/40 p-4">
+                          <div className="border-b border-slate-800/60 pb-3">
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Contract For The Next Proposal</div>
+                            <div className="mt-1 text-xs text-slate-500">
+                              What a human or coding agent should read before changing packet truth.
+                            </div>
+                          </div>
+                          <div className="mt-4 space-y-3">
+                            <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
+                              <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Safe Next Proposal</div>
+                              <div className="mt-2 text-sm font-bold text-slate-100">{safeNextProposal.title}</div>
+                              <div className="mt-2 text-xs leading-5 text-slate-400">{safeNextProposal.explanation}</div>
+                            </div>
+                            <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
+                              <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Readiness</div>
+                              <div className="mt-2 text-sm text-slate-200">
+                                {handoffReadiness.ready ? 'Packet truth is ready to carry forward.' : handoffReadiness.blockers[0] || 'A publish blocker still needs judgment.'}
+                              </div>
+                            </div>
+                            {selectedHostedRoom && sharedRoomContract && (
+                              <div className="rounded border border-indigo-900/20 bg-indigo-950/10 p-3">
+                                <div className="text-[10px] font-bold uppercase tracking-widest text-indigo-300">Shared Packet Room</div>
+                                <div className="mt-2 text-sm text-slate-200">
+                                  {sharedRoomContract.open_proposals_waiting_for_judgment.length} waiting, {sharedRoomContract.unresolved_bundles.length} unresolved bundle{sharedRoomContract.unresolved_bundles.length === 1 ? '' : 's'}, fingerprint {sharedRoomContract.packet_state_fingerprint}.
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="border-b border-slate-800/60 pb-2">
+                        <h4 className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Packet Timeline</h4>
+                        <p className="mt-1 text-[10px] text-slate-500">
+                          Durable updates, review calls, run traces, and publish milestones attached to this packet.
+                        </p>
+                      </div>
+
+                      {!selectedProject.activity || selectedProject.activity.length === 0 ? (
+                        <div className="py-8 text-center text-sm italic text-slate-500">No project activity recorded yet.</div>
+                      ) : (
+                        <div className="flex flex-col gap-4">
+                          {selectedProject.activity.map((activity) => (
+                            <div key={activity.id} className="relative ml-2 border-l-2 border-slate-800 pl-4">
+                              <div className={`absolute -left-[5px] top-1.5 h-2 w-2 rounded-full border-2 ${getActivityDotClasses(activity.kind)}`} />
+                              <div className={`rounded border p-3 ${getActivityClasses(activity.kind)}`}>
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <span className="text-sm font-bold">{activity.title}</span>
+                                  <span className="text-[10px] uppercase tracking-wider text-slate-400">
+                                    {formatTimestamp(activity.timestamp)}
+                                  </span>
+                                </div>
+                                {activity.detail && <p className="mt-2 text-sm text-slate-300">{activity.detail}</p>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
                 <div className="flex min-h-0 flex-col">
                   <div className="border-b border-slate-800 px-5 py-4">
-                    <h3 className="text-xs font-bold uppercase tracking-widest text-slate-300">Project Record</h3>
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-slate-300">Accepted Truth</h3>
                     <p className="mt-1 text-xs text-slate-500">
-                      Context, evidence, and discussion attached to the current project record.
+                      Inspect accepted scope notes, sources, decisions, open actions, and project discussion from the same packet.
                     </p>
                   </div>
                   <div className="flex-1 overflow-y-auto p-5">
@@ -10261,7 +11093,7 @@ export default function ProjectsPage() {
                       {contextEntries.length > 0 && (
                         <div>
                           <h4 className="mb-3 border-b border-slate-800/50 pb-1 text-[10px] uppercase tracking-widest text-slate-500">
-                            Project Context
+                            Scope Notes
                           </h4>
                           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                             {contextEntries.map(([key, value]) => (
@@ -10276,7 +11108,7 @@ export default function ProjectsPage() {
 
                       <div id="project-evidence-review">
                         <h4 className="mb-3 border-b border-slate-800/50 pb-1 text-[10px] uppercase tracking-widest text-slate-500">
-                          Evidence Review
+                          Sources
                         </h4>
                         {selectedProject.artifacts && selectedProject.artifacts.length > 0 ? (
                           <div className="flex flex-col gap-3">
@@ -12093,7 +12925,7 @@ export default function ProjectsPage() {
 
                                       if (link.targetArtifactId) {
                                         setSelectedArtifactId(link.targetArtifactId);
-                                        setProjectViewMode('overview');
+                                        setProjectViewMode('packet');
                                       }
                                     }}
                                     disabled={!link.targetRoomObjectId && !link.targetArtifactId}
@@ -12103,7 +12935,7 @@ export default function ProjectsPage() {
                                       <div>
                                         <div className="text-[10px] font-bold uppercase tracking-widest text-indigo-300">{link.label}</div>
                                         <div className="mt-1 text-sm text-slate-200">
-                                          {targetObject?.title || (link.targetArtifactId ? 'Open linked artifact in overview.' : 'Derived continuity cue')}
+                                          {targetObject?.title || (link.targetArtifactId ? 'Open linked artifact in packet.' : 'Derived continuity cue')}
                                         </div>
                                       </div>
                                       {targetObject && (
@@ -12120,7 +12952,7 @@ export default function ProjectsPage() {
                             <button
                               onClick={() => {
                                 setSelectedArtifactId(selectedRoomObject.linkedArtifactId || null);
-                                setProjectViewMode('overview');
+                                setProjectViewMode('packet');
                               }}
                               className="mt-4 rounded border border-indigo-800 bg-indigo-950/30 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-indigo-300 transition-colors hover:bg-indigo-900/40"
                             >
@@ -12236,7 +13068,7 @@ export default function ProjectsPage() {
 
                                       if (link.targetArtifactId) {
                                         setSelectedArtifactId(link.targetArtifactId);
-                                        setProjectViewMode('overview');
+                                        setProjectViewMode('packet');
                                       }
                                     }}
                                     disabled={!link.targetRoomObjectId && !link.targetArtifactId}
@@ -12248,7 +13080,7 @@ export default function ProjectsPage() {
                                           {link.label}
                                         </div>
                                         <div className="mt-1 text-sm text-slate-200">
-                                          {targetObject?.title || (link.targetArtifactId ? 'Open linked artifact in overview.' : 'Derived continuity cue')}
+                                          {targetObject?.title || (link.targetArtifactId ? 'Open linked artifact in packet.' : 'Derived continuity cue')}
                                         </div>
                                       </div>
                                       {targetObject && (
@@ -12267,7 +13099,7 @@ export default function ProjectsPage() {
                             <button
                               onClick={() => {
                                 setSelectedArtifactId(selectedRoomObject.linkedArtifactId || null);
-                                setProjectViewMode('overview');
+                                setProjectViewMode('packet');
                               }}
                               className="mt-4 rounded border border-indigo-800 bg-indigo-950/30 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-indigo-300 transition-colors hover:bg-indigo-900/40"
                             >
@@ -12306,6 +13138,41 @@ export default function ProjectsPage() {
                       </div>
 
                       <div className="rounded border border-slate-800 bg-slate-950/40 p-4">
+                        <div className="border-b border-slate-800/60 pb-3">
+                          <h4 className="text-[11px] font-bold uppercase tracking-widest text-slate-300">Changed Packet Truth</h4>
+                          <p className="mt-1 text-[10px] text-slate-500">
+                            The shortest path to what changed in the packet because of recent judgment.
+                          </p>
+                        </div>
+                        <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                          <div className="rounded border border-emerald-900/20 bg-emerald-950/10 p-3">
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-300">Accepted into Packet</div>
+                            <div className="mt-2 space-y-1 text-xs leading-5 text-slate-300">
+                              {changedPacketTruthSummary.acceptedLines.length > 0 ? (
+                                changedPacketTruthSummary.acceptedLines.map((line) => <div key={line}>- {line}</div>)
+                              ) : (
+                                <div className="text-slate-500">No accepted packet changes yet.</div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="rounded border border-rose-900/20 bg-rose-950/10 p-3">
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-rose-300">Rejected in Review</div>
+                            <div className="mt-2 space-y-1 text-xs leading-5 text-slate-300">
+                              {changedPacketTruthSummary.rejectedLines.length > 0 ? (
+                                changedPacketTruthSummary.rejectedLines.map((line) => <div key={line}>- {line}</div>)
+                              ) : (
+                                <div className="text-slate-500">No rejected or deferred review memory yet.</div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="rounded border border-slate-800 bg-slate-950/60 p-3">
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Last Bundle Change</div>
+                            <div className="mt-2 text-xs leading-5 text-slate-300">{changedPacketTruthSummary.lastBundleLine}</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="rounded border border-slate-800 bg-slate-950/40 p-4">
                         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/60 pb-3">
                           <div>
                             <h4 className="text-[11px] font-bold uppercase tracking-widest text-slate-300">Waiting for Judgment</h4>
@@ -12315,11 +13182,100 @@ export default function ProjectsPage() {
                           </div>
                           <button
                             onClick={() => setIsAgentIntakeOpen(true)}
+                            disabled={selectedHostedRoom ? !selectedRoomPermissions.canComment : false}
+                            title={selectedHostedRoom && !selectedRoomPermissions.canComment ? requiresReviewerRole : 'Paste structured proposals from a coding agent or script.'}
                             className="rounded border border-emerald-800 bg-emerald-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-emerald-300 transition-colors hover:bg-emerald-900/40"
                           >
                             Agent Intake
                           </button>
                         </div>
+                        {proposalBundles.some((bundle) => bundle.pendingCount > 0) && (
+                          <div className="mt-4 flex flex-col gap-3">
+                            {proposalBundles
+                              .filter((bundle) => bundle.pendingCount > 0)
+                              .map((bundle) => (
+                                <div key={`bundle-review-${bundle.id}`} className="rounded border border-indigo-900/30 bg-indigo-950/10 p-4">
+                                  <div className="flex flex-wrap items-start justify-between gap-3 border-b border-indigo-900/20 pb-3">
+                                    <div>
+                                      <div className="text-[10px] font-bold uppercase tracking-widest text-indigo-300">Proposal Bundle</div>
+                                      <div className="mt-2 text-sm font-bold text-slate-100">{bundle.label}</div>
+                                      <div className="mt-1 text-[11px] uppercase tracking-widest text-slate-500">
+                                        {bundle.source} | {formatTimestamp(bundle.submittedAt)} | {bundle.pendingCount} waiting
+                                      </div>
+                                    </div>
+                                    <div className="rounded border border-slate-800 bg-slate-950/60 px-2 py-1 text-[10px] uppercase tracking-widest text-slate-300">
+                                      {bundle.proposalCount} total proposals
+                                    </div>
+                                  </div>
+                                  <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1.2fr),minmax(280px,0.9fr)]">
+                                    <div className="space-y-3">
+                                      <div className="rounded border border-slate-800 bg-slate-950/50 p-3 text-sm text-slate-300">
+                                        {bundle.changedSummary}
+                                      </div>
+                                      <div className="rounded border border-slate-800 bg-slate-950/50 p-3 text-sm text-slate-400">
+                                        {bundle.unresolvedSummary}
+                                      </div>
+                                      {bundle.unresolvedItems.length > 0 && (
+                                        <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
+                                          <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Still Waiting</div>
+                                          <div className="mt-2 space-y-1 text-xs text-slate-300">
+                                            {bundle.unresolvedItems.map((item) => (
+                                              <div key={`${bundle.id}-${item}`}>- {item}</div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="space-y-3">
+                                      <div>
+                                        <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                                          Bundle Review Note
+                                        </label>
+                                        <textarea
+                                          value={bundleReviewNoteById[bundle.id] || ''}
+                                          onChange={(event) =>
+                                            setBundleReviewNoteById((current) => ({
+                                              ...current,
+                                              [bundle.id]: event.target.value
+                                            }))
+                                          }
+                                          rows={4}
+                                          placeholder="Required for reject or defer. Use this note when you want the same call recorded across the whole bundle."
+                                          className="mt-2 w-full rounded border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-200 outline-none focus:border-indigo-700/50"
+                                        />
+                                      </div>
+                                      <div className="flex flex-wrap gap-2">
+                                        <button
+                                          onClick={() => handleReviewProposalBundle(bundle.id, 'accepted')}
+                                          disabled={selectedHostedRoom ? !selectedRoomPermissions.canReview : false}
+                                          title={selectedHostedRoom && !selectedRoomPermissions.canReview ? requiresReviewerRole : 'Accept all waiting items in this bundle.'}
+                                          className="rounded border border-emerald-800 bg-emerald-950/30 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-emerald-300 transition-colors hover:bg-emerald-900/40 disabled:opacity-40"
+                                        >
+                                          Accept Waiting
+                                        </button>
+                                        <button
+                                          onClick={() => handleReviewProposalBundle(bundle.id, 'deferred')}
+                                          disabled={selectedHostedRoom ? !selectedRoomPermissions.canReview : false}
+                                          title={selectedHostedRoom && !selectedRoomPermissions.canReview ? requiresReviewerRole : 'Defer all waiting items in this bundle.'}
+                                          className="rounded border border-slate-700 bg-slate-950/60 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-300 transition-colors hover:bg-slate-900/70 disabled:opacity-40"
+                                        >
+                                          Defer Waiting
+                                        </button>
+                                        <button
+                                          onClick={() => handleReviewProposalBundle(bundle.id, 'rejected')}
+                                          disabled={selectedHostedRoom ? !selectedRoomPermissions.canReview : false}
+                                          title={selectedHostedRoom && !selectedRoomPermissions.canReview ? requiresReviewerRole : 'Reject all waiting items in this bundle.'}
+                                          className="rounded border border-rose-800 bg-rose-950/30 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-rose-300 transition-colors hover:bg-rose-900/40 disabled:opacity-40"
+                                        >
+                                          Reject Waiting
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                          </div>
+                        )}
                         {pendingProposalHistory.length === 0 ? (
                           <div className="mt-4 rounded border border-slate-800 bg-slate-950/50 px-3 py-4 text-sm text-slate-400">
                             No proposals are waiting for judgment right now.
@@ -12512,7 +13468,7 @@ export default function ProjectsPage() {
                                         <button
                                           onClick={() => {
                                             setSelectedArtifactId(item.linkedArtifactId || null);
-                                            setProjectViewMode('overview');
+                                            setProjectViewMode('packet');
                                           }}
                                           className="rounded border border-indigo-800 bg-indigo-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-indigo-300 transition-colors hover:bg-indigo-900/40"
                                         >

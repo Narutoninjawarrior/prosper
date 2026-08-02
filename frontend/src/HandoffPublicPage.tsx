@@ -117,6 +117,8 @@ export default function HandoffPublicPage() {
   const nextAction = asRecord(provenance?.next_action);
   const sinceLastPacket = asRecord(provenance?.since_last_packet);
   const checkpoint = asRecord(exportJson?.checkpoint);
+  const checkpointMetadata = asRecord(handoff.checkpoint_metadata);
+  const projectRecord = asRecord(provenance?.project);
   const operationLayer = asRecord(provenance?.operation_layer);
   const readiness = asString(currentDirection?.readiness);
   const readinessBlockers = asArray(currentDirection?.readiness_blockers);
@@ -127,6 +129,7 @@ export default function HandoffPublicPage() {
   const carryForwardCue = asString(sinceLastPacket?.carry_forward_cue);
   const checkpointTitle = asString(checkpoint?.title);
   const checkpointTimestamp = asString(checkpoint?.timestamp);
+  const packetVersion = asString(projectRecord?.packet_version) || asString(checkpointMetadata?.packet_version) || String(checkpointMetadata?.packet_version || projectRecord?.packet_version || 1);
   const acceptedContext = handoff.accepted_context || [];
   const approvedEvidence = handoff.approved_evidence || [];
   const decisions = handoff.decisions || [];
@@ -147,6 +150,7 @@ export default function HandoffPublicPage() {
           <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-500">
             <span className="rounded border border-slate-300 bg-white px-2 py-1">Published {formatDateTime(handoff.published_at)}</span>
             <span className="rounded border border-slate-300 bg-white px-2 py-1">Milestone {handoff.handoff_version}</span>
+            <span className="rounded border border-slate-300 bg-white px-2 py-1">Packet v{packetVersion}</span>
             <span className="rounded border border-slate-300 bg-white px-2 py-1">Prepared by {handoff.published_by.label}</span>
             {handoff.audience && <span className="rounded border border-slate-300 bg-white px-2 py-1">{handoff.audience}</span>}
           </div>
@@ -174,6 +178,11 @@ export default function HandoffPublicPage() {
                 {readiness === 'ready' ? 'Ready to carry forward' : 'Needs review'}
               </div>
               <p className="mt-2 text-sm leading-6 text-slate-600">{openItemsSummary}</p>
+              <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-slate-500">
+                <span>{approvedEvidence.length} reviewed source{approvedEvidence.length === 1 ? '' : 's'}</span>
+                <span>{decisions.length} decision{decisions.length === 1 ? '' : 's'}</span>
+                <span>{commitments.length} open action{commitments.length === 1 ? '' : 's'}</span>
+              </div>
             </div>
             <div className="rounded border border-slate-200 bg-white p-5 shadow-sm">
               <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">What Changed</div>
