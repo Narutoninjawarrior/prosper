@@ -24,6 +24,7 @@ import {
   type UploadTaskSnapshot,
 } from 'firebase/storage';
 import { getFirebaseStorage, getFirestoreDb } from '../firebaseConfig';
+import { cloudFunctionUrl } from '../lib/hearthApi';
 import type { Project, ProjectContextState, ProjectEvidenceAsset } from '../ProjectsPage';
 
 export type ProjectRoomRole = 'owner' | 'editor' | 'reviewer' | 'viewer';
@@ -173,6 +174,27 @@ export interface CloudResult<T> {
   error?: string;
 }
 
+export interface RemoteProposalSubmissionResult {
+  ok: true;
+  room_id: string;
+  bundle_id: string;
+  packet_version_seen: number;
+  staged_count: number;
+  fingerprint: string;
+  message: string;
+}
+
+export interface RemoteProposalReviewResult {
+  ok: true;
+  room_id: string;
+  proposal_id: string | null;
+  bundle_id: string | null;
+  decision: 'accepted' | 'rejected' | 'deferred';
+  reviewed_count: number;
+  packet_version: number;
+  message: string;
+}
+
 const ROOM_ASSET_MAX_BYTES = 25 * 1024 * 1024;
 const ROOM_ASSET_ALLOWED_TYPES = new Set([
   'image/png',
@@ -229,6 +251,20 @@ function safeIso(value: unknown): string | undefined {
 
 function userLabel(user: User): string {
   return user.displayName || user.email || user.uid;
+}
+
+export function getProjectRoomSubmissionEndpoint() {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return new URL('/api/project-room/submit-bundle', window.location.origin).toString();
+  }
+  return cloudFunctionUrl('submitProjectProposalBundle');
+}
+
+export function getProjectRoomReviewEndpoint() {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return new URL('/api/project-room/review', window.location.origin).toString();
+  }
+  return cloudFunctionUrl('reviewProjectProposalBundle');
 }
 
 function randomToken(prefix: string) {
@@ -983,4 +1019,122 @@ export async function updateProjectFeedbackStatus(
 
   await updateDoc(doc(dbResult.value, 'project_rooms', roomId, 'feedback', feedbackId), updates);
   return { ok: true, value: feedbackId };
+}
+
+export async function submitProjectRoomProposalBundleRemote(
+  bundle: unknown,
+  user: User
+): Promise<CloudResult<RemoteProposalSubmissionResult>> {
+  const idToken = await user.getIdToken();
+  const body = JSON.stringify(bundle);
+  const urls = ['/api/project-room/submit-bundle', cloudFunctionUrl('submitProjectProposalBundle')];
+  let lastError = 'Remote proposal submission failed.';
+
+  for (const url of urls) {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body,
+      });
+      const data = (await response.json().catch(() => ({}))) as
+        | RemoteProposalSubmissionResult
+        | { error?: string; message?: string };
+      if (!response.ok) {
+        const errorRecord = data as { error?: string; message?: string };
+        lastError = errorRecord.message || errorRecord.error || `Remote proposal submission failed (${response.status}).`;
+        continue;
+      }
+      return { ok: true, value: data as RemoteProposalSubmissionResult };
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : 'Remote proposal submission failed.';
+    }
+  }
+
+  return { ok: false, error: lastError };
+}
+
+export async function reviewProjectRoomProposalRemote(
+  input: {
+    room_id: string;
+    proposal_id: string;
+    decision: 'accepted' | 'rejected' | 'deferred';
+    review_note?: string;
+  },
+  user: User
+): Promise<CloudResult<RemoteProposalReviewResult>> {
+  const idToken = await user.getIdToken();
+  const body = JSON.stringify(input);
+  const urls = ['/api/project-room/review', cloudFunctionUrl('reviewProjectProposalBundle')];
+  let lastError = 'Proposal review failed.';
+
+  for (const url of urls) {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body,
+      });
+      const data = (await response.json().catch(() => ({}))) as
+        | RemoteProposalReviewResult
+        | { error?: string; message?: string };
+      if (!response.ok) {
+        const errorRecord = data as { error?: string; message?: string };
+        lastError = errorRecord.message || errorRecord.error || `Proposal review failed (${response.status}).`;
+        continue;
+      }
+      return { ok: true, value: data as RemoteProposalReviewResult };
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : 'Proposal review failed.';
+    }
+  }
+
+  return { ok: false, error: lastError };
+}
+
+export async function reviewProjectRoomProposalBundleRemote(
+  input: {
+    room_id: string;
+    bundle_id: string;
+    decision: 'accepted' | 'rejected' | 'deferred';
+    review_note?: string;
+  },
+  user: User
+): Promise<CloudResult<RemoteProposalReviewResult>> {
+  const idToken = await user.getIdToken();
+  const body = JSON.stringify(input);
+  const urls = ['/api/project-room/review', cloudFunctionUrl('reviewProjectProposalBundle')];
+  let lastError = 'Proposal bundle review failed.';
+
+  for (const url of urls) {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body,
+      });
+      const data = (await response.json().catch(() => ({}))) as
+        | RemoteProposalReviewResult
+        | { error?: string; message?: string };
+      if (!response.ok) {
+        const errorRecord = data as { error?: string; message?: string };
+        lastError = errorRecord.message || errorRecord.error || `Proposal bundle review failed (${response.status}).`;
+        continue;
+      }
+      return { ok: true, value: data as RemoteProposalReviewResult };
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : 'Proposal bundle review failed.';
+    }
+  }
+
+  return { ok: false, error: lastError };
 }

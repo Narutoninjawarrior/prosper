@@ -24,7 +24,8 @@
     "test:passport-continuity:sweep": "node scripts/test_passport_continuity.js --sweep-only",
     "test:hearth-ops": "python ./hearth-ops/test_hearth_ops.py",
     "test:work-pack": "tsx scripts/test-work-pack.ts",
-    "test:stewardship-journal": "tsx scripts/test-stewardship-journal.ts"
+    "test:stewardship-journal": "tsx scripts/test-stewardship-journal.ts",
+    "agent:bundle": "python ./scripts/agent_write_path.py"
   },
   "dependencies": {
     "eventsource": "^4.1.0",

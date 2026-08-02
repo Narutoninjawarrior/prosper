@@ -723,3 +723,4 @@ export { policyEngineApi } from './policyEngine';
 export { witnessRecord, witnessVerify, witnessGenerateKey } from './witnessApi';
 export { marketplaceWebhook, marketplaceComplete } from './marketplaceApi';
 export { mirrorProjectRoomPresence } from './roomPresenceMirror';
+export { submitProjectProposalBundle, reviewProjectProposalBundle } from './projectRoomProposalApi';

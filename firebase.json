@@ -196,6 +196,14 @@
         "function": "inspireAgent"
       },
       {
+        "source": "/api/project-room/submit-bundle",
+        "function": "submitProjectProposalBundle"
+      },
+      {
+        "source": "/api/project-room/review",
+        "function": "reviewProjectProposalBundle"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

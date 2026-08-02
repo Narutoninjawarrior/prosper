@@ -15,6 +15,9 @@ import {
   fetchProjectInviteByToken,
   finalizeProjectRoomContext,
   importLocalProjectRoom,
+  reviewProjectRoomProposalBundleRemote,
+  reviewProjectRoomProposalRemote,
+  getProjectRoomSubmissionEndpoint,
   listenToHostedProjectRooms,
   listenToProjectRoomMembers,
   listenToProjectRoomEvents,
@@ -238,6 +241,7 @@ export interface ProjectContextItem {
 
 export type ProjectProposalType = 'run' | 'run_step' | 'decision' | 'scope_note' | 'source' | 'open_action';
 export type ProjectProposalReviewState = 'proposed' | 'accepted' | 'rejected' | 'deferred';
+type ProjectProposalDecisionState = Exclude<ProjectProposalReviewState, 'proposed'>;
 
 export interface ProjectProposalPromotionTarget {
   kind: 'run' | 'run_step' | 'decision' | 'context_item' | 'commitment';
@@ -254,6 +258,15 @@ export interface ProjectProposalRecord {
   proposal_bundle_id?: string;
   proposal_bundle_label?: string;
   proposal_bundle_source?: string;
+  client_request_id?: string;
+  packet_version_seen?: number;
+  proposal_bundle_human_summary?: string;
+  proposal_bundle_fingerprint?: string;
+  proposal_bundle_validation?: {
+    status: 'valid' | 'invalid';
+    errors: string[];
+  };
+  execution_trace_summary?: string;
   proposal_summary: string;
   payload_summary: string;
   review_state: ProjectProposalReviewState;
@@ -265,6 +278,34 @@ export interface ProjectProposalRecord {
   promoted_target?: ProjectProposalPromotionTarget;
   reviewed_at?: string;
   review_note?: string;
+  reviewed_by?: string;
+  reviewed_by_role?: ProjectRoomRole;
+}
+
+interface ProposalExecutionTraceV1 {
+  exit_code: number;
+  execution_seconds: number;
+  changed_files?: number;
+  proposed_lines?: number;
+  console_tail?: string[];
+}
+
+interface ProposalBundleItemInput {
+  type: ProjectProposalType;
+  run_id?: string;
+  payload: Record<string, unknown>;
+}
+
+interface ProposalBundleV1 {
+  bundle_id: string;
+  room_id: string;
+  packet_version_seen: number;
+  client_request_id: string;
+  agent_id: string;
+  submitted_at: string;
+  human_summary: string;
+  execution_trace?: ProposalExecutionTraceV1;
+  proposals: ProposalBundleItemInput[];
 }
 
 export interface Project {
@@ -2619,6 +2660,27 @@ function normalizeProposalHistory(value: unknown): ProjectProposalRecord[] {
         proposal_bundle_id: typeof item.proposal_bundle_id === 'string' ? item.proposal_bundle_id : undefined,
         proposal_bundle_label: typeof item.proposal_bundle_label === 'string' ? item.proposal_bundle_label : undefined,
         proposal_bundle_source: typeof item.proposal_bundle_source === 'string' ? item.proposal_bundle_source : undefined,
+        client_request_id: typeof item.client_request_id === 'string' ? item.client_request_id : undefined,
+        packet_version_seen:
+          typeof item.packet_version_seen === 'number' && Number.isFinite(item.packet_version_seen)
+            ? Math.floor(item.packet_version_seen)
+            : undefined,
+        proposal_bundle_human_summary:
+          typeof item.proposal_bundle_human_summary === 'string' ? item.proposal_bundle_human_summary : undefined,
+        proposal_bundle_fingerprint:
+          typeof item.proposal_bundle_fingerprint === 'string' ? item.proposal_bundle_fingerprint : undefined,
+        proposal_bundle_validation:
+          item.proposal_bundle_validation &&
+          typeof item.proposal_bundle_validation === 'object' &&
+          (item.proposal_bundle_validation.status === 'valid' || item.proposal_bundle_validation.status === 'invalid') &&
+          Array.isArray(item.proposal_bundle_validation.errors)
+            ? {
+                status: item.proposal_bundle_validation.status,
+                errors: item.proposal_bundle_validation.errors.filter((error): error is string => typeof error === 'string')
+              }
+            : undefined,
+        execution_trace_summary:
+          typeof item.execution_trace_summary === 'string' ? item.execution_trace_summary : undefined,
         proposal_summary: typeof item.proposal_summary === 'string' ? item.proposal_summary : 'Untitled proposal',
         payload_summary: typeof item.payload_summary === 'string' ? item.payload_summary : '',
         review_state: reviewState,
@@ -2629,7 +2691,15 @@ function normalizeProposalHistory(value: unknown): ProjectProposalRecord[] {
         parent_run_id: typeof item.parent_run_id === 'string' ? item.parent_run_id : undefined,
         promoted_target: promotedTarget,
         reviewed_at: typeof item.reviewed_at === 'string' ? item.reviewed_at : undefined,
-        review_note: typeof item.review_note === 'string' ? item.review_note : undefined
+        review_note: typeof item.review_note === 'string' ? item.review_note : undefined,
+        reviewed_by: typeof item.reviewed_by === 'string' ? item.reviewed_by : undefined,
+        reviewed_by_role:
+          item.reviewed_by_role === 'owner' ||
+          item.reviewed_by_role === 'editor' ||
+          item.reviewed_by_role === 'reviewer' ||
+          item.reviewed_by_role === 'viewer'
+            ? item.reviewed_by_role
+            : undefined
       };
     })
     .sort((a, b) => new Date(b.proposed_at).getTime() - new Date(a.proposed_at).getTime());
@@ -2687,6 +2757,172 @@ function buildProposalPayloadSummary(payload: any) {
   ].filter(Boolean);
 
   return parts.length > 0 ? parts.join(' | ') : JSON.stringify(payload);
+}
+
+function buildExecutionTraceSummary(trace?: ProposalExecutionTraceV1 | null) {
+  if (!trace) return 'No execution trace provided.';
+  const parts = [
+    `Exit: ${trace.exit_code}`,
+    `Duration: ${trace.execution_seconds}s`,
+    typeof trace.changed_files === 'number' ? `Files: ${trace.changed_files}` : '',
+    typeof trace.proposed_lines === 'number' ? `Lines: ${trace.proposed_lines}` : '',
+  ].filter(Boolean);
+  return parts.join(' | ');
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function parseExecutionTrace(value: unknown): ProposalExecutionTraceV1 | undefined {
+  if (!isRecord(value)) return undefined;
+  const exitCode = typeof value.exit_code === 'number' && Number.isFinite(value.exit_code) ? value.exit_code : 0;
+  const executionSeconds =
+    typeof value.execution_seconds === 'number' && Number.isFinite(value.execution_seconds) ? value.execution_seconds : 0;
+  const changedFiles =
+    typeof value.changed_files === 'number' && Number.isFinite(value.changed_files) ? value.changed_files : undefined;
+  const proposedLines =
+    typeof value.proposed_lines === 'number' && Number.isFinite(value.proposed_lines) ? value.proposed_lines : undefined;
+  const consoleTail = Array.isArray(value.console_tail)
+    ? value.console_tail.filter((item): item is string => typeof item === 'string').slice(0, 20)
+    : undefined;
+  return {
+    exit_code: exitCode,
+    execution_seconds: executionSeconds,
+    changed_files: changedFiles,
+    proposed_lines: proposedLines,
+    console_tail: consoleTail
+  };
+}
+
+function sanitizeProposalPayload(payload: unknown): Record<string, unknown> {
+  return isRecord(payload) ? payload : {};
+}
+
+function validateProposalBundle(
+  payload: unknown,
+  options: {
+    selectedProjectId: string;
+    selectedRoomId: string | null;
+    packetVersion: number;
+    existingClientRequestIds: string[];
+    existingRunIds: string[];
+  }
+): { ok: true; value: ProposalBundleV1; fingerprint: string } | { ok: false; errors: string[] } {
+  const errors: string[] = [];
+  if (!isRecord(payload)) {
+    return { ok: false, errors: ['Proposal bundle must be a JSON object.'] };
+  }
+
+  const bundleId = typeof payload.bundle_id === 'string' && payload.bundle_id.trim() ? payload.bundle_id.trim() : '';
+  const roomId = typeof payload.room_id === 'string' && payload.room_id.trim() ? payload.room_id.trim() : '';
+  const clientRequestId =
+    typeof payload.client_request_id === 'string' && payload.client_request_id.trim() ? payload.client_request_id.trim() : '';
+  const agentId = typeof payload.agent_id === 'string' && payload.agent_id.trim() ? payload.agent_id.trim() : '';
+  const submittedAt =
+    typeof payload.submitted_at === 'string' && payload.submitted_at.trim() ? payload.submitted_at.trim() : nowIso();
+  const humanSummary =
+    typeof payload.human_summary === 'string' && payload.human_summary.trim() ? payload.human_summary.trim() : '';
+  const packetVersionSeen =
+    typeof payload.packet_version_seen === 'number' && Number.isFinite(payload.packet_version_seen)
+      ? Math.floor(payload.packet_version_seen)
+      : NaN;
+  const rawProposals = Array.isArray(payload.proposals) ? payload.proposals : [];
+
+  if (!bundleId) errors.push('bundle_id is required.');
+  if (!roomId) errors.push('room_id is required.');
+  if (roomId && roomId !== (options.selectedRoomId || options.selectedProjectId)) {
+    errors.push('room_id does not match the active project or shared room.');
+  }
+  if (!clientRequestId) errors.push('client_request_id is required.');
+  if (clientRequestId && options.existingClientRequestIds.includes(clientRequestId)) {
+    errors.push('client_request_id has already been used for this packet.');
+  }
+  if (!agentId) errors.push('agent_id is required.');
+  if (!humanSummary) errors.push('human_summary is required.');
+  if (humanSummary.length > 280) errors.push('human_summary must stay under 280 characters.');
+  if (!Number.isFinite(packetVersionSeen)) errors.push('packet_version_seen must be a finite number.');
+  if (Number.isFinite(packetVersionSeen) && packetVersionSeen !== options.packetVersion) {
+    errors.push(`packet_version_seen is stale. Active packet version is v${options.packetVersion}.`);
+  }
+  if (rawProposals.length === 0) errors.push('proposals must contain at least one item.');
+  if (rawProposals.length > 25) errors.push('proposals cannot contain more than 25 items in one bundle.');
+
+  const executionTrace = parseExecutionTrace(payload.execution_trace);
+  if (payload.execution_trace !== undefined && !executionTrace) {
+    errors.push('execution_trace must be a valid object when provided.');
+  }
+
+  const proposals: ProposalBundleItemInput[] = [];
+  rawProposals.forEach((proposal, index) => {
+    if (!isRecord(proposal)) {
+      errors.push(`proposals[${index}] must be an object.`);
+      return;
+    }
+    const type = proposal.type;
+    const proposalType: ProjectProposalType | null =
+      type === 'run' ||
+      type === 'run_step' ||
+      type === 'decision' ||
+      type === 'scope_note' ||
+      type === 'source' ||
+      type === 'open_action'
+        ? type
+        : null;
+    if (!proposalType) {
+      errors.push(`proposals[${index}] uses an unsupported type.`);
+      return;
+    }
+    const itemPayload = sanitizeProposalPayload(proposal.payload);
+    const runId = typeof proposal.run_id === 'string' && proposal.run_id.trim() ? proposal.run_id.trim() : undefined;
+    if (proposalType === 'run_step' && !runId) {
+      errors.push(`proposals[${index}] requires run_id for run_step.`);
+    } else if (proposalType === 'run_step' && runId && !options.existingRunIds.includes(runId)) {
+      errors.push(`proposals[${index}] references an unknown run_id.`);
+    }
+    if ((proposalType === 'decision' || proposalType === 'open_action' || proposalType === 'run' || proposalType === 'scope_note' || proposalType === 'source') &&
+        typeof itemPayload.title !== 'string') {
+      errors.push(`proposals[${index}] requires payload.title.`);
+    }
+    if (proposalType === 'open_action') {
+      if (typeof itemPayload.next_action !== 'string' || !String(itemPayload.next_action).trim()) {
+        errors.push(`proposals[${index}] requires payload.next_action.`);
+      }
+      if (typeof itemPayload.done_when !== 'string' || !String(itemPayload.done_when).trim()) {
+        errors.push(`proposals[${index}] requires payload.done_when.`);
+      }
+    }
+    if (proposalType === 'run' && Array.isArray(itemPayload.actions) && itemPayload.actions.length === 0) {
+      errors.push(`proposals[${index}] cannot provide an empty actions list for a run.`);
+    }
+    const payloadLength = JSON.stringify(itemPayload).length;
+    if (payloadLength > 12000) {
+      errors.push(`proposals[${index}] payload is too large.`);
+    }
+    proposals.push({
+      type: proposalType,
+      run_id: runId,
+      payload: itemPayload
+    });
+  });
+
+  if (errors.length > 0) {
+    return { ok: false, errors };
+  }
+
+  const validated: ProposalBundleV1 = {
+    bundle_id: bundleId,
+    room_id: roomId,
+    packet_version_seen: packetVersionSeen,
+    client_request_id: clientRequestId,
+    agent_id: agentId,
+    submitted_at: submittedAt,
+    human_summary: humanSummary,
+    execution_trace: executionTrace,
+    proposals
+  };
+  const fingerprint = buildDeterministicFingerprint(validated);
+  return { ok: true, value: validated, fingerprint };
 }
 
 function deriveProposalBundles(proposals: ProjectProposalRecord[]): DerivedProposalBundleSummary[] {
@@ -2749,7 +2985,10 @@ function deriveProposalBundles(proposals: ProjectProposalRecord[]): DerivedPropo
 
       return {
         id: bundleId,
-        label: first.proposal_bundle_label || `Proposal Bundle ${bundleId.slice(-6)}`,
+        label:
+          first.proposal_bundle_label ||
+          first.proposal_bundle_human_summary ||
+          `Proposal Bundle ${bundleId.slice(-6)}`,
         source: first.proposal_bundle_source || first.proposed_by || first.proposal_source,
         submittedAt: first.proposed_at,
         proposalCount: sorted.length,
@@ -5336,6 +5575,16 @@ export default function ProjectsPage() {
   }, [deskNextAction, handleDeskNextAction]);
 
   const currentUser: User | null = authState.status === 'signed_in' ? authState.user : null;
+  const currentReviewerLabel = currentUser?.displayName || currentUser?.email || currentUser?.uid || 'Local reviewer';
+  const remoteSubmissionEndpoint = selectedHostedRoom ? getProjectRoomSubmissionEndpoint() : null;
+  const remoteSubmissionSupported = Boolean(selectedHostedRoom && currentUser);
+  const remoteSubmissionStatusLine = !selectedHostedRoom
+    ? 'Remote agent submission is available after you create a shared copy of this project.'
+    : !currentUser
+      ? 'Sign in to a shared project room before remote agent submission can be used.'
+      : selectedRoomPermissions.canComment
+        ? 'Remote agent submission is ready. Agents must submit with a Firebase ID token from a room member.'
+        : 'This room is shared, but your current role cannot submit proposal bundles.';
 
   const handleEmailAuth = async (mode: 'sign_in' | 'create') => {
     if (!authEmail.trim() || !authPassword.trim()) {
@@ -6746,7 +6995,24 @@ export default function ProjectsPage() {
         recent_accepts: changedPacketTruthSummary.acceptedLines
       },
       changed_packet_truth: changedPacketTruthSummary,
-      safe_next_proposal: safeNextProposal
+      safe_next_proposal: safeNextProposal,
+      remote_submission: {
+        supported: true,
+        endpoint: getProjectRoomSubmissionEndpoint(),
+        auth: 'firebase_id_token',
+        fallback: 'local_gateway_import',
+        required_role: 'reviewer_or_higher'
+      },
+      proposal_write_path: {
+        room_id: selectedHostedRoom.id,
+        packet_version_seen_required: true,
+        requires_client_request_id: true,
+        max_proposals_per_bundle: 25,
+        accepted_truth_changes_require_review: true,
+        allowed_proposal_types: ['run', 'run_step', 'decision', 'scope_note', 'source', 'open_action'],
+        reject_requires_reason: true,
+        defer_requires_reason: true
+      }
     };
   }, [
     selectedProject,
@@ -6984,7 +7250,17 @@ export default function ProjectsPage() {
             summary_line: latestReviewPacket.snapshot.summary_line
           }
         : null,
+      remote_submission: {
+        supported: Boolean(selectedHostedRoom),
+        endpoint: selectedHostedRoom ? getProjectRoomSubmissionEndpoint() : null,
+        auth: 'firebase_id_token',
+        fallback: 'local_gateway_import'
+      },
       proposal_write_path: {
+        room_id: selectedHostedRoom?.id || selectedProject.id,
+        packet_version_seen_required: true,
+        requires_client_request_id: true,
+        max_proposals_per_bundle: 25,
         accepted_truth_changes_require_review: true,
         allowed_proposal_types: ['run', 'run_step', 'decision', 'scope_note', 'source', 'open_action'],
         reject_requires_reason: true,
@@ -7759,15 +8035,45 @@ export default function ProjectsPage() {
 
   const copyAgentProposalSchema = useCallback(() => {
     const schema = {
-      agent_id: "example_agent_v1",
-      bundle_id: "bundle_001",
-      bundle_label: "Packet update bundle",
+      bundle_id: 'bundle_packet_v4_followup',
+      room_id: selectedHostedRoom?.id || selectedProject?.id || 'room_or_project_id',
+      packet_version_seen: selectedProject?.packet_version || 1,
+      client_request_id: 'req_packet_v4_followup',
+      agent_id: 'example_agent_v1',
+      submitted_at: nowIso(),
+      human_summary: 'Follow-up packet update after reviewing the current room contract.',
+      execution_trace: {
+        exit_code: 0,
+        execution_seconds: 24.6,
+        changed_files: 2,
+        proposed_lines: 83,
+        console_tail: ['Validated room contract.', 'Prepared one run and one decision proposal.']
+      },
       proposals: [
-        { type: "run", payload: { title: "Data extraction", run_type: "extraction", actions: [{ description: "Scan source" }] } },
-        { type: "run_step", run_id: "existing_run_id", payload: { description: "Notify operator" } },
-        { type: "decision", payload: { title: "Approve budget", rationale: "Within limits" } },
-        { type: "open_action", payload: { title: "Review logs", rationale: "Verification needed", next_action: "Read logs", done_when: "Confirmed OK" } },
-        { type: "scope_note", payload: { title: "Discrepancy found", body: "Found 3 mismatched records..." } }
+        {
+          type: 'run',
+          payload: {
+            title: 'Audit failing build path',
+            run_type: 'verification',
+            actions: [{ description: 'Inspect current CI failure and summarize the root cause.' }]
+          }
+        },
+        {
+          type: 'decision',
+          payload: {
+            title: 'Pin TypeScript 5.9 for current packet',
+            rationale: 'The latest minor release is breaking one plugin build in the workspace.'
+          }
+        },
+        {
+          type: 'open_action',
+          payload: {
+            title: 'Verify deployment after patch',
+            rationale: 'Keep the published update aligned with accepted packet truth.',
+            next_action: 'Run the build and smoke-check the published update.',
+            done_when: 'The room is green and the packet version is published.'
+          }
+        }
       ]
     };
     const payload = JSON.stringify(schema, null, 2);
@@ -7780,7 +8086,7 @@ export default function ProjectsPage() {
         downloadTextArtifact('agent-proposal-schema.json', payload, 'application/json;charset=utf-8');
         alert('Clipboard access was unavailable, so the schema was downloaded instead.');
       });
-  }, []);
+  }, [selectedHostedRoom?.id, selectedProject?.id, selectedProject?.packet_version]);
 
   const handleCopySharedRoomContract = useCallback(async () => {
     const contract = buildSharedRoomContract();
@@ -7849,11 +8155,21 @@ export default function ProjectsPage() {
     downloadTextArtifact(`agent-brief-${selectedProject.id}.md`, markdown, 'text/markdown;charset=utf-8');
   }, [buildAgentBriefMarkdown, selectedProject]);
 
+  const handleCopyRemoteSubmissionEndpoint = useCallback(async () => {
+    if (!remoteSubmissionEndpoint) return;
+    try {
+      await navigator.clipboard.writeText(remoteSubmissionEndpoint);
+      setCloudActionMessage('Remote submission endpoint copied to clipboard.');
+    } catch {
+      setCloudActionMessage(`Clipboard access was unavailable. Copy this endpoint: ${remoteSubmissionEndpoint}`);
+    }
+  }, [remoteSubmissionEndpoint]);
+
   const applyProposalReviewToProject = useCallback(
     (
       baseProject: Project,
       proposalId: string,
-      nextState: ProjectProposalReviewState,
+      nextState: ProjectProposalDecisionState,
       reviewNote: string
     ): { ok: true; project: Project } | { ok: false; error: string } => {
       const now = nowIso();
@@ -8001,6 +8317,8 @@ export default function ProjectsPage() {
               review_state: nextState,
               reviewed_at: now,
               review_note: noteForState,
+              reviewed_by: currentReviewerLabel,
+              reviewed_by_role: selectedHostedRoom ? selectedRoomRole : undefined,
               promoted_target: nextState === 'accepted' ? promotedTarget : item.promoted_target
             }
           : item
@@ -8030,11 +8348,11 @@ export default function ProjectsPage() {
         }
       };
     },
-    []
+    [currentReviewerLabel, selectedHostedRoom, selectedRoomRole]
   );
 
   const handleReviewProposal = useCallback(
-    (proposalId: string, nextState: ProjectProposalReviewState) => {
+    async (proposalId: string, nextState: ProjectProposalDecisionState) => {
       if (!selectedProject) return;
       if (selectedHostedRoom && !selectedRoomPermissions.canReview) {
         setCloudActionMessage('Reviewing proposals in a shared packet room requires Reviewer role or higher.');
@@ -8042,6 +8360,25 @@ export default function ProjectsPage() {
       }
 
       const reviewNote = (proposalReviewNoteById[proposalId] || '').trim();
+      if (selectedHostedRoom && currentUser) {
+        const result = await reviewProjectRoomProposalRemote(
+          {
+            room_id: selectedHostedRoom.id,
+            proposal_id: proposalId,
+            decision: nextState,
+            review_note: reviewNote,
+          },
+          currentUser
+        );
+        if (!result.ok) {
+          setCloudActionMessage(result.error || 'Proposal review failed.');
+          return;
+        }
+        setProposalReviewNoteById((current) => ({ ...current, [proposalId]: '' }));
+        setCloudActionMessage(result.value?.message || `${getProposalReviewStateLabel(nextState)} recorded.`);
+        return;
+      }
+
       const result = applyProposalReviewToProject(selectedProject, proposalId, nextState, reviewNote);
       if (!result.ok) {
         setCloudActionMessage(result.error);
@@ -8052,11 +8389,18 @@ export default function ProjectsPage() {
       setProposalReviewNoteById((current) => ({ ...current, [proposalId]: '' }));
       setCloudActionMessage(`${getProposalReviewStateLabel(nextState)} recorded.`);
     },
-    [applyProposalReviewToProject, proposalReviewNoteById, selectedProject, selectedHostedRoom, selectedRoomPermissions.canReview]
+    [
+      applyProposalReviewToProject,
+      currentUser,
+      proposalReviewNoteById,
+      selectedProject,
+      selectedHostedRoom,
+      selectedRoomPermissions.canReview
+    ]
   );
 
   const handleReviewProposalBundle = useCallback(
-    (bundleId: string, nextState: ProjectProposalReviewState) => {
+    async (bundleId: string, nextState: ProjectProposalDecisionState) => {
       if (!selectedProject) return;
       if (selectedHostedRoom && !selectedRoomPermissions.canReview) {
         setCloudActionMessage('Reviewing proposal bundles in a shared packet room requires Reviewer role or higher.');
@@ -8074,6 +8418,35 @@ export default function ProjectsPage() {
       const reviewNote = (bundleReviewNoteById[bundleId] || '').trim();
       if ((nextState === 'rejected' || nextState === 'deferred') && !reviewNote) {
         setCloudActionMessage(`${getProposalReviewStateLabel(nextState)} requires a bundle review note.`);
+        return;
+      }
+
+      if (selectedHostedRoom && currentUser) {
+        const result = await reviewProjectRoomProposalBundleRemote(
+          {
+            room_id: selectedHostedRoom.id,
+            bundle_id: bundleId,
+            decision: nextState,
+            review_note: reviewNote,
+          },
+          currentUser
+        );
+        if (!result.ok) {
+          setCloudActionMessage(result.error || 'Proposal bundle review failed.');
+          return;
+        }
+        setBundleReviewNoteById((current) => ({ ...current, [bundleId]: '' }));
+        setProposalReviewNoteById((current) => {
+          const next = { ...current };
+          pendingIds.forEach((proposalId) => {
+            next[proposalId] = '';
+          });
+          return next;
+        });
+        setCloudActionMessage(
+          result.value?.message ||
+            `${bundle.label} ${getProposalReviewStateLabel(nextState).toLowerCase()} for ${pendingIds.length} waiting proposal${pendingIds.length === 1 ? '' : 's'}.`
+        );
         return;
       }
 
@@ -8102,6 +8475,7 @@ export default function ProjectsPage() {
       applyProposalReviewToProject,
       bundleReviewNoteById,
       proposalBundles,
+      currentUser,
       selectedProject,
       selectedHostedRoom,
       selectedRoomPermissions.canReview
@@ -8110,85 +8484,148 @@ export default function ProjectsPage() {
 
   const handleApplyAgentProposals = useCallback(() => {
     if (!selectedProject) return;
+    if (selectedHostedRoom && !selectedRoomPermissions.canComment) {
+      setAgentIntakeError('Submitting proposal bundles in a shared packet room requires Reviewer role or higher.');
+      return;
+    }
+
     try {
-      const payload = JSON.parse(agentIntakePayload);
-      if (!payload.proposals || !Array.isArray(payload.proposals)) {
-        throw new Error('Payload must contain a "proposals" array.');
+      const parsedPayload = JSON.parse(agentIntakePayload);
+      const validation = validateProposalBundle(parsedPayload, {
+        selectedProjectId: selectedProject.id,
+        selectedRoomId: selectedHostedRoom?.id || null,
+        packetVersion: selectedProject.packet_version || 1,
+        existingClientRequestIds: (selectedProject.proposal_history || [])
+          .map((proposal) => proposal.client_request_id)
+          .filter((value): value is string => typeof value === 'string' && value.trim().length > 0),
+        existingRunIds: (selectedProject.runs || [])
+          .map((run: any) => (run && typeof run.id === 'string' ? run.id : ''))
+          .filter((value: string) => value.length > 0)
+      });
+
+      if (!validation.ok) {
+        throw new Error(validation.errors.join(' '));
       }
+
+      const bundle = validation.value;
       const newRuns = [...(selectedProject.runs || [])];
       const newContexts = [...(selectedProject.context_items || [])];
       const newDecisions = [...(selectedProject.decisions || [])];
       const newCommitments = [...(selectedProject.commitments || [])];
       const newProposalHistory = [...(selectedProject.proposal_history || [])];
-      const now = new Date().toISOString();
-      const bundleId = typeof payload.bundle_id === 'string' && payload.bundle_id.trim()
-        ? payload.bundle_id.trim()
-        : `bundle_${Date.now()}`;
-      const bundleLabel = typeof payload.bundle_label === 'string' && payload.bundle_label.trim()
-        ? payload.bundle_label.trim()
-        : `Proposal Bundle ${new Date().toLocaleString()}`;
-      const bundleSource = payload.agent_id || 'Coding Agent';
-      payload.proposals.forEach((p: any, index: number) => {
-        const id = `agent_prop_${Date.now()}_${index}`;
-        const proposalType: ProjectProposalType =
-          p.type === 'run' ||
-          p.type === 'run_step' ||
-          p.type === 'decision' ||
-          p.type === 'scope_note' ||
-          p.type === 'source'
-            ? p.type
-            : 'open_action';
+      const now = nowIso();
+      const bundleSource = bundle.agent_id || 'Coding Agent';
+
+      bundle.proposals.forEach((proposal, index) => {
+        const idSeed = `${bundle.bundle_id}_${index}_${Date.now()}`;
+        const proposalTargetId = `agent_prop_${idSeed}`;
+        const proposalRecordId = `proposal_record_${idSeed}`;
+        const proposalType = proposal.type;
+        const proposalPayload = proposal.payload;
         let targetId: string | undefined;
-        let targetTitle = p.payload?.title || p.payload?.description || getProposalTypeLabel(proposalType);
-        let parentRunId: string | undefined = typeof p.run_id === 'string' ? p.run_id : undefined;
-        if (p.type === 'run') {
-          targetId = id;
+        let targetTitle =
+          typeof proposalPayload.title === 'string' && proposalPayload.title.trim()
+            ? proposalPayload.title.trim()
+            : typeof proposalPayload.description === 'string' && proposalPayload.description.trim()
+              ? proposalPayload.description.trim()
+              : getProposalTypeLabel(proposalType);
+        let parentRunId: string | undefined = proposal.run_id;
+
+        if (proposalType === 'run') {
+          targetId = proposalTargetId;
           newRuns.push({
-            id, title: p.payload?.title || 'Proposed Run', run_type: p.payload?.run_type || 'agent_operation',
-            run_state: 'proposed', created_at: now, updated_at: now,
-            actions: (p.payload?.actions || []).map((a: any, i: number) => ({ id: `${id}_a${i}`, description: a.description || 'Action step', state: 'proposed' })),
-            agent_label: payload.agent_id || 'External Agent'
+            id: proposalTargetId,
+            title: targetTitle || 'Proposed Run',
+            run_type: typeof proposalPayload.run_type === 'string' ? proposalPayload.run_type : 'agent_operation',
+            run_state: 'proposed',
+            created_at: now,
+            updated_at: now,
+            actions: Array.isArray(proposalPayload.actions)
+              ? proposalPayload.actions.map((action: any, actionIndex: number) => ({
+                  id: `${proposalTargetId}_a${actionIndex}`,
+                  description:
+                    action && typeof action.description === 'string' && action.description.trim()
+                      ? action.description.trim()
+                      : 'Action step',
+                  state: 'proposed'
+                }))
+              : [],
+            agent_label: bundle.agent_id || 'External Agent'
           });
-        } else if (p.type === 'run_step' && p.run_id) {
-          const run = newRuns.find(r => r.id === p.run_id);
-          if (run) {
-            targetId = id;
-            targetTitle = p.payload?.description || 'Proposed step';
-            run.actions.push({ id, description: p.payload?.description || 'Proposed step', state: 'proposed' });
+        } else if (proposalType === 'run_step' && proposal.run_id) {
+          const run = newRuns.find((item) => item.id === proposal.run_id);
+          if (!run) {
+            throw new Error(`run_step proposal references missing run_id "${proposal.run_id}".`);
           }
-        } else if (p.type === 'scope_note' || p.type === 'source') {
-          targetId = id;
+          targetId = proposalTargetId;
+          targetTitle =
+            typeof proposalPayload.description === 'string' && proposalPayload.description.trim()
+              ? proposalPayload.description.trim()
+              : 'Proposed step';
+          run.actions = Array.isArray(run.actions) ? run.actions : [];
+          run.actions.push({ id: proposalTargetId, description: targetTitle, state: 'proposed' });
+        } else if (proposalType === 'scope_note' || proposalType === 'source') {
+          targetId = proposalTargetId;
           newContexts.push({
-            id, project_id: selectedProject.id, title: p.payload?.title || 'Proposed Note', body: p.payload?.body || '',
-            context_type: p.type === 'source' ? 'working_note' : 'requirement', context_state: 'proposed',
-            created_at: now, updated_at: now, actor_type: 'agent', actor_name: payload.agent_id || 'Agent', source_type: 'agent_proposal'
+            id: proposalTargetId,
+            project_id: selectedProject.id,
+            title: targetTitle || 'Proposed Note',
+            body: typeof proposalPayload.body === 'string' ? proposalPayload.body : '',
+            context_type: proposalType === 'source' ? 'working_note' : 'requirement',
+            context_state: 'proposed',
+            created_at: now,
+            updated_at: now,
+            actor_type: 'agent',
+            actor_name: bundle.agent_id || 'Agent',
+            source_type: 'agent_proposal'
           });
-        } else if (p.type === 'decision') {
-          targetId = id;
-          newDecisions.push({ id, timestamp: now, title: p.payload?.title || 'Proposed Decision', rationale: p.payload?.rationale || '', decision_state: 'proposed' });
-        } else if (p.type === 'open_action' || p.type === 'commitment') {
-          targetId = id;
-          newCommitments.push({ id, title: p.payload?.title || 'Proposed Action', timestamp: now, commitment_state: 'proposed', rationale: p.payload?.rationale || '', next_action: p.payload?.next_action || '', done_when: p.payload?.done_when || '' });
+        } else if (proposalType === 'decision') {
+          targetId = proposalTargetId;
+          newDecisions.push({
+            id: proposalTargetId,
+            timestamp: now,
+            title: targetTitle || 'Proposed Decision',
+            rationale: typeof proposalPayload.rationale === 'string' ? proposalPayload.rationale : '',
+            decision_state: 'proposed'
+          });
+        } else if (proposalType === 'open_action') {
+          targetId = proposalTargetId;
+          newCommitments.push({
+            id: proposalTargetId,
+            title: targetTitle || 'Proposed Action',
+            timestamp: now,
+            commitment_state: 'proposed',
+            rationale: typeof proposalPayload.rationale === 'string' ? proposalPayload.rationale : '',
+            next_action: typeof proposalPayload.next_action === 'string' ? proposalPayload.next_action : '',
+            done_when: typeof proposalPayload.done_when === 'string' ? proposalPayload.done_when : ''
+          });
         }
 
         newProposalHistory.unshift({
-          id: `proposal_record_${Date.now()}_${index}`,
+          id: proposalRecordId,
           proposal_type: proposalType,
           proposal_source: 'agent_intake',
-          proposed_at: now,
-          proposal_bundle_id: bundleId,
-          proposal_bundle_label: bundleLabel,
+          proposed_at: bundle.submitted_at || now,
+          proposal_bundle_id: bundle.bundle_id,
+          proposal_bundle_label: `Proposal Bundle ${bundle.bundle_id.slice(-6)}`,
           proposal_bundle_source: bundleSource,
+          client_request_id: bundle.client_request_id,
+          packet_version_seen: bundle.packet_version_seen,
+          proposal_bundle_human_summary: bundle.human_summary,
+          proposal_bundle_fingerprint: validation.fingerprint,
+          proposal_bundle_validation: { status: 'valid', errors: [] },
+          execution_trace_summary: buildExecutionTraceSummary(bundle.execution_trace),
           proposal_summary: targetTitle,
-          payload_summary: buildProposalPayloadSummary(p.payload),
+          payload_summary: buildProposalPayloadSummary(proposalPayload),
           review_state: 'proposed',
-          proposed_by: payload.agent_id || 'Coding Agent',
-          source_label: 'Agent Intake',
+          proposed_by: bundle.agent_id || 'Coding Agent',
+          source_label: 'Verified Agent Intake',
           target_id: targetId,
           target_title: targetTitle,
           parent_run_id: parentRunId
         });
       });
+
       updateProject({
         ...selectedProject,
         updated_at: now,
@@ -8202,15 +8639,42 @@ export default function ProjectsPage() {
           {
             id: `act_${Date.now()}`,
             kind: 'status_update',
-            title: 'Proposal bundle staged for review',
-            detail: `${bundleLabel} added ${payload.proposals.length} proposal${payload.proposals.length === 1 ? '' : 's'} from ${bundleSource}.`,
+            title: 'Verified proposal bundle staged for review',
+            detail: `${bundle.human_summary} ${bundle.proposals.length} proposal${bundle.proposals.length === 1 ? '' : 's'} from ${bundleSource} entered Waiting for Judgment against packet v${bundle.packet_version_seen}. Fingerprint ${validation.fingerprint}.`,
             timestamp: now
           }
         ]
       });
-      setIsAgentIntakeOpen(false); setAgentIntakePayload(''); setAgentIntakeError('');
-    } catch (err: any) { setAgentIntakeError(err.message || 'Invalid JSON payload.'); }
-  }, [selectedProject, agentIntakePayload, updateProject]);
+      setIsAgentIntakeOpen(false);
+      setAgentIntakePayload('');
+      setAgentIntakeError('');
+    } catch (err: any) {
+      setAgentIntakeError(err?.message || 'Invalid JSON payload.');
+    }
+  }, [
+    selectedProject,
+    selectedHostedRoom,
+    selectedRoomPermissions.canComment,
+    agentIntakePayload,
+    updateProject
+  ]);
+
+  const handleImportAgentProposalFile = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        setAgentIntakePayload(text);
+        setAgentIntakeError('');
+      } catch {
+        setAgentIntakeError('Could not read the selected JSON file.');
+      } finally {
+        event.target.value = '';
+      }
+    },
+    []
+  );
 
   const sharedRoomContract = buildSharedRoomContract();
 
@@ -8683,6 +9147,42 @@ export default function ProjectsPage() {
                   </a>
                 </div>
               )}
+              <div className="mt-3 rounded border border-sky-900/30 bg-sky-950/10 p-3">
+                <div className="flex flex-wrap items-start justify-between gap-3 border-b border-sky-900/20 pb-3">
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-sky-300">Remote Agent Path</div>
+                    <div className="mt-1 text-sm font-bold text-slate-100">
+                      {remoteSubmissionSupported ? 'Remote submission enabled for this shared packet room.' : 'Remote submission not ready yet.'}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={handleCopyRemoteSubmissionEndpoint}
+                      disabled={!remoteSubmissionEndpoint}
+                      className="rounded border border-sky-800 bg-sky-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-sky-200 transition-colors hover:bg-sky-900/40 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Copy Endpoint
+                    </button>
+                  </div>
+                </div>
+                <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1.2fr),minmax(280px,0.8fr)]">
+                  <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Submission Endpoint</div>
+                    <div className="mt-2 break-all text-sm text-slate-200">
+                      {remoteSubmissionEndpoint || 'Create a shared copy to expose the remote submission endpoint.'}
+                    </div>
+                    <div className="mt-2 text-xs leading-5 text-slate-400">{remoteSubmissionStatusLine}</div>
+                  </div>
+                  <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Gateway Rules</div>
+                    <div className="mt-2 space-y-1 text-xs text-slate-300">
+                      <div>Auth: Firebase ID token from a shared-room member</div>
+                      <div>Stage only: Waiting for Judgment</div>
+                      <div>Fallback: Verified local intake import</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
               {publishedHandoffs.length > 0 && (
                 <div className="mt-3 space-y-2">
                   <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Published Milestones</div>
@@ -13509,14 +14009,30 @@ export default function ProjectsPage() {
             </div>
             <div className="flex flex-col gap-4 overflow-y-auto p-6">
               {agentIntakeError && (<div className="rounded border border-red-900/50 bg-red-950/20 p-3 text-sm text-red-400">{agentIntakeError}</div>)}
+              <div className="rounded-xl border border-emerald-900/30 bg-emerald-950/10 p-4 text-sm text-emerald-100">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-400">Verified Gateway</div>
+                <p className="mt-2 text-emerald-100/90">
+                  Submit one canonical proposal bundle at a time. The gateway validates packet version, allowed proposal types,
+                  duplicate request IDs, and required fields before anything reaches Waiting for Judgment.
+                </p>
+                <div className="mt-3 grid gap-2 text-xs text-emerald-200/80 sm:grid-cols-2">
+                  <div>Room: <span className="font-semibold text-emerald-100">{selectedHostedRoom?.title || selectedProject?.title || 'Current project'}</span></div>
+                  <div>Packet version required: <span className="font-semibold text-emerald-100">v{selectedProject?.packet_version || 1}</span></div>
+                </div>
+              </div>
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold uppercase tracking-widest text-slate-400">JSON Payload</label>
                 <button onClick={copyAgentProposalSchema} className="text-[10px] font-bold uppercase tracking-widest text-sky-400 hover:text-sky-300">Copy Agent Schema</button>
               </div>
+              <label className="flex cursor-pointer items-center justify-between rounded-xl border border-slate-800 bg-slate-950/30 px-4 py-3 text-sm text-slate-300 transition hover:border-slate-700 hover:bg-slate-900/40">
+                <span>Import a verified proposal bundle file</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">.json</span>
+                <input type="file" accept="application/json,.json" className="hidden" onChange={handleImportAgentProposalFile} />
+              </label>
               <textarea
                 value={agentIntakePayload}
                 onChange={e => setAgentIntakePayload(e.target.value)}
-                placeholder='{ "agent_id": "build-bot", "proposals": [...] }'
+                placeholder='{ "bundle_id": "bundle_123", "room_id": "room_123", "packet_version_seen": 4, "client_request_id": "req_123", "agent_id": "build-bot", "human_summary": "Why this bundle exists", "proposals": [...] }'
                 className="h-64 w-full resize-none rounded-xl border border-slate-800 bg-slate-900/50 p-4 font-mono text-sm text-slate-200 placeholder-slate-600 focus:border-emerald-700/50 focus:outline-none"
               />
             </div>
