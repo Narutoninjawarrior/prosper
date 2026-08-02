@@ -73,6 +73,23 @@ interface TriageInsight {
   touchesPublishedUpdate: boolean;
 }
 
+interface BundleResultSummary {
+  id: string;
+  label: string;
+  source: string;
+  outcome: 'fully_accepted' | 'partially_accepted' | 'rejected' | 'deferred' | 'mixed';
+  submittedAt: string;
+  closedAt: string;
+  packetVersionLine: string;
+  changedTruth: string[];
+  rejectedOrDeferred: string[];
+  beforeSummaries: string[];
+  reviewNotes: string[];
+  fullyClosed: boolean;
+  publishRecommended: boolean;
+  publishReason: string;
+}
+
 type TriageItem =
   | {
       type: 'bundle';
@@ -452,6 +469,55 @@ function summarizeBundleFollowUp(bundle: DerivedProposalBundle) {
   if (bundle.deferredCount > 0) return 'Deferred work remains. This bundle is closed for now, but not fully resolved.';
   if (bundle.rejectedCount > 0 && bundle.acceptedCount === 0) return 'No packet truth changed. Resubmit only if the proposal should come back with tighter scope.';
   return 'Bundle is fully closed. Re-open only if a new proposal bundle is needed.';
+}
+
+function getBundleResultOutcome(bundle: DerivedProposalBundle): BundleResultSummary['outcome'] {
+  if (bundle.acceptedCount > 0 && bundle.rejectedCount === 0 && bundle.deferredCount === 0) {
+    return bundle.acceptedCount === bundle.proposals.length ? 'fully_accepted' : 'partially_accepted';
+  }
+  if (bundle.acceptedCount > 0) return 'partially_accepted';
+  if (bundle.deferredCount > 0 && bundle.rejectedCount === 0) return 'deferred';
+  if (bundle.rejectedCount > 0 && bundle.deferredCount === 0) return 'rejected';
+  return 'mixed';
+}
+
+function getBundleResultLabel(outcome: BundleResultSummary['outcome']) {
+  switch (outcome) {
+    case 'fully_accepted':
+      return 'Accepted Truth';
+    case 'partially_accepted':
+      return 'Partial Accept';
+    case 'rejected':
+      return 'Rejected in Review';
+    case 'deferred':
+      return 'Deferred';
+    default:
+      return 'Mixed Outcome';
+  }
+}
+
+function getBundleResultClasses(outcome: BundleResultSummary['outcome']) {
+  switch (outcome) {
+    case 'fully_accepted':
+      return 'border-emerald-900/40 bg-emerald-950/20 text-emerald-200';
+    case 'partially_accepted':
+      return 'border-sky-900/40 bg-sky-950/20 text-sky-200';
+    case 'rejected':
+      return 'border-rose-900/40 bg-rose-950/20 text-rose-200';
+    case 'deferred':
+      return 'border-amber-900/40 bg-amber-950/20 text-amber-200';
+    default:
+      return 'border-slate-800 bg-slate-950/40 text-slate-200';
+  }
+}
+
+function proposalTouchesPublishedUpdate(proposal: ProjectProposalRecord) {
+  return (
+    proposal.proposal_type === 'decision' ||
+    proposal.proposal_type === 'open_action' ||
+    proposal.proposal_type === 'scope_note' ||
+    proposal.proposal_type === 'source'
+  );
 }
 
 function loadReviewClaims() {
@@ -888,6 +954,81 @@ export default function ReviewPage() {
     return null;
   }, [recentJudgedItems, resolvedFeedback]);
 
+  const recentBundleResults = useMemo<BundleResultSummary[]>(() => {
+    return proposalBundles
+      .filter((bundle) => bundle.fullyClosed && (bundle.acceptedCount > 0 || bundle.rejectedCount > 0 || bundle.deferredCount > 0))
+      .map((bundle) => {
+        const accepted = bundle.proposals.filter((proposal) => proposal.review_state === 'accepted');
+        const rejectedOrDeferred = bundle.proposals.filter(
+          (proposal) => proposal.review_state === 'rejected' || proposal.review_state === 'deferred',
+        );
+        const closedAt =
+          [...bundle.proposals]
+            .map((proposal) => proposal.reviewed_at || proposal.proposed_at)
+            .sort(compareDesc)[0] || bundle.submittedAt;
+        const reviewNotes = Array.from(
+          new Set(
+            bundle.proposals
+              .map((proposal) => proposal.review_note?.trim())
+              .filter((note): note is string => Boolean(note)),
+          ),
+        ).slice(0, 3);
+        const changedTruth = accepted
+          .map((proposal) => proposal.promoted_target?.label || proposal.target_title || proposal.proposal_summary)
+          .slice(0, 4);
+        const rejectedSummaries = rejectedOrDeferred
+          .map((proposal) => {
+            const prefix = proposal.review_state === 'deferred' ? 'Deferred' : 'Rejected';
+            return `${prefix}: ${proposal.proposal_summary}`;
+          })
+          .slice(0, 4);
+        const beforeSummaries = bundle.proposals
+          .map((proposal) => proposal.payload_summary || proposal.proposal_summary)
+          .slice(0, 3);
+        const acceptedVersions = accepted
+          .map((proposal) => proposal.packet_version_seen)
+          .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+        const packetVersionLine =
+          acceptedVersions.length > 0
+            ? `v${Math.min(...acceptedVersions)} -> v${Math.max(...acceptedVersions) + 1}`
+            : bundle.packetVersionSeen
+              ? `Seen at v${bundle.packetVersionSeen}`
+              : 'No packet version recorded';
+        const touchesPublishedUpdate = bundle.proposals.some((proposal) => proposalTouchesPublishedUpdate(proposal));
+        const latestPublishedAt = latestPublishedUpdate ? Date.parse(latestPublishedUpdate.published_at) : Number.NaN;
+        const closedAtMs = Date.parse(closedAt);
+        const publishRecommended =
+          accepted.length > 0 &&
+          touchesPublishedUpdate &&
+          (!Number.isFinite(latestPublishedAt) || (Number.isFinite(closedAtMs) && closedAtMs > latestPublishedAt));
+
+        return {
+          id: bundle.id,
+          label: bundle.label,
+          source: bundle.source,
+          outcome: getBundleResultOutcome(bundle),
+          submittedAt: bundle.submittedAt,
+          closedAt,
+          packetVersionLine,
+          changedTruth,
+          rejectedOrDeferred: rejectedSummaries,
+          beforeSummaries,
+          reviewNotes,
+          fullyClosed: bundle.fullyClosed,
+          publishRecommended,
+          publishReason: publishRecommended
+            ? 'This bundle changed outward-facing packet truth after the last published update.'
+            : accepted.length > 0
+              ? 'This bundle changed packet truth without creating a new publish gap.'
+              : 'This bundle closed review without changing accepted packet truth.',
+        };
+      })
+      .sort((left, right) => compareDesc(left.closedAt, right.closedAt))
+      .slice(0, 8);
+  }, [latestPublishedUpdate, proposalBundles]);
+
+  const latestBundleResult = useMemo(() => recentBundleResults[0] || null, [recentBundleResults]);
+
   const judgeNextSummary = useMemo(() => {
     if (!focusedQueueItem) return 'No waiting work.';
     return focusedQueueItem.priority.reason;
@@ -981,6 +1122,27 @@ export default function ReviewPage() {
       );
     });
   }, [recentJudgedItems]);
+
+  const reviewStatusSummary = useMemo(() => {
+    if (personalNeedsQueue.length > 0) {
+      return {
+        label: 'Needs Judgment',
+        detail: `${personalNeedsQueue.length} item${personalNeedsQueue.length === 1 ? '' : 's'} are waiting on you or ready for you to claim.`,
+      };
+    }
+    if (unassignedTriageQueue.length > 0) {
+      return {
+        label: 'Unassigned Triage',
+        detail: `${unassignedTriageQueue.length} bundle${unassignedTriageQueue.length === 1 ? '' : 's'} still need a reviewer.`,
+      };
+    }
+    return {
+      label: 'Queue Cleared',
+      detail: stalePublishedUpdate
+        ? 'No work is waiting, but the published update is stale against current packet truth.'
+        : 'No proposals are waiting and the latest published update is aligned.',
+    };
+  }, [personalNeedsQueue.length, stalePublishedUpdate, unassignedTriageQueue.length]);
 
   const handleAuthSubmit = useCallback(async () => {
     if (!authEmail.trim() || !authPassword.trim()) {
@@ -1488,7 +1650,7 @@ export default function ReviewPage() {
                     </div>
                     <div className="rounded-2xl border border-sky-500/20 bg-sky-500/8 p-4">
                       <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-sky-200">Review re-entry</div>
-                      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                      <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                         <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-3">
                           <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Highest priority</div>
                           <div className="mt-2 text-sm font-semibold text-white">
@@ -1507,6 +1669,37 @@ export default function ReviewPage() {
                           <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Judge next</div>
                           <div className="mt-2 text-sm font-semibold text-white">
                             {highestPriorityItem ? highestPriorityItem.priority.reason : 'No waiting work'}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-3">
+                          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Queue status</div>
+                          <div className="mt-2 text-sm font-semibold text-white">{reviewStatusSummary.label}</div>
+                          <div className="mt-2 text-xs leading-5 text-slate-400">{reviewStatusSummary.detail}</div>
+                        </div>
+                      </div>
+                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                        <div className={`rounded-2xl border p-3 ${stalePublishedUpdate ? 'border-cyan-500/20 bg-cyan-500/8' : 'border-emerald-500/20 bg-emerald-500/8'}`}>
+                          <div className={`text-[11px] uppercase tracking-[0.18em] ${stalePublishedUpdate ? 'text-cyan-200' : 'text-emerald-200'}`}>Publish state</div>
+                          <div className="mt-2 text-sm font-semibold text-white">
+                            {stalePublishedUpdate ? 'Publish Recommended' : 'Published state aligned'}
+                          </div>
+                          <div className="mt-2 text-xs leading-5 text-slate-300">
+                            {latestBundleResult?.publishRecommended
+                              ? latestBundleResult.publishReason
+                              : stalePublishedUpdate
+                                ? 'Accepted truth changed after the last published update. Clear judgment, then publish the new outward checkpoint.'
+                                : 'No outward-facing packet gap is currently open.'}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-3">
+                          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Latest bundle result</div>
+                          <div className="mt-2 text-sm font-semibold text-white">
+                            {latestBundleResult ? latestBundleResult.label : 'No closed bundle yet'}
+                          </div>
+                          <div className="mt-2 text-xs leading-5 text-slate-300">
+                            {latestBundleResult
+                              ? `${getBundleResultLabel(latestBundleResult.outcome)} • ${latestBundleResult.changedTruth[0] || latestBundleResult.rejectedOrDeferred[0] || 'No packet truth changed.'}`
+                              : 'Once a bundle is accepted, rejected, or deferred, the result will stay visible here.'}
                           </div>
                         </div>
                       </div>
@@ -2156,6 +2349,108 @@ export default function ReviewPage() {
                   </div>
                 )}
               </section>
+            </section>
+
+            <section className="rounded-3xl border border-white/10 bg-[#0b1418] p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Bundle results</div>
+                  <h2 className="mt-1 text-2xl font-semibold text-white">Accepted Truth Deltas</h2>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
+                    Closed bundles stay visible here as proof that review changed packet truth. This is the shortest honest answer to what changed, who judged it, and whether publish should follow.
+                  </p>
+                </div>
+                <GitBranch className="mt-1 h-5 w-5 text-emerald-300" />
+              </div>
+
+              {recentBundleResults.length === 0 ? (
+                <div className="mt-6">
+                  <EmptyCard
+                    title="No closed bundles yet"
+                    body="Once a bundle is accepted, rejected, or deferred, it will remain here with the packet delta, review notes, and publish consequence."
+                  />
+                </div>
+              ) : (
+                <div className="mt-6 grid gap-4 lg:grid-cols-2">
+                  {recentBundleResults.map((result) => (
+                    <article key={result.id} className="rounded-3xl border border-white/10 bg-white/[0.03] p-5">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] ${getBundleResultClasses(result.outcome)}`}>
+                              {getBundleResultLabel(result.outcome)}
+                            </span>
+                            <span className="rounded-full border border-white/10 bg-slate-950/60 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-200">
+                              {result.source}
+                            </span>
+                            {result.publishRecommended ? (
+                              <span className="rounded-full border border-cyan-500/30 bg-cyan-500/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan-100">
+                                Publish Recommended
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="mt-3 text-base font-semibold text-white">{result.label}</div>
+                          <div className="mt-2 text-xs text-slate-400">
+                            Submitted {formatDateTime(result.submittedAt)} • Closed {formatDateTime(result.closedAt)}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-slate-950/50 px-3 py-2 text-right text-xs text-slate-300">
+                          <div className="uppercase tracking-[0.18em] text-slate-500">Packet version</div>
+                          <div className="mt-2 font-semibold text-white">{result.packetVersionLine}</div>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 grid gap-3 md:grid-cols-2">
+                        <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-3">
+                          <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">Before</div>
+                          <div className="mt-2 space-y-1 text-sm leading-6 text-slate-300">
+                            {result.beforeSummaries.map((line) => (
+                              <div key={line}>- {line}</div>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-3">
+                          <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">Accepted truth delta</div>
+                          <div className="mt-2 space-y-1 text-sm leading-6 text-slate-300">
+                            {result.changedTruth.length > 0 ? (
+                              result.changedTruth.map((line) => <div key={line}>- {line}</div>)
+                            ) : (
+                              <div className="text-slate-500">No packet object was accepted from this bundle.</div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 grid gap-3 md:grid-cols-2">
+                        <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-3">
+                          <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">Rejected or deferred</div>
+                          <div className="mt-2 space-y-1 text-sm leading-6 text-slate-300">
+                            {result.rejectedOrDeferred.length > 0 ? (
+                              result.rejectedOrDeferred.map((line) => <div key={line}>- {line}</div>)
+                            ) : (
+                              <div className="text-slate-500">No rejected or deferred items in this bundle.</div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-3">
+                          <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">Review notes</div>
+                          <div className="mt-2 space-y-1 text-sm leading-6 text-slate-300">
+                            {result.reviewNotes.length > 0 ? (
+                              result.reviewNotes.map((line) => <div key={line}>- {line}</div>)
+                            ) : (
+                              <div className="text-slate-500">No explicit review note was recorded.</div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className={`mt-3 rounded-2xl border p-3 text-sm leading-6 ${result.publishRecommended ? 'border-cyan-500/20 bg-cyan-500/8 text-cyan-100' : 'border-white/10 bg-slate-950/50 text-slate-300'}`}>
+                        {result.publishReason}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
             </section>
 
             <section className="rounded-3xl border border-white/10 bg-[#0b1418] p-6">

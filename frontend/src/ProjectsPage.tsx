@@ -6911,6 +6911,9 @@ export default function ProjectsPage() {
       payload_summary: proposal.payload_summary
     }));
     const acceptedRuns = (selectedProject.runs || []).filter((run: any) => run.run_state === 'active' || run.run_state === 'completed');
+    const latestClosedBundle = proposalBundles
+      .filter((bundle) => bundle.fullyClosed && (bundle.acceptedCount > 0 || bundle.rejectedCount > 0 || bundle.deferredCount > 0))
+      .sort((left, right) => Date.parse(right.submittedAt) - Date.parse(left.submittedAt))[0];
     const attachedPlaybooks = acceptedRuns
       .map((run: any) => (run && typeof run === 'object' ? run.playbook_definition : null))
       .filter((playbook: any) => playbook && typeof playbook === 'object')
@@ -6988,6 +6991,16 @@ export default function ProjectsPage() {
             summary_line: latestReviewPacket.snapshot.summary_line
           }
         : null,
+      latest_bundle_result: latestClosedBundle
+        ? {
+            id: latestClosedBundle.id,
+            label: latestClosedBundle.label,
+            submitted_at: latestClosedBundle.submittedAt,
+            outcome: latestClosedBundle.outcomeLabel,
+            changed_summary: latestClosedBundle.changedSummary,
+            unresolved_summary: latestClosedBundle.unresolvedSummary
+          }
+        : null,
       accepted_truth: {
         approved_sources: approvedArtifacts.length,
         accepted_decisions: acceptedDecisions.length,
@@ -6995,6 +7008,14 @@ export default function ProjectsPage() {
         recent_accepts: changedPacketTruthSummary.acceptedLines
       },
       changed_packet_truth: changedPacketTruthSummary,
+      publish_recommended: {
+        value: stalePublishedUpdate,
+        reason: latestPublishedUpdate
+          ? stalePublishedUpdate
+            ? 'Accepted packet truth changed after the last published update.'
+            : 'The latest published update is aligned with current packet truth.'
+          : 'No published update exists yet. Publish when this packet becomes the right outward checkpoint.'
+      },
       safe_next_proposal: safeNextProposal,
       remote_submission: {
         supported: true,
@@ -7028,7 +7049,8 @@ export default function ProjectsPage() {
     latestReviewPacket,
     proposalBundles,
     changedPacketTruthSummary,
-    safeNextProposal
+    safeNextProposal,
+    stalePublishedUpdate
   ]);
 
   const buildSharedRoomExportPacket = useCallback(() => {
@@ -7250,6 +7272,7 @@ export default function ProjectsPage() {
             summary_line: latestReviewPacket.snapshot.summary_line
           }
         : null,
+      latest_bundle_result: roomContract?.latest_bundle_result || null,
       remote_submission: {
         supported: Boolean(selectedHostedRoom),
         endpoint: selectedHostedRoom ? getProjectRoomSubmissionEndpoint() : null,
@@ -7269,7 +7292,9 @@ export default function ProjectsPage() {
       current_status: {
         ready_to_publish: handoffReadiness.ready,
         blockers: handoffReadiness.blockers,
-        changed_packet_truth: changedPacketTruthSummary
+        changed_packet_truth: changedPacketTruthSummary,
+        publish_recommended: stalePublishedUpdate,
+        publish_reason: roomContract?.publish_recommended?.reason || null
       }
     };
   }, [
@@ -7286,7 +7311,8 @@ export default function ProjectsPage() {
     activeOrCompletedRuns,
     attachedPlaybooks,
     handoffReadiness,
-    changedPacketTruthSummary
+    changedPacketTruthSummary,
+    stalePublishedUpdate
   ]);
 
   const buildAgentBriefMarkdown = useCallback(() => {
@@ -9020,6 +9046,30 @@ export default function ProjectsPage() {
                             {sharedRoomContract.latest_checkpoint
                               ? `Checkpoint: ${sharedRoomContract.latest_checkpoint.title} on ${formatTimestamp(sharedRoomContract.latest_checkpoint.timestamp)}`
                               : 'No checkpoint saved yet.'}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
+                          <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Latest Bundle Result</div>
+                          <div className="mt-2 text-sm text-slate-200">
+                            {sharedRoomContract.latest_bundle_result
+                              ? `${sharedRoomContract.latest_bundle_result.label} (${sharedRoomContract.latest_bundle_result.outcome.replace(/_/g, ' ')})`
+                              : 'No closed bundle result is recorded yet.'}
+                          </div>
+                          {sharedRoomContract.latest_bundle_result && (
+                            <div className="mt-2 text-xs leading-5 text-slate-400">
+                              {sharedRoomContract.latest_bundle_result.changed_summary} {sharedRoomContract.latest_bundle_result.unresolved_summary}
+                            </div>
+                          )}
+                        </div>
+                        <div className={`rounded border p-3 ${sharedRoomContract.publish_recommended.value ? 'border-cyan-900/20 bg-cyan-950/10' : 'border-emerald-900/20 bg-emerald-950/10'}`}>
+                          <div className={`text-[10px] font-bold uppercase tracking-widest ${sharedRoomContract.publish_recommended.value ? 'text-cyan-300' : 'text-emerald-300'}`}>Publish Recommendation</div>
+                          <div className="mt-2 text-sm text-slate-200">
+                            {sharedRoomContract.publish_recommended.value ? 'Publish the next outward checkpoint.' : 'Published state is aligned.'}
+                          </div>
+                          <div className="mt-2 text-xs leading-5 text-slate-400">
+                            {sharedRoomContract.publish_recommended.reason}
                           </div>
                         </div>
                       </div>
