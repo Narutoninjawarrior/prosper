@@ -9353,12 +9353,31 @@ export default function ProjectsPage() {
               <div className="mt-3 rounded border border-sky-900/30 bg-sky-950/10 p-3">
                 <div className="flex flex-wrap items-start justify-between gap-3 border-b border-sky-900/20 pb-3">
                   <div>
-                    <div className="text-[10px] font-bold uppercase tracking-widest text-sky-300">Remote Agent Path</div>
-                    <div className="mt-1 text-sm font-bold text-slate-100">
-                      {remoteSubmissionSupported ? 'Remote submission enabled for this shared packet room.' : 'Remote submission not ready yet.'}
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-sky-300">Agent Setup</div>
+                    <div className="mt-1 text-sm font-bold text-slate-100">How to connect a coding agent to this shared packet room.</div>
+                    <div className="mt-2 text-xs leading-5 text-slate-400">
+                      Brief {'->'} Proposal Bundle {'->'} Review {'->'} Accepted Truth. Agents can only stage work for judgment here. They cannot change packet truth directly.
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={handleCopyAgentBriefJson}
+                      className="rounded border border-fuchsia-800 bg-fuchsia-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-fuchsia-200 transition-colors hover:bg-fuchsia-900/40"
+                    >
+                      Copy Brief JSON
+                    </button>
+                    <button
+                      onClick={copyAgentWritePathCommand}
+                      className="rounded border border-emerald-800 bg-emerald-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-emerald-200 transition-colors hover:bg-emerald-900/40"
+                    >
+                      Copy CLI Command
+                    </button>
+                    <button
+                      onClick={copyAgentProposalTemplate}
+                      className="rounded border border-cyan-800 bg-cyan-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-cyan-200 transition-colors hover:bg-cyan-900/40"
+                    >
+                      Copy Example Payload
+                    </button>
                     <button
                       onClick={handleCopyRemoteSubmissionEndpoint}
                       disabled={!remoteSubmissionEndpoint}
@@ -9366,6 +9385,35 @@ export default function ProjectsPage() {
                     >
                       Copy Endpoint
                     </button>
+                  </div>
+                </div>
+                <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Room Id</div>
+                    <div className="mt-2 break-all text-xs leading-5 text-slate-200">{selectedHostedRoom?.id || 'No shared room selected yet.'}</div>
+                  </div>
+                  <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Packet Version</div>
+                    <div className="mt-2 text-sm font-bold text-slate-100">v{selectedProject?.packet_version || 1}</div>
+                  </div>
+                  <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Allowed Proposal Types</div>
+                    <div className="mt-2 text-xs leading-5 text-slate-300">run, run_step, decision, scope_note, source, open_action</div>
+                  </div>
+                  <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Remote Submission</div>
+                    <div className="mt-2 text-sm font-bold text-slate-100">
+                      {remoteSubmissionSupported ? 'Enabled' : 'Not available yet'}
+                    </div>
+                    <div className="mt-2 text-xs leading-5 text-slate-400">{remoteSubmissionStatusLine}</div>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-3 rounded border border-sky-900/30 bg-sky-950/10 p-3">
+                <div className="flex flex-wrap items-start justify-between gap-3 border-b border-sky-900/20 pb-3">
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-sky-300">Submission Path</div>
+                    <div className="mt-1 text-sm font-bold text-slate-100">{remoteSubmissionSupported ? 'Remote submission is ready for this room.' : 'Use local intake until remote submission is available.'}</div>
                   </div>
                 </div>
                 <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1.2fr),minmax(280px,0.8fr)]">
@@ -9377,11 +9425,12 @@ export default function ProjectsPage() {
                     <div className="mt-2 text-xs leading-5 text-slate-400">{remoteSubmissionStatusLine}</div>
                   </div>
                   <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
-                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Gateway Rules</div>
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Supervision Rules</div>
                     <div className="mt-2 space-y-1 text-xs text-slate-300">
                       <div>Auth: Firebase ID token from a shared-room member</div>
                       <div>Stage only: Waiting for Judgment</div>
-                      <div>Fallback: Verified local intake import</div>
+                      <div>Accepted truth changes only after human review</div>
+                      <div>Fallback: verified local intake import</div>
                     </div>
                   </div>
                 </div>
@@ -9455,16 +9504,10 @@ export default function ProjectsPage() {
                 <div className="mt-3 rounded border border-fuchsia-900/30 bg-fuchsia-950/10 p-3">
                   <div className="flex flex-wrap items-start justify-between gap-3 border-b border-fuchsia-900/20 pb-3">
                     <div>
-                      <div className="text-[10px] font-bold uppercase tracking-widest text-fuchsia-300">Agent Brief And Room Export</div>
-                      <div className="mt-1 text-sm font-bold text-slate-100">Load one bounded packet before a coding agent proposes anything new.</div>
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-fuchsia-300">Agent Setup Files</div>
+                      <div className="mt-1 text-sm font-bold text-slate-100">Export the bounded read path and room contract before an agent proposes anything new.</div>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <button
-                        onClick={handleCopyAgentBriefJson}
-                        className="rounded border border-fuchsia-800 bg-fuchsia-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-fuchsia-200 transition-colors hover:bg-fuchsia-900/40"
-                      >
-                        Copy Brief JSON
-                      </button>
                       <button
                         onClick={handleExportAgentBriefJson}
                         className="rounded border border-slate-700 bg-slate-950/60 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-300 transition-colors hover:bg-slate-900/70"

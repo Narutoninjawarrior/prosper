@@ -33,16 +33,16 @@ const primarySurfaces = [
 
 const useCases = [
   {
-    title: 'Coding-agent build loop',
-    body: 'Collect notes, links, diffs, and agent proposals fast, then turn them into reviewed packet truth and a clean published update.',
+    title: 'Solo developer with 3-5 agents',
+    body: 'Run multiple coding agents without losing the plot. Keep one packet where proposals, decisions, open work, and publish state stay under control.',
   },
   {
-    title: 'Small shipping team',
-    body: 'Keep one packet that shows what changed, what was judged, what was accepted, and what still needs to ship.',
+    title: 'Freelancer shipping for clients',
+    body: 'Turn agent output into judged project truth, then publish a clean update another engineer, client, or reviewer can understand quickly.',
   },
   {
-    title: 'People + coding agents',
-    body: 'Give coding agents a stable packet instead of scattered chat context, then keep the judgment trail visible to the team.',
+    title: 'Small engineering team',
+    body: 'Keep the review trail visible when humans and coding agents both move the project. One packet, one judgment loop, one outward update.',
   },
 ];
 
@@ -147,11 +147,11 @@ export default function LandingPage() {
                 Prosper
               </div>
               <h1 className="max-w-4xl text-4xl font-semibold tracking-tight text-white md:text-5xl">
-                Keep coding-agent work in a packet your team can actually ship from.
+                Supervise multiple coding agents without losing project truth.
               </h1>
               <p className="mt-4 max-w-3xl text-base leading-7 text-[#b7c9be] md:text-lg">
-                Capture inputs, attach sources, review agent proposals, record decisions, track open actions,
-                and publish an update another engineer or agent can pick up without a reset.
+                Prosper gives a solo developer one packet room for incoming proposals, accepted truth, open actions,
+                and the next publishable update, so agents can move fast without turning the project into a blur.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-3">
@@ -182,10 +182,10 @@ export default function LandingPage() {
             <div className="grid min-w-[300px] gap-3 rounded-[28px] border border-white/8 bg-white/5 p-4 shadow-inner">
               <div className="text-[11px] uppercase tracking-[0.3em] text-[#89a598]">Core Loop</div>
               {[
-                'Capture project inputs and coding-agent output before they are lost.',
-                'Judge proposals and source changes before they become accepted truth.',
-                'Record decisions and keep open actions visible across runs.',
-                'Publish a project update another engineer or agent can actually use.',
+                'Connect an agent with the room brief and proposal path.',
+                'Judge incoming work before it becomes accepted truth.',
+                'Create downstream open actions from accepted judgment.',
+                'Publish a reviewed update another engineer or agent can pick up fast.',
               ].map((item) => (
                 <div key={item} className="rounded-2xl border border-white/8 bg-black/20 p-4 text-sm leading-6 text-[#d4f7e0]">
                   {item}
@@ -196,10 +196,10 @@ export default function LandingPage() {
         </section>
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <StatCard label="Packet room" value="Live" detail="Sources, decisions, open actions, runs, and published updates all live in /projects." />
+          <StatCard label="Packet room" value="Live" detail="Sources, decisions, open actions, runs, and publish state all live in /projects." />
           <StatCard label="Review queue" value={lastSignalLabel} detail={activity?.note ?? `State: ${activityStateLabel}`} />
-          <StatCard label="Sources" value={evidenceCount} detail="Attached material can be reviewed and carried into accepted packet truth." />
-          <StatCard label="Members" value={memberCount} detail={`Source: ${memberSource}`} />
+          <StatCard label="Accepted sources" value={evidenceCount} detail="Attached material can be reviewed and carried into accepted packet truth." />
+          <StatCard label="Shared rooms" value={memberCount} detail={`Current signal from ${memberSource}.`} />
         </section>
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
@@ -228,7 +228,7 @@ export default function LandingPage() {
             </div>
             <div>
               <div className="text-[11px] uppercase tracking-[0.32em] text-[#89a598]">Built For</div>
-          <h2 className="text-2xl font-semibold text-white">Keep the thread from first note to accepted truth to shipped update</h2>
+          <h2 className="text-2xl font-semibold text-white">Keep the thread from first proposal to accepted truth to shipped update</h2>
             </div>
           </div>
 
@@ -253,8 +253,8 @@ export default function LandingPage() {
                 <h2 className="text-2xl font-semibold text-white">Current signals from the workspace</h2>
               </div>
             </div>
-            <a href="/activity" className="text-sm font-semibold text-[#D4A853] no-underline hover:text-white">
-              Open full feed
+            <a href="/review" className="text-sm font-semibold text-[#D4A853] no-underline hover:text-white">
+              Open review
             </a>
           </div>
 

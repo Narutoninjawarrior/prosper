@@ -3,7 +3,7 @@ import { Flame } from 'lucide-react'
 const LINKS = [
   { href: '/projects', label: 'Projects' },
   { href: '/review', label: 'Review' },
-  { href: '/hall', label: 'Directory' },
+  { href: '/handoff', label: 'Published Updates' },
 ]
 
 export default function PublicNav({ compact = false }: { compact?: boolean }) {

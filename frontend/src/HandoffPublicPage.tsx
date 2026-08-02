@@ -141,11 +141,11 @@ export default function HandoffPublicPage() {
     <main className="min-h-screen bg-[#f8fafc] px-5 py-8 text-slate-950">
       <div className="mx-auto max-w-4xl">
         <header className="border-b border-slate-300 pb-6">
-          <div className="text-xs font-bold uppercase tracking-[0.22em] text-emerald-700">Published Update</div>
+          <div className="text-xs font-bold uppercase tracking-[0.22em] text-emerald-700">Reviewed Project Update</div>
           <h1 className="mt-3 text-3xl font-bold tracking-tight">{handoff.project_title}</h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">{handoff.project_summary || 'No project summary was included.'}</p>
           <div className="mt-4 rounded border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-950">
-            This page is a shared engineering packet snapshot. It gives a teammate or reviewer the current project state, what changed, what still needs attention, and what should happen next.
+            This page is a reviewed engineering update. It shows the current project state, what changed through judgment, what still needs attention, and what the next person should carry forward.
           </div>
           <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-500">
             <span className="rounded border border-slate-300 bg-white px-2 py-1">Published {formatDateTime(handoff.published_at)}</span>
@@ -173,7 +173,7 @@ export default function HandoffPublicPage() {
         <div className="mt-8 space-y-8">
           <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <div className="rounded border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Current Status</div>
+                  <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Current Status</div>
               <div className="mt-3 text-lg font-semibold text-slate-900">
                 {readiness === 'ready' ? 'Ready to carry forward' : 'Needs review'}
               </div>
@@ -195,10 +195,10 @@ export default function HandoffPublicPage() {
               )}
             </div>
             <div className="rounded border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">What Happens Next</div>
+                  <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">What Happens Next</div>
               <div className="mt-3 text-sm font-semibold text-slate-900">{nextStep || nextActionLabel || 'No next step was included.'}</div>
               <p className="mt-2 text-sm leading-6 text-slate-600">
-                {nextActionExplanation || carryForwardCue || 'Use this update to confirm the next engineering move with the project owner.'}
+                {nextActionExplanation || carryForwardCue || 'Use this update to confirm the next engineering move and keep the packet moving forward.'}
               </p>
             </div>
           </section>

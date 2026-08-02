@@ -1756,7 +1756,7 @@ export default function ReviewPage() {
                           href="/projects"
                           className="inline-flex items-center gap-2 rounded-full border border-fuchsia-500/30 bg-fuchsia-500/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-fuchsia-100 transition hover:border-fuchsia-400/60 hover:bg-fuchsia-500/15"
                         >
-                          Open Agent Brief
+                          Open Agent Setup
                           <ArrowRight className="h-3.5 w-3.5" />
                         </a>
                       </div>
@@ -2130,7 +2130,7 @@ export default function ReviewPage() {
                               : 'Accepted truth is current and the queue is clear. Publish the first outward update when this packet is ready to share.'
                           : 'Try another triage mode or return to All incoming work to see the full queue.'
                       }
-                      ctaLabel={stalePublishedUpdate || !latestPublishedUpdate ? 'Open Projects' : undefined}
+                      ctaLabel={stalePublishedUpdate || !latestPublishedUpdate ? 'Open Packet Room' : undefined}
                       ctaHref="/projects"
                     />
                   </div>
