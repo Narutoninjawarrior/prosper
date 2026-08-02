@@ -251,6 +251,9 @@ export interface ProjectProposalRecord {
   proposal_type: ProjectProposalType;
   proposal_source: string;
   proposed_at: string;
+  proposal_bundle_id?: string;
+  proposal_bundle_label?: string;
+  proposal_bundle_source?: string;
   proposal_summary: string;
   payload_summary: string;
   review_state: ProjectProposalReviewState;
@@ -322,6 +325,20 @@ interface DerivedProjectBrief {
 }
 
 type ProjectViewMode = 'desk' | 'overview' | 'frames' | 'room' | 'review' | 'handoff' | 'context';
+
+interface DerivedProposalBundleSummary {
+  id: string;
+  label: string;
+  source: string;
+  submittedAt: string;
+  proposalCount: number;
+  acceptedCount: number;
+  rejectedCount: number;
+  deferredCount: number;
+  pendingCount: number;
+  outcomeLabel: 'waiting' | 'fully_accepted' | 'partially_accepted' | 'rejected' | 'deferred';
+  proposals: ProjectProposalRecord[];
+}
 
 interface ProjectRoomObject {
   id: string;
@@ -2580,6 +2597,9 @@ function normalizeProposalHistory(value: unknown): ProjectProposalRecord[] {
         proposal_type: proposalType,
         proposal_source: typeof item.proposal_source === 'string' ? item.proposal_source : 'agent_intake',
         proposed_at: typeof item.proposed_at === 'string' ? item.proposed_at : nowIso(),
+        proposal_bundle_id: typeof item.proposal_bundle_id === 'string' ? item.proposal_bundle_id : undefined,
+        proposal_bundle_label: typeof item.proposal_bundle_label === 'string' ? item.proposal_bundle_label : undefined,
+        proposal_bundle_source: typeof item.proposal_bundle_source === 'string' ? item.proposal_bundle_source : undefined,
         proposal_summary: typeof item.proposal_summary === 'string' ? item.proposal_summary : 'Untitled proposal',
         payload_summary: typeof item.payload_summary === 'string' ? item.payload_summary : '',
         review_state: reviewState,
@@ -2648,6 +2668,54 @@ function buildProposalPayloadSummary(payload: any) {
   ].filter(Boolean);
 
   return parts.length > 0 ? parts.join(' | ') : JSON.stringify(payload);
+}
+
+function deriveProposalBundles(proposals: ProjectProposalRecord[]): DerivedProposalBundleSummary[] {
+  const grouped = proposals.reduce<Record<string, ProjectProposalRecord[]>>((acc, proposal) => {
+    const key = proposal.proposal_bundle_id || proposal.id;
+    acc[key] = [...(acc[key] || []), proposal];
+    return acc;
+  }, {});
+
+  return Object.entries(grouped)
+    .map(([bundleId, bundleProposals]) => {
+      const sorted = [...bundleProposals].sort((a, b) => Date.parse(a.proposed_at) - Date.parse(b.proposed_at));
+      const first = sorted[0];
+      const acceptedCount = sorted.filter((proposal) => proposal.review_state === 'accepted').length;
+      const rejectedCount = sorted.filter((proposal) => proposal.review_state === 'rejected').length;
+      const deferredCount = sorted.filter((proposal) => proposal.review_state === 'deferred').length;
+      const pendingCount = sorted.filter((proposal) => proposal.review_state === 'proposed').length;
+
+      let outcomeLabel: DerivedProposalBundleSummary['outcomeLabel'] = 'waiting';
+      if (pendingCount > 0) {
+        outcomeLabel = acceptedCount > 0 ? 'partially_accepted' : 'waiting';
+      } else if (acceptedCount === sorted.length) {
+        outcomeLabel = 'fully_accepted';
+      } else if (acceptedCount > 0) {
+        outcomeLabel = 'partially_accepted';
+      } else if (deferredCount > 0 && rejectedCount === 0) {
+        outcomeLabel = 'deferred';
+      } else if (rejectedCount === sorted.length) {
+        outcomeLabel = 'rejected';
+      } else if (deferredCount > 0) {
+        outcomeLabel = 'deferred';
+      }
+
+      return {
+        id: bundleId,
+        label: first.proposal_bundle_label || `Proposal Bundle ${bundleId.slice(-6)}`,
+        source: first.proposal_bundle_source || first.proposed_by || first.proposal_source,
+        submittedAt: first.proposed_at,
+        proposalCount: sorted.length,
+        acceptedCount,
+        rejectedCount,
+        deferredCount,
+        pendingCount,
+        outcomeLabel,
+        proposals: [...sorted].sort((a, b) => Date.parse(b.proposed_at) - Date.parse(a.proposed_at))
+      };
+    })
+    .sort((a, b) => Date.parse(b.submittedAt) - Date.parse(a.submittedAt));
 }
 
 function deriveAgentSummary(project: Project | null): DerivedAgentSummary {
@@ -4657,6 +4725,7 @@ export default function ProjectsPage() {
     () => proposalHistory.filter((proposal) => proposal.review_state === 'deferred'),
     [proposalHistory]
   );
+  const proposalBundles = useMemo(() => deriveProposalBundles(proposalHistory), [proposalHistory]);
   const flaggedArtifacts = useMemo(
     () => (selectedProject?.artifacts || []).filter((artifact) => isArtifactFlagged(artifact)),
     [selectedProject]
@@ -6338,6 +6407,196 @@ export default function ProjectsPage() {
     contextEvidenceAssets
   ]);
 
+  const buildSharedRoomContract = useCallback(() => {
+    if (!selectedProject || !selectedHostedRoom) return null;
+
+    const acceptedContext = (selectedProject.context_items || []).filter((item) => item.context_state === 'accepted');
+    const activeConstraints = acceptedContext
+      .filter((item) => item.context_type === 'constraint')
+      .map((item) => item.body || item.title);
+    const openJudgment = pendingProposalHistory.map((proposal) => ({
+      id: proposal.id,
+      type: getProposalTypeLabel(proposal.proposal_type),
+      summary: proposal.proposal_summary,
+      source: proposal.proposed_by || proposal.proposal_source,
+      bundle_id: proposal.proposal_bundle_id || null
+    }));
+    const acceptedRuns = (selectedProject.runs || []).filter((run: any) => run.run_state === 'active' || run.run_state === 'completed');
+    const attachedPlaybooks = acceptedRuns
+      .map((run: any) => (run && typeof run === 'object' ? run.playbook_definition : null))
+      .filter((playbook: any) => playbook && typeof playbook === 'object')
+      .map((playbook: any, index: number) => ({
+        id: String(playbook.id || `playbook_${index}`),
+        title: String(playbook.title || 'Reusable playbook'),
+        objective: typeof playbook.objective === 'string' ? playbook.objective : null
+      }));
+    const latestPublishedUpdate = publishedHandoffs.length > 0
+      ? [...publishedHandoffs].sort((a, b) => Date.parse(b.published_at) - Date.parse(a.published_at))[0]
+      : null;
+    const safeNextProposal = pendingProposalHistory.length > 0
+      ? 'Resolve open proposal judgment before sending another large proposal bundle.'
+      : handoffReadiness.blockers.length > 0
+        ? 'Propose a source review, decision update, or open action that addresses the current blockers.'
+        : deskNextAction?.explanation || 'Propose the smallest next run, decision, or open action that advances the packet.';
+
+    return {
+      room_identity: {
+        id: selectedHostedRoom.id,
+        title: selectedHostedRoom.title,
+        visibility: selectedHostedRoom.visibility,
+        role: selectedRoomRole,
+        member_count: selectedHostedRoom.member_uids.length
+      },
+      current_packet_goal: selectedProject.next_step?.trim() || selectedProject.description || 'No current packet goal is recorded yet.',
+      current_next_action: deskNextAction
+        ? {
+            title: deskNextAction.title,
+            explanation: deskNextAction.explanation,
+            action_label: deskNextAction.actionLabel
+          }
+        : null,
+      active_constraints: activeConstraints,
+      open_proposals_waiting_for_judgment: openJudgment,
+      accepted_runs: acceptedRuns.map((run: any) => ({
+        id: String(run.id || ''),
+        title: String(run.title || 'Untitled run'),
+        run_state: String(run.run_state || 'draft'),
+        outcome_summary: typeof run.outcome_summary === 'string' ? run.outcome_summary : null
+      })),
+      accepted_playbooks: attachedPlaybooks,
+      latest_published_update: latestPublishedUpdate
+        ? {
+            token: latestPublishedUpdate.token,
+            published_at: latestPublishedUpdate.published_at,
+            version: latestPublishedUpdate.handoff_version,
+            prepared_by: latestPublishedUpdate.published_by.label
+          }
+        : null,
+      accepted_truth: {
+        approved_sources: approvedArtifacts.length,
+        accepted_decisions: acceptedDecisions.length,
+        active_open_actions: (selectedProject.commitments || []).filter((item) => item.commitment_state === 'active').length
+      },
+      safe_next_proposal: safeNextProposal
+    };
+  }, [
+    selectedProject,
+    selectedHostedRoom,
+    pendingProposalHistory,
+    publishedHandoffs,
+    handoffReadiness.blockers,
+    deskNextAction,
+    selectedRoomRole,
+    approvedArtifacts.length,
+    acceptedDecisions.length
+  ]);
+
+  const buildSharedRoomExportPacket = useCallback(() => {
+    if (!selectedProject || !selectedHostedRoom) return null;
+
+    const roomContract = buildSharedRoomContract();
+    const latestPublishedUpdate = publishedHandoffs.length > 0
+      ? [...publishedHandoffs].sort((a, b) => Date.parse(b.published_at) - Date.parse(a.published_at))[0]
+      : null;
+    const activeRuns = (selectedProject.runs || []).filter((run: any) => run.run_state === 'active' || run.run_state === 'completed');
+    const acceptedTruth = {
+      sources: approvedArtifacts.map((artifact) => ({
+        id: artifact.id,
+        title: artifact.title,
+        type: artifact.type,
+        summary: artifact.summary || null
+      })),
+      decisions: (selectedProject.decisions || []).filter((decision) => decision.decision_state === 'accepted'),
+      open_actions: (selectedProject.commitments || []).filter((commitment) => commitment.commitment_state === 'active'),
+      scope_notes: (selectedProject.context_items || []).filter((item) => item.context_state === 'accepted')
+    };
+
+    return {
+      room_identity: {
+        id: selectedHostedRoom.id,
+        title: selectedHostedRoom.title,
+        visibility: selectedHostedRoom.visibility,
+        owner_uid: selectedHostedRoom.owner_uid,
+        current_role: selectedRoomRole,
+        current_role_permissions: selectedRoomPermissions,
+        member_count: selectedHostedRoom.member_uids.length,
+        current_handoff_token: selectedHostedRoom.current_handoff_token || null
+      },
+      packet_summary: {
+        project_id: selectedProject.id,
+        title: selectedProject.title,
+        description: selectedProject.description,
+        status: selectedProject.status,
+        updated_at: selectedProject.updated_at,
+        current_goal: selectedProject.next_step?.trim() || selectedProject.description || null,
+        next_action: deskNextAction
+          ? {
+              title: deskNextAction.title,
+              explanation: deskNextAction.explanation,
+              action_label: deskNextAction.actionLabel,
+              action_kind: deskNextAction.actionKind
+            }
+          : null
+      },
+      room_contract: roomContract,
+      proposal_review_memory: {
+        waiting_for_judgment: pendingProposalHistory,
+        accepted_into_packet: acceptedProposalHistory,
+        rejected_in_review: rejectedProposalHistory,
+        deferred: deferredProposalHistory,
+        bundles: proposalBundles.map((bundle) => ({
+          id: bundle.id,
+          label: bundle.label,
+          source: bundle.source,
+          submitted_at: bundle.submittedAt,
+          proposal_count: bundle.proposalCount,
+          accepted_count: bundle.acceptedCount,
+          rejected_count: bundle.rejectedCount,
+          deferred_count: bundle.deferredCount,
+          pending_count: bundle.pendingCount,
+          outcome: bundle.outcomeLabel
+        }))
+      },
+      accepted_packet_truth: acceptedTruth,
+      active_runs: activeRuns,
+      reusable_playbooks: activeRuns
+        .map((run: any) => run.playbook_definition)
+        .filter((playbook: any) => playbook && typeof playbook === 'object'),
+      latest_checkpoint: latestReviewPacket
+        ? {
+            id: latestReviewPacket.id,
+            title: latestReviewPacket.title,
+            timestamp: latestReviewPacket.timestamp,
+            summary_line: latestReviewPacket.snapshot.summary_line
+          }
+        : null,
+      latest_published_update: latestPublishedUpdate
+        ? {
+            token: latestPublishedUpdate.token,
+            published_at: latestPublishedUpdate.published_at,
+            version: latestPublishedUpdate.handoff_version,
+            prepared_by: latestPublishedUpdate.published_by.label
+          }
+        : null,
+      safe_to_propose_next: roomContract?.safe_next_proposal || null
+    };
+  }, [
+    selectedProject,
+    selectedHostedRoom,
+    selectedRoomRole,
+    selectedRoomPermissions,
+    deskNextAction,
+    buildSharedRoomContract,
+    pendingProposalHistory,
+    acceptedProposalHistory,
+    rejectedProposalHistory,
+    deferredProposalHistory,
+    proposalBundles,
+    latestReviewPacket,
+    publishedHandoffs,
+    approvedArtifacts
+  ]);
+
   const buildProjectHandoffMarkdown = useCallback(() => {
     if (!selectedProject) return '';
 
@@ -7043,6 +7302,8 @@ export default function ProjectsPage() {
   const copyAgentProposalSchema = useCallback(() => {
     const schema = {
       agent_id: "example_agent_v1",
+      bundle_id: "bundle_001",
+      bundle_label: "Packet update bundle",
       proposals: [
         { type: "run", payload: { title: "Data extraction", run_type: "extraction", actions: [{ description: "Scan source" }] } },
         { type: "run_step", run_id: "existing_run_id", payload: { description: "Notify operator" } },
@@ -7054,6 +7315,40 @@ export default function ProjectsPage() {
     navigator.clipboard.writeText(JSON.stringify(schema, null, 2));
     alert('Agent Proposal Schema copied to clipboard.');
   }, []);
+
+  const handleCopySharedRoomContract = useCallback(async () => {
+    const contract = buildSharedRoomContract();
+    if (!contract) return;
+    const payload = JSON.stringify(contract, null, 2);
+    try {
+      await navigator.clipboard.writeText(payload);
+    } catch {
+      downloadTextArtifact('shared-room-contract.json', payload, 'application/json;charset=utf-8');
+    }
+  }, [buildSharedRoomContract]);
+
+  const handleExportSharedRoomContract = useCallback(() => {
+    const contract = buildSharedRoomContract();
+    if (!contract || !selectedProject) return;
+    downloadJsonArtifact(`shared-room-contract-${selectedProject.id}.json`, contract);
+  }, [buildSharedRoomContract, selectedProject]);
+
+  const handleCopySharedRoomExport = useCallback(async () => {
+    const packet = buildSharedRoomExportPacket();
+    if (!packet) return;
+    const payload = JSON.stringify(packet, null, 2);
+    try {
+      await navigator.clipboard.writeText(payload);
+    } catch {
+      downloadTextArtifact('shared-room-export.json', payload, 'application/json;charset=utf-8');
+    }
+  }, [buildSharedRoomExportPacket]);
+
+  const handleExportSharedRoomExport = useCallback(() => {
+    const packet = buildSharedRoomExportPacket();
+    if (!packet || !selectedProject) return;
+    downloadJsonArtifact(`shared-room-export-${selectedProject.id}.json`, packet);
+  }, [buildSharedRoomExportPacket, selectedProject]);
 
   const handleReviewProposal = useCallback(
     (proposalId: string, nextState: ProjectProposalReviewState) => {
@@ -7250,6 +7545,13 @@ export default function ProjectsPage() {
       const newCommitments = [...(selectedProject.commitments || [])];
       const newProposalHistory = [...(selectedProject.proposal_history || [])];
       const now = new Date().toISOString();
+      const bundleId = typeof payload.bundle_id === 'string' && payload.bundle_id.trim()
+        ? payload.bundle_id.trim()
+        : `bundle_${Date.now()}`;
+      const bundleLabel = typeof payload.bundle_label === 'string' && payload.bundle_label.trim()
+        ? payload.bundle_label.trim()
+        : `Proposal Bundle ${new Date().toLocaleString()}`;
+      const bundleSource = payload.agent_id || 'Coding Agent';
       payload.proposals.forEach((p: any, index: number) => {
         const id = `agent_prop_${Date.now()}_${index}`;
         const proposalType: ProjectProposalType =
@@ -7298,6 +7600,9 @@ export default function ProjectsPage() {
           proposal_type: proposalType,
           proposal_source: 'agent_intake',
           proposed_at: now,
+          proposal_bundle_id: bundleId,
+          proposal_bundle_label: bundleLabel,
+          proposal_bundle_source: bundleSource,
           proposal_summary: targetTitle,
           payload_summary: buildProposalPayloadSummary(p.payload),
           review_state: 'proposed',
@@ -7321,8 +7626,8 @@ export default function ProjectsPage() {
           {
             id: `act_${Date.now()}`,
             kind: 'status_update',
-            title: 'Agent proposals staged for review',
-            detail: `${payload.proposals.length} proposal${payload.proposals.length === 1 ? '' : 's'} entered the review surface from ${payload.agent_id || 'a coding agent'}.`,
+            title: 'Proposal bundle staged for review',
+            detail: `${bundleLabel} added ${payload.proposals.length} proposal${payload.proposals.length === 1 ? '' : 's'} from ${bundleSource}.`,
             timestamp: now
           }
         ]
@@ -7330,6 +7635,8 @@ export default function ProjectsPage() {
       setIsAgentIntakeOpen(false); setAgentIntakePayload(''); setAgentIntakeError('');
     } catch (err: any) { setAgentIntakeError(err.message || 'Invalid JSON payload.'); }
   }, [selectedProject, agentIntakePayload, updateProject]);
+
+  const sharedRoomContract = buildSharedRoomContract();
 
   return (
     <div className="flex h-full w-full max-w-7xl flex-col gap-6 p-6 mx-auto font-mono">
@@ -7614,6 +7921,113 @@ export default function ProjectsPage() {
                 </div>
                 </div>
               )}
+              {selectedHostedRoom && sharedRoomContract && (
+                <div className="mt-3 rounded border border-cyan-900/30 bg-cyan-950/10 p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3 border-b border-cyan-900/20 pb-3">
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-cyan-300">Room Contract</div>
+                      <div className="mt-1 text-sm font-bold text-slate-100">The bounded packet state a bot should read before proposing work.</div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={handleCopySharedRoomContract}
+                        className="rounded border border-cyan-800 bg-cyan-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-cyan-200 transition-colors hover:bg-cyan-900/40"
+                      >
+                        Copy Contract JSON
+                      </button>
+                      <button
+                        onClick={handleExportSharedRoomContract}
+                        className="rounded border border-slate-700 bg-slate-950/60 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-300 transition-colors hover:bg-slate-900/70"
+                      >
+                        Export Contract
+                      </button>
+                    </div>
+                  </div>
+                  <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1.1fr),minmax(300px,0.9fr)]">
+                    <div className="space-y-3">
+                      <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Current Packet Goal</div>
+                        <div className="mt-2 text-sm text-slate-200">{sharedRoomContract.current_packet_goal}</div>
+                      </div>
+                      <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Safe Next Proposal</div>
+                        <div className="mt-2 text-sm text-slate-200">{sharedRoomContract.safe_next_proposal}</div>
+                      </div>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
+                          <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Next Action</div>
+                          <div className="mt-2 text-sm text-slate-200">
+                            {sharedRoomContract.current_next_action?.title || 'No next action is currently derived.'}
+                          </div>
+                          {sharedRoomContract.current_next_action?.explanation && (
+                            <div className="mt-2 text-xs leading-5 text-slate-400">{sharedRoomContract.current_next_action.explanation}</div>
+                          )}
+                        </div>
+                        <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
+                          <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Latest Published Update</div>
+                          <div className="mt-2 text-sm text-slate-200">
+                            {sharedRoomContract.latest_published_update
+                              ? `${sharedRoomContract.latest_published_update.version} on ${formatTimestamp(sharedRoomContract.latest_published_update.published_at)}`
+                              : 'No published update yet.'}
+                          </div>
+                        </div>
+                      </div>
+                      <details className="rounded border border-slate-800 bg-slate-950/50 p-3">
+                        <summary className="cursor-pointer list-none text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                          Machine-readable contract
+                        </summary>
+                        <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap rounded border border-slate-800 bg-[#06090b] p-3 text-[11px] leading-5 text-slate-300">
+{JSON.stringify(sharedRoomContract, null, 2)}
+                        </pre>
+                      </details>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Open Judgment</div>
+                          <div className="text-[10px] uppercase tracking-widest text-slate-500">
+                            {sharedRoomContract.open_proposals_waiting_for_judgment.length} waiting
+                          </div>
+                        </div>
+                        <div className="mt-3 space-y-2">
+                          {sharedRoomContract.open_proposals_waiting_for_judgment.length === 0 ? (
+                            <div className="rounded border border-dashed border-slate-800 px-3 py-3 text-xs text-slate-500">
+                              No open proposal judgment right now.
+                            </div>
+                          ) : (
+                            sharedRoomContract.open_proposals_waiting_for_judgment.slice(0, 4).map((proposal) => (
+                              <div key={proposal.id} className="rounded border border-slate-800 bg-slate-950/40 px-3 py-3 text-sm text-slate-300">
+                                <div className="font-bold text-slate-200">{proposal.type}</div>
+                                <div className="mt-1">{proposal.summary}</div>
+                                <div className="mt-2 text-[10px] uppercase tracking-widest text-slate-500">
+                                  {proposal.source}{proposal.bundle_id ? ` | ${proposal.bundle_id}` : ''}
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                      <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Accepted Truth</div>
+                        <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                          <div className="rounded border border-emerald-900/20 bg-emerald-950/10 px-2 py-3">
+                            <div className="text-lg font-bold text-emerald-200">{sharedRoomContract.accepted_truth.approved_sources}</div>
+                            <div className="text-[10px] uppercase tracking-widest text-slate-500">Sources</div>
+                          </div>
+                          <div className="rounded border border-emerald-900/20 bg-emerald-950/10 px-2 py-3">
+                            <div className="text-lg font-bold text-emerald-200">{sharedRoomContract.accepted_truth.accepted_decisions}</div>
+                            <div className="text-[10px] uppercase tracking-widest text-slate-500">Decisions</div>
+                          </div>
+                          <div className="rounded border border-emerald-900/20 bg-emerald-950/10 px-2 py-3">
+                            <div className="text-lg font-bold text-emerald-200">{sharedRoomContract.accepted_truth.active_open_actions}</div>
+                            <div className="text-[10px] uppercase tracking-widest text-slate-500">Open Actions</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
               {(lastPublishedHandoffUrl || selectedHostedRoom?.current_handoff_token) && (
                 <div className="mt-3 rounded border border-indigo-900/40 bg-indigo-950/20 p-2 text-xs text-indigo-100">
                   <div className="font-bold uppercase tracking-widest text-indigo-300">Current Public Handoff</div>
@@ -7683,6 +8097,33 @@ export default function ProjectsPage() {
                         </div>
                       </div>
                     ))}
+                </div>
+              )}
+              {selectedHostedRoom && (
+                <div className="mt-3 rounded border border-fuchsia-900/30 bg-fuchsia-950/10 p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3 border-b border-fuchsia-900/20 pb-3">
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-fuchsia-300">Bot-ready Room Export</div>
+                      <div className="mt-1 text-sm font-bold text-slate-100">A bounded JSON packet for bots, reviewers, and external workers.</div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={handleCopySharedRoomExport}
+                        className="rounded border border-fuchsia-800 bg-fuchsia-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-fuchsia-200 transition-colors hover:bg-fuchsia-900/40"
+                      >
+                        Copy Room JSON
+                      </button>
+                      <button
+                        onClick={handleExportSharedRoomExport}
+                        className="rounded border border-slate-700 bg-slate-950/60 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-300 transition-colors hover:bg-slate-900/70"
+                      >
+                        Export Room JSON
+                      </button>
+                    </div>
+                  </div>
+                  <div className="mt-3 text-xs leading-5 text-slate-400">
+                    Includes room identity, role context, proposal review memory, accepted truth, active runs, latest checkpoint, published update, and the current safe next proposal.
+                  </div>
                 </div>
               )}
             </div>
@@ -7882,6 +8323,47 @@ export default function ProjectsPage() {
                   {rootRoomComments.length === 0 && roomTimeline.length === 0 && (
                     <div className="mt-3 rounded border border-dashed border-slate-800 px-3 py-4 text-xs text-slate-500">
                       No review threads or room events yet. Start a thread when a reviewer needs context.
+                    </div>
+                  )}
+                  {proposalBundles.length > 0 && (
+                    <div className="mt-3 rounded border border-slate-800 bg-slate-950/50">
+                      <div className="border-b border-slate-800 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                        Proposal Bundles
+                      </div>
+                      <div className="max-h-56 overflow-y-auto">
+                        {proposalBundles.slice(0, 6).map((bundle) => (
+                          <div key={bundle.id} className="border-b border-slate-800/70 px-3 py-3 text-xs last:border-b-0">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div>
+                                <div className="font-bold text-slate-200">{bundle.label}</div>
+                                <div className="mt-1 text-[10px] uppercase tracking-widest text-slate-500">
+                                  {bundle.source} | {formatTimestamp(bundle.submittedAt)}
+                                </div>
+                              </div>
+                              <span className={`rounded border px-2 py-1 text-[10px] font-bold uppercase tracking-widest ${
+                                bundle.outcomeLabel === 'fully_accepted'
+                                  ? 'border-emerald-800 bg-emerald-950/20 text-emerald-200'
+                                  : bundle.outcomeLabel === 'partially_accepted'
+                                    ? 'border-amber-800 bg-amber-950/20 text-amber-200'
+                                    : bundle.outcomeLabel === 'rejected'
+                                      ? 'border-rose-800 bg-rose-950/20 text-rose-200'
+                                      : bundle.outcomeLabel === 'deferred'
+                                        ? 'border-slate-700 bg-slate-950/40 text-slate-300'
+                                        : 'border-indigo-800 bg-indigo-950/20 text-indigo-200'
+                              }`}>
+                                {bundle.outcomeLabel.replace(/_/g, ' ')}
+                              </span>
+                            </div>
+                            <div className="mt-2 grid grid-cols-2 gap-2 text-[10px] uppercase tracking-widest text-slate-500 sm:grid-cols-5">
+                              <span>{bundle.proposalCount} total</span>
+                              <span>{bundle.acceptedCount} accepted</span>
+                              <span>{bundle.rejectedCount} rejected</span>
+                              <span>{bundle.deferredCount} deferred</span>
+                              <span>{bundle.pendingCount} waiting</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </>
