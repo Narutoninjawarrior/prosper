@@ -55,6 +55,14 @@ interface LocalReviewClaim {
   claimedAt: string;
 }
 
+interface LocalReviewLater {
+  roomId: string;
+  itemId: string;
+  kind: 'bundle' | 'feedback';
+  returnAt: string;
+  label: string;
+}
+
 interface TriageInsight {
   level: TriagePriorityLevel;
   score: number;
@@ -417,6 +425,7 @@ const REVIEW_NOTE_TEMPLATES = [
 ];
 const REVIEW_CLAIMS_STORAGE_KEY = 'prosper_review_claims';
 const REVIEW_LAST_SEEN_STORAGE_KEY = 'prosper_review_last_seen';
+const REVIEW_LATER_STORAGE_KEY = 'prosper_review_later';
 
 function summarizeBundleClosure(bundle: DerivedProposalBundle) {
   const parts: string[] = [];
@@ -496,6 +505,32 @@ function setLastSeenForRoom(roomId: string, timestamp: string) {
   }
 }
 
+function loadReviewLater() {
+  if (typeof window === 'undefined') return [] as LocalReviewLater[];
+  try {
+    const raw = window.localStorage.getItem(REVIEW_LATER_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (item): item is LocalReviewLater =>
+        item &&
+        typeof item.roomId === 'string' &&
+        typeof item.itemId === 'string' &&
+        (item.kind === 'bundle' || item.kind === 'feedback') &&
+        typeof item.returnAt === 'string' &&
+        typeof item.label === 'string',
+    );
+  } catch {
+    return [];
+  }
+}
+
+function saveReviewLater(items: LocalReviewLater[]) {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(REVIEW_LATER_STORAGE_KEY, JSON.stringify(items));
+}
+
 function roomRoleForUser(members: ProjectRoomMember[], user: User | null): ProjectRoomRole {
   if (!user) return 'viewer';
   return members.find((member) => member.uid === user.uid)?.role || 'viewer';
@@ -559,6 +594,7 @@ export default function ReviewPage() {
   const [bundleNotesById, setBundleNotesById] = useState<Record<string, string>>({});
   const [focusedQueueItemId, setFocusedQueueItemId] = useState<string | null>(null);
   const [reviewClaims, setReviewClaims] = useState<LocalReviewClaim[]>(() => loadReviewClaims());
+  const [reviewLater, setReviewLater] = useState<LocalReviewLater[]>(() => loadReviewLater());
   const [busyProposalId, setBusyProposalId] = useState<string | null>(null);
   const [busyBundleId, setBusyBundleId] = useState<string | null>(null);
   const [busyFeedbackId, setBusyFeedbackId] = useState<string | null>(null);
@@ -662,6 +698,10 @@ export default function ReviewPage() {
     saveReviewClaims(reviewClaims);
   }, [reviewClaims]);
 
+  useEffect(() => {
+    saveReviewLater(reviewLater);
+  }, [reviewLater]);
+
   const currentUser: User | null = authState.status === 'signed_in' ? authState.user : null;
   const selectedRoom = useMemo(
     () => hostedRooms.find((room) => room.id === selectedRoomId) || null,
@@ -759,34 +799,55 @@ export default function ReviewPage() {
     [bundleClaimsById, currentUser?.uid, liveTriageQueue],
   );
 
+  const laterItemsById = useMemo(() => {
+    const map = new Map<string, LocalReviewLater>();
+    const now = Date.now();
+    reviewLater
+      .filter((item) => item.roomId === selectedRoomId && Number.isFinite(Date.parse(item.returnAt)) && Date.parse(item.returnAt) > now)
+      .forEach((item) => {
+        map.set(item.itemId, item);
+      });
+    return map;
+  }, [reviewLater, selectedRoomId]);
+
+  const returnLaterQueue = useMemo(
+    () => prioritizedTriageQueue.filter((item) => laterItemsById.has(item.id)),
+    [laterItemsById, prioritizedTriageQueue],
+  );
+
+  const availableTriageQueue = useMemo(
+    () => prioritizedTriageQueue.filter((item) => !laterItemsById.has(item.id)),
+    [laterItemsById, prioritizedTriageQueue],
+  );
+
   const triageModeCounts = useMemo(
     () => ({
-      all: prioritizedTriageQueue.length,
-      agent: prioritizedTriageQueue.filter((item) => item.type === 'bundle').length,
-      feedback: prioritizedTriageQueue.filter((item) => item.type === 'feedback').length,
-      high: prioritizedTriageQueue.filter((item) => item.priority.level === 'high').length,
-      ready: prioritizedTriageQueue.filter((item) => item.priority.readyToAccept).length,
-      followup: prioritizedTriageQueue.filter((item) => item.priority.needsFollowUp).length,
+      all: availableTriageQueue.length,
+      agent: availableTriageQueue.filter((item) => item.type === 'bundle').length,
+      feedback: availableTriageQueue.filter((item) => item.type === 'feedback').length,
+      high: availableTriageQueue.filter((item) => item.priority.level === 'high').length,
+      ready: availableTriageQueue.filter((item) => item.priority.readyToAccept).length,
+      followup: availableTriageQueue.filter((item) => item.priority.needsFollowUp).length,
     }),
-    [prioritizedTriageQueue],
+    [availableTriageQueue],
   );
 
   const filteredTriageQueue = useMemo(() => {
     switch (triageMode) {
       case 'agent':
-        return prioritizedTriageQueue.filter((item) => item.type === 'bundle');
+        return availableTriageQueue.filter((item) => item.type === 'bundle');
       case 'feedback':
-        return prioritizedTriageQueue.filter((item) => item.type === 'feedback');
+        return availableTriageQueue.filter((item) => item.type === 'feedback');
       case 'high':
-        return prioritizedTriageQueue.filter((item) => item.priority.level === 'high');
+        return availableTriageQueue.filter((item) => item.priority.level === 'high');
       case 'ready':
-        return prioritizedTriageQueue.filter((item) => item.priority.readyToAccept);
+        return availableTriageQueue.filter((item) => item.priority.readyToAccept);
       case 'followup':
-        return prioritizedTriageQueue.filter((item) => item.priority.needsFollowUp);
+        return availableTriageQueue.filter((item) => item.priority.needsFollowUp);
       default:
-        return prioritizedTriageQueue;
+        return availableTriageQueue;
     }
-  }, [prioritizedTriageQueue, triageMode]);
+  }, [availableTriageQueue, triageMode]);
 
   useEffect(() => {
     if (filteredTriageQueue.length === 0) {
@@ -875,6 +936,51 @@ export default function ReviewPage() {
     changes.push(...recentAccepted, ...recentPending, ...recentFeedbackChanges);
     return changes.slice(0, 5);
   }, [lastOpenedAt, projectFeedback, proposalBundles, proposalHistory]);
+
+  const personalNeedsQueue = useMemo(() => {
+    const claimedByYou = availableTriageQueue.filter(
+      (item) => item.type === 'bundle' && bundleClaimsById.get(item.bundle.id)?.reviewerUid === currentUser?.uid,
+    );
+    const unclaimedBundles = availableTriageQueue.filter(
+      (item) => item.type === 'bundle' && !bundleClaimsById.has(item.bundle.id),
+    );
+    const topUnclaimed = unclaimedBundles.slice(0, claimedByYou.length > 0 ? 2 : 3);
+    const seen = new Set<string>();
+    return [...claimedByYou, ...topUnclaimed].filter((item) => {
+      if (seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    });
+  }, [availableTriageQueue, bundleClaimsById, currentUser?.uid]);
+
+  const unassignedTriageQueue = useMemo(
+    () =>
+      availableTriageQueue.filter(
+        (item) =>
+          item.type === 'bundle' &&
+          !bundleClaimsById.has(item.bundle.id) &&
+          !personalNeedsQueue.some((personal) => personal.id === item.id),
+      ),
+    [availableTriageQueue, bundleClaimsById, personalNeedsQueue],
+  );
+
+  const externalFeedbackQueue = useMemo(
+    () => availableTriageQueue.filter((item) => item.type === 'feedback'),
+    [availableTriageQueue],
+  );
+
+  const judgedTodayQueue = useMemo(() => {
+    const today = new Date();
+    return recentJudgedItems.filter((proposal) => {
+      const timestamp = proposal.reviewed_at || proposal.proposed_at;
+      const date = new Date(timestamp);
+      return (
+        date.getFullYear() === today.getFullYear() &&
+        date.getMonth() === today.getMonth() &&
+        date.getDate() === today.getDate()
+      );
+    });
+  }, [recentJudgedItems]);
 
   const handleAuthSubmit = useCallback(async () => {
     if (!authEmail.trim() || !authPassword.trim()) {
@@ -1172,6 +1278,36 @@ export default function ReviewPage() {
     [selectedRoomId],
   );
 
+  const handleReturnLater = useCallback(
+    (item: TriageItem, hours: number = 4) => {
+      if (!selectedRoomId) return;
+      const returnAt = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
+      const label = item.type === 'bundle' ? item.bundle.label : deriveFeedbackTitle(item.feedback);
+      setReviewLater((current) => {
+        const next = current.filter((entry) => !(entry.roomId === selectedRoomId && entry.itemId === item.id));
+        next.push({
+          roomId: selectedRoomId,
+          itemId: item.id,
+          kind: item.type,
+          returnAt,
+          label,
+        });
+        return next;
+      });
+      setReviewMessage(`${label} moved to Return Later until ${formatDateTime(returnAt)}.`);
+    },
+    [selectedRoomId],
+  );
+
+  const handleRestoreLater = useCallback(
+    (itemId: string) => {
+      if (!selectedRoomId) return;
+      setReviewLater((current) => current.filter((entry) => !(entry.roomId === selectedRoomId && entry.itemId === itemId)));
+      setReviewMessage('Item returned to Needs Your Judgment.');
+    },
+    [selectedRoomId],
+  );
+
   return (
     <div className="min-h-screen bg-[#071013] text-slate-100">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-6 sm:px-6 lg:px-8">
@@ -1426,6 +1562,126 @@ export default function ReviewPage() {
                   })}
                 </div>
 
+                <div className="mt-5 grid gap-4 xl:grid-cols-4">
+                  <div className="rounded-3xl border border-sky-500/20 bg-sky-500/8 p-4">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-sky-200">Needs Your Judgment</div>
+                    <div className="mt-2 text-2xl font-semibold text-white">{personalNeedsQueue.length}</div>
+                    <div className="mt-2 text-xs leading-5 text-slate-300">
+                      {personalNeedsQueue.length > 0
+                        ? 'Claimed by you or unclaimed work most worth your next judgment pass.'
+                        : 'No proposals are waiting on you right now.'}
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      {personalNeedsQueue.slice(0, 4).map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => setFocusedQueueItemId(item.id)}
+                          className="block w-full rounded-2xl border border-white/10 bg-slate-950/50 px-3 py-2 text-left text-xs text-slate-200 transition hover:border-white/20 hover:bg-slate-900/60"
+                        >
+                          {item.type === 'bundle' ? item.bundle.label : deriveFeedbackTitle(item.feedback)}
+                        </button>
+                      ))}
+                      {personalNeedsQueue.length === 0 ? (
+                        <div className="rounded-2xl border border-emerald-900/20 bg-emerald-950/10 px-3 py-2 text-xs text-emerald-200">
+                          Queue Cleared. {stalePublishedUpdate ? 'Publish Recommended.' : 'Accepted truth is current.'}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-4">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300">Unassigned Triage</div>
+                    <div className="mt-2 text-2xl font-semibold text-white">{unassignedTriageQueue.length}</div>
+                    <div className="mt-2 text-xs leading-5 text-slate-400">Unclaimed bundle work still waiting for a reviewer to pick it up.</div>
+                    <div className="mt-3 space-y-2">
+                      {unassignedTriageQueue.slice(0, 4).map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => setFocusedQueueItemId(item.id)}
+                          className="block w-full rounded-2xl border border-white/10 bg-slate-950/50 px-3 py-2 text-left text-xs text-slate-200 transition hover:border-white/20 hover:bg-slate-900/60"
+                        >
+                          {item.type === 'bundle' ? item.bundle.label : deriveFeedbackTitle(item.feedback)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-3xl border border-fuchsia-500/20 bg-fuchsia-500/8 p-4">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-fuchsia-200">External Feedback</div>
+                    <div className="mt-2 text-2xl font-semibold text-white">{externalFeedbackQueue.length}</div>
+                    <div className="mt-2 text-xs leading-5 text-slate-300">Published update feedback that can route back into packet truth.</div>
+                    <div className="mt-3 space-y-2">
+                      {externalFeedbackQueue.slice(0, 4).map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => setFocusedQueueItemId(item.id)}
+                          className="block w-full rounded-2xl border border-white/10 bg-slate-950/50 px-3 py-2 text-left text-xs text-slate-200 transition hover:border-white/20 hover:bg-slate-900/60"
+                        >
+                          {deriveFeedbackTitle(item.feedback)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-3xl border border-emerald-500/20 bg-emerald-500/8 p-4">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-200">Judged Today</div>
+                    <div className="mt-2 text-2xl font-semibold text-white">{judgedTodayQueue.length}</div>
+                    <div className="mt-2 text-xs leading-5 text-slate-300">Accepted, deferred, or rejected work from today’s judgment loop.</div>
+                    <div className="mt-3 space-y-2">
+                      {judgedTodayQueue.slice(0, 4).map((proposal) => (
+                        <div
+                          key={proposal.id}
+                          className="rounded-2xl border border-white/10 bg-slate-950/50 px-3 py-2 text-xs text-slate-200"
+                        >
+                          {proposal.proposal_summary}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {returnLaterQueue.length > 0 ? (
+                  <div className="mt-5 rounded-3xl border border-amber-500/20 bg-amber-500/8 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-200">Return Later</div>
+                        <div className="mt-2 text-sm text-slate-300">Deferred locally for a later review pass.</div>
+                      </div>
+                      <div className="text-sm font-semibold text-white">{returnLaterQueue.length}</div>
+                    </div>
+                    <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      {returnLaterQueue.map((item) => {
+                        const laterMeta = laterItemsById.get(item.id);
+                        return (
+                          <div key={item.id} className="rounded-2xl border border-white/10 bg-slate-950/50 p-3">
+                            <div className="text-sm font-semibold text-white">
+                              {item.type === 'bundle' ? item.bundle.label : deriveFeedbackTitle(item.feedback)}
+                            </div>
+                            <div className="mt-2 text-xs text-slate-400">
+                              Returns {laterMeta ? formatDateTime(laterMeta.returnAt) : 'later'}
+                            </div>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleRestoreLater(item.id);
+                                  setFocusedQueueItemId(item.id);
+                                }}
+                                className="rounded-full border border-amber-500/30 bg-amber-500/15 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-100 transition hover:border-amber-400/60 hover:bg-amber-500/20"
+                              >
+                                Bring back now
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+
                 {focusedQueueItem ? (
                   <div className="mt-5 rounded-3xl border border-sky-500/20 bg-sky-500/8 p-4">
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -1509,6 +1765,13 @@ export default function ReviewPage() {
                           >
                             Reject bundle
                           </button>
+                          <button
+                            type="button"
+                            onClick={() => handleReturnLater(focusedQueueItem, 4)}
+                            className="rounded-full border border-amber-500/30 bg-amber-500/15 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-amber-100 transition hover:border-amber-400/60 hover:bg-amber-500/20"
+                          >
+                            Return Later
+                          </button>
                         </>
                       ) : (
                         <>
@@ -1527,6 +1790,13 @@ export default function ReviewPage() {
                             className="rounded-full border border-emerald-500/30 bg-emerald-500/15 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-100 transition hover:border-emerald-400/60 hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             Mark processed
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleReturnLater(focusedQueueItem, 4)}
+                            className="rounded-full border border-amber-500/30 bg-amber-500/15 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-amber-100 transition hover:border-amber-400/60 hover:bg-amber-500/20"
+                          >
+                            Return Later
                           </button>
                         </>
                       )}
