@@ -45,6 +45,13 @@ interface DerivedProposalBundle {
 
 type TriageMode = 'all' | 'agent' | 'feedback' | 'high' | 'ready' | 'followup';
 type TriagePriorityLevel = 'high' | 'medium' | 'low';
+interface LocalReviewClaim {
+  roomId: string;
+  bundleId: string;
+  reviewerUid: string;
+  reviewerLabel: string;
+  claimedAt: string;
+}
 
 interface TriageInsight {
   level: TriagePriorityLevel;
@@ -384,6 +391,8 @@ const REVIEW_NOTE_TEMPLATES = [
   'Missing the packet impact needed for a clean judgment.',
   'Needs stronger source support before acceptance.',
 ];
+const REVIEW_CLAIMS_STORAGE_KEY = 'prosper_review_claims';
+const REVIEW_LAST_SEEN_STORAGE_KEY = 'prosper_review_last_seen';
 
 function summarizeBundleClosure(bundle: DerivedProposalBundle) {
   const parts: string[] = [];
@@ -410,6 +419,57 @@ function summarizeBundleFollowUp(bundle: DerivedProposalBundle) {
   if (bundle.deferredCount > 0) return 'Deferred work remains. This bundle is closed for now, but not fully resolved.';
   if (bundle.rejectedCount > 0 && bundle.acceptedCount === 0) return 'No packet truth changed. Resubmit only if the proposal should come back with tighter scope.';
   return 'Bundle is fully closed. Re-open only if a new proposal bundle is needed.';
+}
+
+function loadReviewClaims() {
+  if (typeof window === 'undefined') return [] as LocalReviewClaim[];
+  try {
+    const raw = window.localStorage.getItem(REVIEW_CLAIMS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (item): item is LocalReviewClaim =>
+        item &&
+        typeof item.roomId === 'string' &&
+        typeof item.bundleId === 'string' &&
+        typeof item.reviewerUid === 'string' &&
+        typeof item.reviewerLabel === 'string' &&
+        typeof item.claimedAt === 'string',
+    );
+  } catch {
+    return [];
+  }
+}
+
+function saveReviewClaims(claims: LocalReviewClaim[]) {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(REVIEW_CLAIMS_STORAGE_KEY, JSON.stringify(claims));
+}
+
+function getLastSeenForRoom(roomId: string) {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(REVIEW_LAST_SEEN_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const value = parsed?.[roomId];
+    return typeof value === 'string' ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function setLastSeenForRoom(roomId: string, timestamp: string) {
+  if (typeof window === 'undefined') return;
+  try {
+    const raw = window.localStorage.getItem(REVIEW_LAST_SEEN_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    parsed[roomId] = timestamp;
+    window.localStorage.setItem(REVIEW_LAST_SEEN_STORAGE_KEY, JSON.stringify(parsed));
+  } catch {
+    window.localStorage.setItem(REVIEW_LAST_SEEN_STORAGE_KEY, JSON.stringify({ [roomId]: timestamp }));
+  }
 }
 
 function roomRoleForUser(members: ProjectRoomMember[], user: User | null): ProjectRoomRole {
@@ -473,10 +533,12 @@ export default function ReviewPage() {
   const [proposalNotesById, setProposalNotesById] = useState<Record<string, string>>({});
   const [bundleNotesById, setBundleNotesById] = useState<Record<string, string>>({});
   const [focusedQueueItemId, setFocusedQueueItemId] = useState<string | null>(null);
+  const [reviewClaims, setReviewClaims] = useState<LocalReviewClaim[]>(() => loadReviewClaims());
   const [busyProposalId, setBusyProposalId] = useState<string | null>(null);
   const [busyBundleId, setBusyBundleId] = useState<string | null>(null);
   const [busyFeedbackId, setBusyFeedbackId] = useState<string | null>(null);
   const [triageMode, setTriageMode] = useState<TriageMode>('all');
+  const [lastOpenedAt, setLastOpenedAt] = useState<string | null>(null);
 
   useEffect(() => {
     let unsubscribe: (() => void) | null = null;
@@ -556,6 +618,10 @@ export default function ReviewPage() {
     };
   }, [authState.status, selectedRoomId]);
 
+  useEffect(() => {
+    saveReviewClaims(reviewClaims);
+  }, [reviewClaims]);
+
   const currentUser: User | null = authState.status === 'signed_in' ? authState.user : null;
   const selectedRoom = useMemo(
     () => hostedRooms.find((room) => room.id === selectedRoomId) || null,
@@ -563,6 +629,17 @@ export default function ReviewPage() {
   );
   const currentRole = roomRoleForUser(roomMembers, currentUser);
   const currentPermissions = permissionsForRole(currentRole);
+
+  useEffect(() => {
+    if (!selectedRoomId) {
+      setLastOpenedAt(null);
+      return;
+    }
+    setLastOpenedAt(getLastSeenForRoom(selectedRoomId));
+    return () => {
+      setLastSeenForRoom(selectedRoomId, nowIso());
+    };
+  }, [selectedRoomId]);
 
   const proposalHistory = useMemo(
     () => selectedRoom?.project?.proposal_history || [],
@@ -659,6 +736,16 @@ export default function ReviewPage() {
     [filteredTriageQueue, focusedQueueItemId],
   );
 
+  const bundleClaimsById = useMemo(() => {
+    const map = new Map<string, LocalReviewClaim>();
+    reviewClaims
+      .filter((claim) => claim.roomId === selectedRoomId)
+      .forEach((claim) => {
+        map.set(claim.bundleId, claim);
+      });
+    return map;
+  }, [reviewClaims, selectedRoomId]);
+
   const resolvedFeedback = useMemo(
     () =>
       [...projectFeedback]
@@ -685,6 +772,32 @@ export default function ReviewPage() {
     if (!focusedQueueItem) return 'No waiting work.';
     return focusedQueueItem.priority.reason;
   }, [focusedQueueItem]);
+
+  const changedSinceLastOpened = useMemo(() => {
+    if (!lastOpenedAt) return [];
+    const sinceTime = Date.parse(lastOpenedAt);
+    if (!Number.isFinite(sinceTime)) return [];
+
+    const changes: string[] = [];
+    const recentAccepted = proposalHistory
+      .filter((proposal) => {
+        const timestamp = proposal.reviewed_at || proposal.proposed_at;
+        return proposal.review_state === 'accepted' && Date.parse(timestamp) > sinceTime;
+      })
+      .slice(0, 3)
+      .map((proposal) => `Accepted: ${proposal.promoted_target?.label || proposal.target_title || proposal.proposal_summary}`);
+    const recentPending = proposalBundles
+      .filter((bundle) => Date.parse(bundle.submittedAt) > sinceTime && bundle.waitingCount > 0)
+      .slice(0, 2)
+      .map((bundle) => `Waiting: ${bundle.label}`);
+    const recentFeedbackChanges = projectFeedback
+      .filter((feedback) => Date.parse(feedback.created_at) > sinceTime)
+      .slice(0, 2)
+      .map((feedback) => `Feedback: ${feedback.author_name || 'Reviewer'}`);
+
+    changes.push(...recentAccepted, ...recentPending, ...recentFeedbackChanges);
+    return changes.slice(0, 5);
+  }, [lastOpenedAt, projectFeedback, proposalBundles, proposalHistory]);
 
   const handleAuthSubmit = useCallback(async () => {
     if (!authEmail.trim() || !authPassword.trim()) {
@@ -890,7 +1003,21 @@ export default function ReviewPage() {
         return;
       }
 
+      if (event.key.toLowerCase() === 'n') {
+        event.preventDefault();
+        const nextItem = filteredTriageQueue[Math.min(filteredTriageQueue.length - 1, safeIndex + 1)];
+        if (nextItem) setFocusedQueueItemId(nextItem.id);
+        return;
+      }
+
       if (event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        const previousItem = filteredTriageQueue[Math.max(0, safeIndex - 1)];
+        if (previousItem) setFocusedQueueItemId(previousItem.id);
+        return;
+      }
+
+      if (event.key.toLowerCase() === 'p') {
         event.preventDefault();
         const previousItem = filteredTriageQueue[Math.max(0, safeIndex - 1)];
         if (previousItem) setFocusedQueueItemId(previousItem.id);
@@ -906,6 +1033,18 @@ export default function ReviewPage() {
         } else {
           void handleConvertFeedbackToOpenAction(focusedQueueItem.feedback);
         }
+        return;
+      }
+
+      if (focusedQueueItem.type === 'bundle' && event.key.toLowerCase() === 'r') {
+        event.preventDefault();
+        void handleReviewBundle(focusedQueueItem.bundle.id, 'rejected');
+        return;
+      }
+
+      if (focusedQueueItem.type === 'bundle' && event.key.toLowerCase() === 'd') {
+        event.preventDefault();
+        void handleReviewBundle(focusedQueueItem.bundle.id, 'deferred');
       }
     };
 
@@ -926,6 +1065,26 @@ export default function ReviewPage() {
   const applyBundleNoteTemplate = useCallback((bundleId: string, template: string) => {
     setBundleNotesById((current) => ({ ...current, [bundleId]: template }));
   }, []);
+
+  const handleClaimBundle = useCallback(
+    (bundle: DerivedProposalBundle) => {
+      if (!currentUser || !selectedRoomId) return;
+      const reviewerLabel = currentUser.displayName || currentUser.email || currentUser.uid;
+      setReviewClaims((current) => {
+        const next = current.filter((claim) => !(claim.roomId === selectedRoomId && claim.bundleId === bundle.id));
+        next.push({
+          roomId: selectedRoomId,
+          bundleId: bundle.id,
+          reviewerUid: currentUser.uid,
+          reviewerLabel,
+          claimedAt: nowIso(),
+        });
+        return next;
+      });
+      setReviewMessage(`Local review owner set to ${reviewerLabel} for ${bundle.label}.`);
+    },
+    [currentUser, selectedRoomId],
+  );
 
   return (
     <div className="min-h-screen bg-[#071013] text-slate-100">
@@ -1087,6 +1246,24 @@ export default function ReviewPage() {
                         Owners, editors, and reviewers can judge waiting bundles. Viewers can inspect proposal history but cannot change packet truth.
                       </p>
                     </div>
+                    <div className="rounded-2xl border border-fuchsia-500/20 bg-fuchsia-500/8 p-4 text-sm text-slate-300">
+                      <div className="font-medium text-white">Official agent path</div>
+                      <p className="mt-2 leading-6">
+                        Agent Brief {'->'} valid Proposal Bundle {'->'} remote submit {'->'} Waiting for Judgment {'->'} Accepted Truth.
+                      </p>
+                      <p className="mt-2 text-xs leading-5 text-slate-400">
+                        If packet_version_seen is stale, export a fresh Agent Brief from Projects, rebuild the bundle, and resubmit with a new client_request_id.
+                      </p>
+                      <div className="mt-3">
+                        <a
+                          href="/projects"
+                          className="inline-flex items-center gap-2 rounded-full border border-fuchsia-500/30 bg-fuchsia-500/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-fuchsia-100 transition hover:border-fuchsia-400/60 hover:bg-fuchsia-500/15"
+                        >
+                          Open Agent Brief
+                          <ArrowRight className="h-3.5 w-3.5" />
+                        </a>
+                      </div>
+                    </div>
                     <div className="rounded-2xl border border-sky-500/20 bg-sky-500/8 p-4">
                       <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-sky-200">Review re-entry</div>
                       <div className="mt-3 grid gap-3 sm:grid-cols-3">
@@ -1109,6 +1286,16 @@ export default function ReviewPage() {
                           <div className="mt-2 text-sm font-semibold text-white">
                             {highestPriorityItem ? highestPriorityItem.priority.reason : 'No waiting work'}
                           </div>
+                        </div>
+                      </div>
+                      <div className="mt-3 rounded-2xl border border-white/10 bg-slate-950/50 p-3">
+                        <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Changed since you last opened</div>
+                        <div className="mt-2 space-y-1 text-sm text-slate-300">
+                          {changedSinceLastOpened.length > 0 ? (
+                            changedSinceLastOpened.map((line) => <div key={line}>- {line}</div>)
+                          ) : (
+                            <div className="text-slate-500">No new judgment or incoming work since the last local review session.</div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1172,7 +1359,7 @@ export default function ReviewPage() {
                             {focusedQueueItem.type === 'bundle' ? 'Agent proposal bundle' : 'External feedback'}
                           </span>
                           <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 font-semibold uppercase tracking-[0.2em] text-slate-300">
-                            Shortcuts: J / K move, A act
+                            Shortcuts: A accept, R reject, D defer, J/K or N/P move
                           </span>
                         </div>
                       </div>
@@ -1263,6 +1450,9 @@ export default function ReviewPage() {
                       if (item.type === 'bundle') {
                         const bundle = item.bundle;
                         const bundleBusy = busyBundleId === bundle.id;
+                        const ownerClaim = bundleClaimsById.get(bundle.id);
+                        const ownerLabel = ownerClaim?.reviewerLabel || null;
+                        const claimedByCurrentUser = ownerClaim?.reviewerUid === currentUser?.uid;
                         return (
                           <details
                             key={item.id}
@@ -1326,6 +1516,19 @@ export default function ReviewPage() {
                                   <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
                                     <div className="uppercase tracking-[0.18em] text-slate-500">Packet seen</div>
                                     <div className="mt-1 text-slate-100">v{bundle.packetVersionSeen || selectedRoom.project.packet_version || 1}</div>
+                                  </div>
+                                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
+                                    <div className="uppercase tracking-[0.18em] text-slate-500">Review owner</div>
+                                    <div className="mt-1 text-slate-100">{ownerLabel || 'Needs owner'}</div>
+                                    <div className="mt-1 text-[11px] text-slate-500">
+                                      {ownerLabel ? 'Local claim for this signed-in reviewer.' : 'Claim locally to make the next pass clearer.'}
+                                    </div>
+                                  </div>
+                                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
+                                    <div className="uppercase tracking-[0.18em] text-slate-500">Version result</div>
+                                    <div className="mt-1 text-slate-100">
+                                      {bundle.waitingCount > 0 ? `Accept bumps packet to v${(selectedRoom.project.packet_version || 1) + 1}` : 'No waiting changes left'}
+                                    </div>
                                   </div>
                                 </div>
                               </div>
@@ -1425,6 +1628,22 @@ export default function ReviewPage() {
                                 <p className="mt-2 text-sm leading-6 text-slate-300">
                                   Use a bundle-level note when you want one judgment pass to apply across every waiting item in this submission.
                                 </p>
+                                <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/50 p-3 text-xs text-slate-300">
+                                  <div className="font-medium text-white">Ownership</div>
+                                  <div className="mt-2">
+                                    {ownerLabel ? `Current local owner: ${ownerLabel}.` : 'No local owner has claimed this bundle yet.'}
+                                  </div>
+                                  <div className="mt-3 flex flex-wrap gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleClaimBundle(bundle)}
+                                      disabled={!currentPermissions.canReview || !currentUser}
+                                      className="rounded-full border border-sky-500/30 bg-sky-500/15 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-sky-100 transition hover:border-sky-400/60 hover:bg-sky-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                      {claimedByCurrentUser ? 'Claimed by you' : 'Claim review'}
+                                    </button>
+                                  </div>
+                                </div>
                                 <textarea
                                   value={bundleNotesById[bundle.id] || ''}
                                   onChange={(event) =>
@@ -1628,6 +1847,21 @@ export default function ReviewPage() {
                       </div>
                       <div className="mt-3 text-base font-semibold text-white">{proposal.proposal_summary}</div>
                       <div className="mt-2 text-sm leading-6 text-slate-300">{proposal.review_note || 'No review note recorded.'}</div>
+                      <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/50 p-3 text-xs text-slate-300">
+                        <div className="font-medium text-white">Traceable acceptance</div>
+                        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                          <div>
+                            <div className="uppercase tracking-[0.18em] text-slate-500">Before</div>
+                            <div className="mt-1">{proposal.payload_summary || 'No proposal payload summary recorded.'}</div>
+                          </div>
+                          <div>
+                            <div className="uppercase tracking-[0.18em] text-slate-500">After</div>
+                            <div className="mt-1">
+                              {proposal.promoted_target?.label || proposal.target_title || 'No packet object was created.'}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                       <dl className="mt-4 space-y-2 text-xs text-slate-400">
                         <div className="flex items-start justify-between gap-3">
                           <dt>Judged by</dt>
@@ -1644,6 +1878,22 @@ export default function ReviewPage() {
                           <dt>Promoted target</dt>
                           <dd className="text-right text-slate-200">
                             {proposal.promoted_target ? proposal.promoted_target.label : 'No packet object created'}
+                          </dd>
+                        </div>
+                        <div className="flex items-start justify-between gap-3">
+                          <dt>Bundle</dt>
+                          <dd className="text-right text-slate-200">
+                            {proposal.proposal_bundle_label || proposal.proposal_bundle_id || 'Single proposal'}
+                          </dd>
+                        </div>
+                        <div className="flex items-start justify-between gap-3">
+                          <dt>Packet version</dt>
+                          <dd className="text-right text-slate-200">
+                            {proposal.review_state === 'accepted' && proposal.packet_version_seen
+                              ? `v${proposal.packet_version_seen} -> v${proposal.packet_version_seen + 1}`
+                              : proposal.packet_version_seen
+                                ? `Seen at v${proposal.packet_version_seen}`
+                                : 'Not recorded'}
                           </dd>
                         </div>
                       </dl>

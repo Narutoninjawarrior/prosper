@@ -3,6 +3,8 @@ import './index.css';
 import PublicShell from './PublicShell';
 import Gate from './Gate';
 import { registerAgentTools } from './lib/agentTools';
+import { listenToProjectAuth, type ProjectAuthState } from './projects/auth';
+import { listenToHostedProjectRooms } from './projects/cloud';
 
 const LandingPage = lazy(() => import('./LandingPage'));
 const InternalAppShell = lazy(() => import('./InternalAppShell'));
@@ -37,6 +39,62 @@ function SuspendedPublicShell({
         {children}
       </Suspense>
     </PublicShell>
+  );
+}
+
+function DailyHomeRedirect() {
+  const [authState, setAuthState] = useState<ProjectAuthState>({ status: 'checking', user: null, error: null });
+  const [hasSharedRooms, setHasSharedRooms] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let unsubscribe: (() => void) | null = null;
+    let cancelled = false;
+    listenToProjectAuth((nextState) => {
+      if (!cancelled) setAuthState(nextState);
+    }).then((nextUnsubscribe) => {
+      if (cancelled) {
+        nextUnsubscribe?.();
+        return;
+      }
+      unsubscribe = nextUnsubscribe;
+    });
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (authState.status !== 'signed_in') {
+      setHasSharedRooms(false);
+      return;
+    }
+    const unsubscribe = listenToHostedProjectRooms(
+      authState.user,
+      (rooms) => setHasSharedRooms(rooms.length > 0),
+      () => setHasSharedRooms(false),
+    );
+    return () => {
+      unsubscribe?.();
+    };
+  }, [authState]);
+
+  useEffect(() => {
+    if (authState.status === 'signed_in' && hasSharedRooms) {
+      window.location.replace('/review');
+    }
+  }, [authState.status, hasSharedRooms]);
+
+  if (authState.status === 'signed_in' && hasSharedRooms) {
+    return <LoadingSurface label="Opening review..." />;
+  }
+
+  return (
+    <SuspendedPublicShell className="min-h-screen w-screen bg-[#050806]" label="Loading Prosper...">
+      <div className="min-h-full overflow-y-auto">
+        <LandingPage />
+      </div>
+    </SuspendedPublicShell>
   );
 }
 
@@ -86,13 +144,7 @@ function App() {
   }
 
   if (pathname === '/' || pathname === '/explore') {
-    return (
-      <SuspendedPublicShell className="min-h-screen w-screen bg-[#050806]" label="Loading Prosper...">
-        <div className="min-h-full overflow-y-auto">
-          <LandingPage />
-        </div>
-      </SuspendedPublicShell>
-    );
+    return <DailyHomeRedirect />;
   }
 
   if (pathname.startsWith('/handoff/')) {
