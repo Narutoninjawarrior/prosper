@@ -119,7 +119,7 @@ def build_agents_md_instructions(brief: Dict[str, Any]) -> str:
             "",
             "Official write-path:",
             "1. Export a fresh Agent Brief from Prosper Agent Setup.",
-            f"2. Generate a starter bundle: `python scripts/agent_write_path.py --brief \"{brief_filename}\" --input \"{draft_filename}\" --print-template`",
+            f"2. Generate a starter bundle: `python scripts/agent_write_path.py --brief \"{brief_filename}\" --input \"{draft_filename}\" --print-template > \"{draft_filename}\"`",
             f"3. Validate locally: `python scripts/agent_write_path.py --brief \"{brief_filename}\" --input \"{draft_filename}\" --output \"{output_filename}\" --dry-run`",
             f"4. Submit remotely: `python scripts/agent_write_path.py --brief \"{brief_filename}\" --input \"{draft_filename}\" --submit --id-token \"$PROSPER_FIREBASE_ID_TOKEN\"`",
             "",

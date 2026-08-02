@@ -887,9 +887,10 @@ export default function ReviewPage() {
     const briefFilename = `agent-brief-${safeId}.json`;
     const draftFilename = `proposal-draft-${safeId}.json`;
     const outputFilename = `out/proposal-bundle-${safeId}.json`;
-    const templateCommand = `python scripts/agent_write_path.py --brief "${briefFilename}" --input "${draftFilename}" --print-template`;
+    const templateCommand = `python scripts/agent_write_path.py --brief "${briefFilename}" --input "${draftFilename}" --print-template > "${draftFilename}"`;
     const dryRunCommand = `python scripts/agent_write_path.py --brief "${briefFilename}" --input "${draftFilename}" --output "${outputFilename}" --dry-run`;
-    const combined = [templateCommand, dryRunCommand].join('\n');
+    const submitCommand = `python scripts/agent_write_path.py --brief "${briefFilename}" --input "${draftFilename}" --submit --id-token "$PROSPER_FIREBASE_ID_TOKEN"`;
+    const combined = [templateCommand, dryRunCommand, submitCommand].join('\n');
     return {
       briefFilename,
       draftFilename,
@@ -897,6 +898,7 @@ export default function ReviewPage() {
       openAgentSetupHref: `/projects?project=${encodeURIComponent(selectedRoom.project.id)}`,
       templateCommand,
       dryRunCommand,
+      submitCommand,
       combined,
     };
   }, [selectedRoom]);
@@ -1186,6 +1188,42 @@ export default function ReviewPage() {
     }
     return 'This judgment mainly affects internal packet truth, not the current published update.';
   }, [highestPriorityItem, stalePublishedUpdate]);
+
+  const focusedQueueItemConflicts = useMemo(() => {
+    if (!focusedQueueItem || focusedQueueItem.type !== 'bundle') return [];
+    
+    const signals: string[] = [];
+    const currentProposals = focusedQueueItem.bundle.proposals;
+    
+    availableTriageQueue.forEach((otherItem) => {
+      if (otherItem.id === focusedQueueItem.id || otherItem.type !== 'bundle') return;
+      
+      const overlaps = otherItem.bundle.proposals.filter((otherP) => 
+        currentProposals.some((p) => 
+          (p.target_title && p.target_title === otherP.target_title) || 
+          (p.promoted_target?.label && p.promoted_target?.label === otherP.promoted_target?.label)
+        )
+      );
+      
+      if (overlaps.length > 0) {
+        signals.push(`Overlap with waiting bundle "${otherItem.bundle.label}".`);
+      }
+    });
+
+    const recentAccepted = proposalHistory.filter((h) => h.review_state === 'accepted');
+    const recentOverlaps = recentAccepted.filter((h) => 
+      currentProposals.some((p) => 
+        (p.target_title && p.target_title === h.target_title) || 
+        (p.promoted_target?.label && p.promoted_target?.label === h.promoted_target?.label)
+      )
+    );
+
+    if (recentOverlaps.length > 0) {
+      signals.push(`Touches truth that was accepted recently. Verify it does not overwrite or regress.`);
+    }
+
+    return signals;
+  }, [focusedQueueItem, availableTriageQueue, proposalHistory]);
 
   const changedSinceLastOpened = useMemo(() => {
     if (!lastOpenedAt) return [];
@@ -2145,44 +2183,57 @@ export default function ReviewPage() {
                       title={liveTriageQueue.length === 0 ? 'Queue Cleared' : `No items in ${triageModeLabel(triageMode)}`}
                       body={
                         liveTriageQueue.length === 0
-                          ? 'Accepted truth is current and the queue is clear. Keep the inbox fed by staging work via the official agent write-path.'
+                          ? 'Accepted truth is current and the queue is clear.'
                           : 'Try another triage mode or return to All incoming work to see the full queue.'
                       }
-                      ctaLabel={stalePublishedUpdate || !latestPublishedUpdate ? 'Open Packet Room' : undefined}
-                      ctaHref={roomBoundCommand?.openAgentSetupHref || '/projects'}
                     >
                       {liveTriageQueue.length === 0 && (
-                        <div className="space-y-3">
-                          <div className="text-xs leading-5 text-slate-400">
-                            Keep the inbox fed through this room&apos;s official write-path. Export {roomBoundCommand?.briefFilename || 'the Agent Brief'}, generate or edit {roomBoundCommand?.draftFilename || 'the proposal draft'}, dry-run it, then submit it for judgment.
-                          </div>
-                          {roomBoundCommand ? (
-                            <pre className="whitespace-pre-wrap rounded-2xl border border-white/10 bg-slate-950/60 p-3 text-[11px] leading-5 text-slate-300">
-                              {roomBoundCommand.templateCommand}
-                              {'\n'}
-                              {roomBoundCommand.dryRunCommand}
-                            </pre>
-                          ) : null}
-                          <div className="flex flex-wrap gap-2">
-                          <a
-                            href={roomBoundCommand?.openAgentSetupHref || '/projects'}
-                            className="inline-flex items-center gap-2 rounded-full border border-sky-500/30 bg-sky-500/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-sky-100 transition hover:border-sky-400/50 hover:bg-sky-500/15"
-                          >
-                            Open Agent Setup
-                          </a>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (!roomBoundCommand) return;
-                              window.navigator.clipboard.writeText(roomBoundCommand.combined)
-                                .then(() => setReviewMessage(`Room-bound starter path copied for ${selectedRoom?.title || 'the current room'}.`))
-                                .catch(() => setReviewMessage(`Clipboard was unavailable. Copy this path manually: ${roomBoundCommand.combined}`));
-                            }}
-                            className="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300 transition hover:border-slate-600 hover:bg-slate-800"
-                          >
-                            Copy Starter Path
-                          </button>
-                          </div>
+                        <div className="mt-4 rounded-2xl border border-emerald-900/40 bg-emerald-950/10 p-5">
+                          <div className="text-sm font-bold uppercase tracking-widest text-emerald-400">Keep the Inbox Fed</div>
+                          <p className="mt-2 text-sm leading-6 text-slate-300">
+                            The queue is empty. To build the next packet iteration, follow the agent write-path:
+                          </p>
+                          <ol className="mt-4 space-y-4 text-sm text-slate-300">
+                            <li className="flex items-start gap-3">
+                              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-900/40 text-xs font-bold text-emerald-300">1</span>
+                              <div>
+                                <strong className="text-white">Open Agent Setup</strong> for this room.
+                                <div className="mt-2">
+                                  <a
+                                    href={roomBoundCommand?.openAgentSetupHref || '/projects'}
+                                    className="inline-flex items-center gap-2 rounded-full border border-sky-500/30 bg-sky-500/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-sky-100 transition hover:border-sky-400/50 hover:bg-sky-500/15"
+                                  >
+                                    Go to Agent Setup
+                                  </a>
+                                </div>
+                              </div>
+                            </li>
+                            <li className="flex items-start gap-3">
+                              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-900/40 text-xs font-bold text-emerald-300">2</span>
+                              <div>
+                                <strong className="text-white">Export the Brief & Draft.</strong> Use the UI to generate <span className="font-mono text-emerald-300">{roomBoundCommand?.briefFilename || 'the brief'}</span> and <span className="font-mono text-emerald-300">{roomBoundCommand?.draftFilename || 'the draft'}</span> into your repository.
+                              </div>
+                            </li>
+                            <li className="flex items-start gap-3">
+                              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-900/40 text-xs font-bold text-emerald-300">3</span>
+                              <div>
+                                <strong className="text-white">Validate & Submit.</strong> Run the dry-run, then remote submit.
+                                {roomBoundCommand ? (
+                                  <pre className="mt-2 whitespace-pre-wrap rounded-2xl border border-emerald-900/20 bg-black/40 p-3 text-[11px] leading-5 text-slate-400">
+                                    {roomBoundCommand.dryRunCommand}
+                                    {'\n'}
+                                    {roomBoundCommand.submitCommand}
+                                  </pre>
+                                ) : null}
+                              </div>
+                            </li>
+                            <li className="flex items-start gap-3">
+                              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-900/40 text-xs font-bold text-emerald-300">4</span>
+                              <div>
+                                <strong className="text-white">Return Here.</strong> The bundle will appear above, ready for judgment.
+                              </div>
+                            </li>
+                          </ol>
                         </div>
                       )}
                     </EmptyCard>
@@ -2399,6 +2450,16 @@ export default function ReviewPage() {
                                 <p className="mt-2 text-sm leading-6 text-slate-300">
                                   Use a bundle-level note when you want one judgment pass to apply across every waiting item in this submission.
                                 </p>
+                                {focusedQueueItemConflicts.length > 0 && (
+                                  <div className="mt-4 rounded-2xl border border-rose-900/40 bg-rose-950/20 p-3 text-xs text-rose-200">
+                                    <div className="font-medium text-rose-100">Conflict / Collision Warning</div>
+                                    <ul className="mt-2 list-disc pl-4 space-y-1">
+                                      {focusedQueueItemConflicts.map((signal, idx) => (
+                                        <li key={idx}>{signal}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
                                 <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/50 p-3 text-xs text-slate-300">
                                   <div className="font-medium text-white">Ownership</div>
                                   <div className="mt-2">

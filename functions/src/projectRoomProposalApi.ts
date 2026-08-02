@@ -949,6 +949,8 @@ export const reviewProjectProposalBundle = functions.https.onRequest(async (req,
         updated_at: admin.firestore.FieldValue.serverTimestamp(),
       });
 
+      const isAcceptHandoff = decision === 'accepted' && pendingProposalIds.length > 0;
+      
       const eventRef = roomRef.collection('events').doc();
       transaction.set(eventRef, {
         actor_uid: auth.uid,
@@ -965,8 +967,19 @@ export const reviewProjectProposalBundle = functions.https.onRequest(async (req,
           review_note: reviewNote || null,
           proposal_ids: pendingProposalIds,
           packet_version: nextProject.packet_version,
+          is_accept_handoff: isAcceptHandoff,
+          handoff_payload: isAcceptHandoff ? {
+            room_id: roomId,
+            bundle_id: bundleId,
+            packet_version: nextProject.packet_version,
+            accepted_count: pendingProposalIds.length
+          } : null
         },
       });
+
+      const bumpMessage = isAcceptHandoff 
+        ? ` Accepted truth updated to v${nextProject.packet_version} with handoff signal.` 
+        : '';
 
       return {
         room_id: roomId,
@@ -976,8 +989,8 @@ export const reviewProjectProposalBundle = functions.https.onRequest(async (req,
         reviewed_count: pendingProposalIds.length,
         packet_version: nextProject.packet_version,
         message: bundleId
-          ? `Reviewed ${pendingProposalIds.length} proposal${pendingProposalIds.length === 1 ? '' : 's'} in bundle ${bundleId}.`
-          : 'Proposal reviewed successfully.',
+          ? `Reviewed ${pendingProposalIds.length} proposal${pendingProposalIds.length === 1 ? '' : 's'} in bundle ${bundleId}.${bumpMessage}`
+          : `Proposal reviewed successfully.${bumpMessage}`,
       };
     });
 
