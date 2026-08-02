@@ -53,6 +53,47 @@ def build_bundle(
     }
 
 
+def summarize_brief(brief: Dict[str, Any]) -> Dict[str, Any]:
+    room_identity = brief.get("room_identity", {}) if isinstance(brief.get("room_identity"), dict) else {}
+    remote_submission = brief.get("remote_submission", {}) if isinstance(brief.get("remote_submission"), dict) else {}
+    safe_next = brief.get("safe_next_proposal", {}) if isinstance(brief.get("safe_next_proposal"), dict) else {}
+    return {
+        "room_id": room_identity.get("id"),
+        "room_title": room_identity.get("title"),
+        "packet_version": brief.get("packet_version"),
+        "packet_goal": brief.get("packet_goal"),
+        "safe_next_proposal": safe_next.get("title"),
+        "safe_next_reason": safe_next.get("explanation"),
+        "remote_endpoint": remote_submission.get("endpoint"),
+    }
+
+
+def build_template_from_brief(brief: Dict[str, Any], agent_id: str | None = None) -> Dict[str, Any]:
+    summary = summarize_brief(brief)
+    safe_title = summary.get("safe_next_proposal") or "Advance the packet safely"
+    safe_reason = summary.get("safe_next_reason") or "This proposal follows the current room contract."
+    return {
+        "bundle_id": f"bundle_{uuid.uuid4().hex[:12]}",
+        "room_id": summary.get("room_id") or "room_id",
+        "packet_version_seen": summary.get("packet_version") or 1,
+        "client_request_id": f"req_{uuid.uuid4().hex[:12]}",
+        "agent_id": agent_id or "external_agent",
+        "submitted_at": now_iso(),
+        "human_summary": f"Follow the room contract: {safe_title}",
+        "proposals": [
+            {
+                "type": "open_action",
+                "payload": {
+                    "title": safe_title,
+                    "rationale": safe_reason,
+                    "next_action": "Take the smallest next packet-safe step that advances the room goal.",
+                    "done_when": "A reviewer can clearly judge whether the packet should change."
+                }
+            }
+        ]
+    }
+
+
 def validate_bundle(brief: Dict[str, Any], bundle: Dict[str, Any]) -> List[str]:
     errors: List[str] = []
     write_path = brief.get("proposal_write_path", {})
@@ -156,12 +197,14 @@ def submit_bundle(endpoint: str, id_token: str, bundle: Dict[str, Any]) -> Tuple
 def build_success_result(bundle: Dict[str, Any], brief: Dict[str, Any], output: str | None = None) -> Dict[str, Any]:
     result: Dict[str, Any] = {
         "ok": True,
+        "mode": "validated",
         "bundle_id": bundle["bundle_id"],
         "room_id": bundle["room_id"],
         "packet_version_seen": bundle["packet_version_seen"],
         "client_request_id": bundle["client_request_id"],
         "proposal_count": len(bundle["proposals"]),
         "allowed_proposal_types": brief.get("proposal_write_path", {}).get("allowed_proposal_types", sorted(ALLOWED_TYPES)),
+        "brief_summary": summarize_brief(brief),
         "next_step": "Submit remotely or import this bundle into Agent Proposal Intake so it lands in Waiting for Judgment.",
     }
     if output:
@@ -191,9 +234,14 @@ def main() -> int:
     parser.add_argument("--endpoint", help="Override the remote submission endpoint.")
     parser.add_argument("--id-token", help="Firebase ID token from a shared-room member.")
     parser.add_argument("--dry-run", action="store_true", help="Validate and print a result without writing files.")
+    parser.add_argument("--print-template", action="store_true", help="Print a starter bundle template derived from the Agent Brief and exit.")
     args = parser.parse_args()
 
     brief = load_json(Path(args.brief))
+    if args.print_template:
+        print(json.dumps(build_template_from_brief(brief, args.agent_id), indent=2))
+        return 0
+
     payload = load_json(Path(args.input))
     bundle = build_bundle(brief, payload, args.agent_id, args.summary)
     errors = validate_bundle(brief, bundle)
@@ -217,8 +265,10 @@ def main() -> int:
         if not endpoint:
             print(json.dumps({
                 "ok": False,
+                "mode": "submit",
                 "error": "missing_endpoint",
                 "message": "No remote submission endpoint was provided or found in the Agent Brief.",
+                "brief_summary": summarize_brief(brief),
             }, indent=2))
             return 1
 
@@ -226,8 +276,10 @@ def main() -> int:
         if not id_token:
             print(json.dumps({
                 "ok": False,
+                "mode": "submit",
                 "error": "missing_id_token",
                 "message": "Remote submission requires a Firebase ID token from a shared-room member.",
+                "brief_summary": summarize_brief(brief),
             }, indent=2))
             return 1
 
@@ -236,8 +288,10 @@ def main() -> int:
         except Exception as exc:
             print(json.dumps({
                 "ok": False,
+                "mode": "submit",
                 "error": "submission_unavailable",
                 "message": str(exc),
+                "brief_summary": summarize_brief(brief),
             }, indent=2))
             return 1
 
@@ -251,8 +305,10 @@ def main() -> int:
                 }
             print(json.dumps({
                 "ok": False,
+                "mode": "submit",
                 "status": status,
                 "endpoint": endpoint,
+                "brief_summary": summarize_brief(brief),
                 "response": payload,
                 "stale_hint": stale_hint,
             }, indent=2))
@@ -260,11 +316,13 @@ def main() -> int:
 
         print(json.dumps({
             "ok": True,
+            "mode": "submitted",
             "endpoint": endpoint,
             "status": status,
             "bundle_id": bundle["bundle_id"],
             "client_request_id": bundle["client_request_id"],
             "packet_version_seen": bundle["packet_version_seen"],
+            "brief_summary": summarize_brief(brief),
             "next_step": "Bundle staged successfully. Open /review to judge it into accepted truth, rejection, or deferral.",
             "response": payload,
         }, indent=2))

@@ -520,6 +520,110 @@ function proposalTouchesPublishedUpdate(proposal: ProjectProposalRecord) {
   );
 }
 
+function getPayloadString(payload: Record<string, unknown> | undefined, key: string) {
+  const value = payload?.[key];
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function clipLine(value: string, maxLength: number = 96) {
+  return value.length > maxLength ? `${value.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...` : value;
+}
+
+function deriveProposalDeltaLines(
+  proposal: ProjectProposalRecord,
+  project: CloudProjectRoom['project'] | undefined,
+) {
+  const payload = proposal.proposal_payload;
+  const currentLines: string[] = [];
+  const proposedLines: string[] = [];
+  const resultLines: string[] = [];
+
+  if (!project) {
+    return {
+      currentLines: ['Current packet state is unavailable.'],
+      proposedLines: [proposal.payload_summary || 'No proposed payload summary recorded.'],
+      resultLines: [proposal.promoted_target?.label || proposal.target_title || 'Packet truth would change if accepted.'],
+    };
+  }
+
+  switch (proposal.proposal_type) {
+    case 'decision': {
+      const existing = (project.decisions || []).find((item) => item.id === proposal.target_id);
+      currentLines.push(existing ? `Current decision: ${existing.title}` : 'Current decision: no accepted decision yet.');
+      if (existing?.rationale) currentLines.push(`Current rationale: ${clipLine(existing.rationale)}`);
+      proposedLines.push(`Proposed decision: ${getPayloadString(payload, 'title') || proposal.target_title || proposal.proposal_summary}`);
+      const rationale = getPayloadString(payload, 'rationale');
+      if (rationale) proposedLines.push(`Proposed rationale: ${clipLine(rationale)}`);
+      resultLines.push(`Accept creates or updates decision "${proposal.promoted_target?.label || proposal.target_title || proposal.proposal_summary}".`);
+      break;
+    }
+    case 'open_action': {
+      const existing = (project.commitments || []).find((item) => item.id === proposal.target_id);
+      currentLines.push(existing ? `Current open action: ${existing.title}` : 'Current open action: no matching action yet.');
+      if (existing?.next_action) currentLines.push(`Current next step: ${clipLine(existing.next_action)}`);
+      proposedLines.push(`Proposed action: ${getPayloadString(payload, 'title') || proposal.target_title || proposal.proposal_summary}`);
+      const nextAction = getPayloadString(payload, 'next_action');
+      const doneWhen = getPayloadString(payload, 'done_when');
+      if (nextAction) proposedLines.push(`Proposed next step: ${clipLine(nextAction)}`);
+      if (doneWhen) proposedLines.push(`Done when: ${clipLine(doneWhen)}`);
+      resultLines.push(`Accept creates or updates open action "${proposal.promoted_target?.label || proposal.target_title || proposal.proposal_summary}".`);
+      break;
+    }
+    case 'source':
+    case 'scope_note': {
+      const existing = (project.context_items || []).find((item) => item.id === proposal.target_id);
+      currentLines.push(
+        existing
+          ? `Current ${proposal.proposal_type === 'source' ? 'source note' : 'scope note'}: ${existing.title}`
+          : `Current ${proposal.proposal_type === 'source' ? 'source note' : 'scope note'}: no matching note yet.`,
+      );
+      if (existing?.body) currentLines.push(`Current body: ${clipLine(existing.body)}`);
+      proposedLines.push(`Proposed title: ${getPayloadString(payload, 'title') || proposal.target_title || proposal.proposal_summary}`);
+      const body = getPayloadString(payload, 'body');
+      if (body) proposedLines.push(`Proposed body: ${clipLine(body)}`);
+      resultLines.push(
+        `Accept creates or updates ${proposal.proposal_type === 'source' ? 'source note' : 'scope note'} "${proposal.promoted_target?.label || proposal.target_title || proposal.proposal_summary}".`,
+      );
+      break;
+    }
+    case 'run': {
+      const existing = Array.isArray(project.runs) ? project.runs.find((item: any) => item?.id === proposal.target_id) : null;
+      currentLines.push(existing ? `Current run: ${String(existing.title || 'Untitled run')}` : 'Current run: no matching run yet.');
+      if (existing?.run_state) currentLines.push(`Current state: ${String(existing.run_state)}`);
+      proposedLines.push(`Proposed run: ${getPayloadString(payload, 'title') || proposal.target_title || proposal.proposal_summary}`);
+      const objective = getPayloadString(payload, 'objective') || getPayloadString(payload, 'description');
+      if (objective) proposedLines.push(`Objective: ${clipLine(objective)}`);
+      const actions = Array.isArray(payload?.actions) ? payload.actions.length : 0;
+      if (actions > 0) proposedLines.push(`Included steps: ${actions}`);
+      resultLines.push(`Accept promotes run "${proposal.promoted_target?.label || proposal.target_title || proposal.proposal_summary}" into packet truth.`);
+      break;
+    }
+    case 'run_step': {
+      const parentRun = Array.isArray(project.runs) ? project.runs.find((item: any) => item?.id === proposal.parent_run_id) : null;
+      const existingStep = Array.isArray(parentRun?.actions)
+        ? parentRun.actions.find((action: any) => action?.id === proposal.target_id)
+        : null;
+      currentLines.push(parentRun ? `Current run: ${String(parentRun.title || 'Untitled run')}` : 'Current run: no matching parent run.');
+      currentLines.push(existingStep ? `Current step: ${String(existingStep.description || 'Unnamed step')}` : 'Current step: no matching step yet.');
+      proposedLines.push(`Proposed step: ${getPayloadString(payload, 'description') || proposal.target_title || proposal.proposal_summary}`);
+      resultLines.push(`Accept adds or updates a run step inside "${parentRun?.title || 'the target run'}".`);
+      break;
+    }
+    default: {
+      currentLines.push('Current packet state is available, but no structured delta is defined for this proposal type.');
+      proposedLines.push(proposal.payload_summary || proposal.proposal_summary);
+      resultLines.push(proposal.promoted_target?.label || proposal.target_title || 'Accept changes packet truth.');
+      break;
+    }
+  }
+
+  return {
+    currentLines,
+    proposedLines,
+    resultLines,
+  };
+}
+
 function loadReviewClaims() {
   if (typeof window === 'undefined') return [] as LocalReviewClaim[];
   try {
@@ -2115,6 +2219,7 @@ export default function ReviewPage() {
                               <div className="space-y-3">
                                 {bundle.proposals.map((proposal) => {
                                   const proposalBusy = busyProposalId === proposal.id;
+                                  const delta = deriveProposalDeltaLines(proposal, selectedRoom?.project);
                                   return (
                                     <div key={proposal.id} className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
                                       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -2135,6 +2240,33 @@ export default function ReviewPage() {
                                               Outcome if accepted:{' '}
                                               {proposal.promoted_target?.label || proposal.target_title || getProposalTypeLabel(proposal.proposal_type)}
                                             </div>
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                                        <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-3">
+                                          <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">Current packet state</div>
+                                          <div className="mt-2 space-y-1 text-sm leading-6 text-slate-300">
+                                            {delta.currentLines.map((line) => (
+                                              <div key={line}>- {line}</div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                        <div className="rounded-2xl border border-sky-900/30 bg-sky-950/10 p-3">
+                                          <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-sky-300">Proposed change</div>
+                                          <div className="mt-2 space-y-1 text-sm leading-6 text-slate-200">
+                                            {delta.proposedLines.map((line) => (
+                                              <div key={line}>- {line}</div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                        <div className="rounded-2xl border border-emerald-900/30 bg-emerald-950/10 p-3">
+                                          <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-300">If accepted</div>
+                                          <div className="mt-2 space-y-1 text-sm leading-6 text-slate-200">
+                                            {delta.resultLines.map((line) => (
+                                              <div key={line}>- {line}</div>
+                                            ))}
                                           </div>
                                         </div>
                                       </div>

@@ -269,6 +269,7 @@ export interface ProjectProposalRecord {
   execution_trace_summary?: string;
   proposal_summary: string;
   payload_summary: string;
+  proposal_payload?: Record<string, unknown>;
   review_state: ProjectProposalReviewState;
   proposed_by?: string;
   source_label?: string;
@@ -2683,6 +2684,10 @@ function normalizeProposalHistory(value: unknown): ProjectProposalRecord[] {
           typeof item.execution_trace_summary === 'string' ? item.execution_trace_summary : undefined,
         proposal_summary: typeof item.proposal_summary === 'string' ? item.proposal_summary : 'Untitled proposal',
         payload_summary: typeof item.payload_summary === 'string' ? item.payload_summary : '',
+        proposal_payload:
+          item.proposal_payload && typeof item.proposal_payload === 'object' && !Array.isArray(item.proposal_payload)
+            ? sanitizeProposalPayload(item.proposal_payload)
+            : undefined,
         review_state: reviewState,
         proposed_by: typeof item.proposed_by === 'string' ? item.proposed_by : undefined,
         source_label: typeof item.source_label === 'string' ? item.source_label : undefined,
@@ -8114,6 +8119,57 @@ export default function ProjectsPage() {
       });
   }, [selectedHostedRoom?.id, selectedProject?.id, selectedProject?.packet_version]);
 
+  const copyAgentProposalTemplate = useCallback(() => {
+    const template = {
+      bundle_id: `bundle_${Math.random().toString(36).slice(2, 10)}`,
+      room_id: selectedHostedRoom?.id || selectedProject?.id || 'room_or_project_id',
+      packet_version_seen: selectedProject?.packet_version || 1,
+      client_request_id: `req_${Math.random().toString(36).slice(2, 10)}`,
+      agent_id: 'external_agent',
+      submitted_at: nowIso(),
+      human_summary: `Follow the room contract: ${safeNextProposal.title}`,
+      proposals: [
+        {
+          type: 'open_action',
+          payload: {
+            title: safeNextProposal.title,
+            rationale: safeNextProposal.explanation,
+            next_action: 'Take the smallest next packet-safe step that advances the room goal.',
+            done_when: 'A reviewer can clearly judge whether the packet should change.'
+          }
+        }
+      ]
+    };
+    const payload = JSON.stringify(template, null, 2);
+    navigator.clipboard
+      .writeText(payload)
+      .then(() => {
+        alert('Starter proposal bundle copied to clipboard.');
+      })
+      .catch(() => {
+        downloadTextArtifact('agent-proposal-template.json', payload, 'application/json;charset=utf-8');
+        alert('Clipboard access was unavailable, so the template was downloaded instead.');
+      });
+  }, [safeNextProposal, selectedHostedRoom?.id, selectedProject?.id, selectedProject?.packet_version]);
+
+  const copyAgentWritePathCommand = useCallback(() => {
+    const command = [
+      'python scripts/agent_write_path.py \\',
+      '  --brief agent-brief.json \\',
+      '  --input proposal-draft.json \\',
+      '  --dry-run',
+    ].join('\n');
+    navigator.clipboard
+      .writeText(command)
+      .then(() => {
+        alert('Agent write-path command copied to clipboard.');
+      })
+      .catch(() => {
+        downloadTextArtifact('agent-write-path-command.txt', command, 'text/plain;charset=utf-8');
+        alert('Clipboard access was unavailable, so the command was downloaded instead.');
+      });
+  }, []);
+
   const handleCopySharedRoomContract = useCallback(async () => {
     const contract = buildSharedRoomContract();
     if (!contract) return;
@@ -8643,6 +8699,7 @@ export default function ProjectsPage() {
           execution_trace_summary: buildExecutionTraceSummary(bundle.execution_trace),
           proposal_summary: targetTitle,
           payload_summary: buildProposalPayloadSummary(proposalPayload),
+          proposal_payload: sanitizeProposalPayload(proposalPayload),
           review_state: 'proposed',
           proposed_by: bundle.agent_id || 'Coding Agent',
           source_label: 'Verified Agent Intake',
@@ -14124,7 +14181,31 @@ export default function ProjectsPage() {
               </div>
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold uppercase tracking-widest text-slate-400">JSON Payload</label>
-                <button onClick={copyAgentProposalSchema} className="text-[10px] font-bold uppercase tracking-widest text-sky-400 hover:text-sky-300">Copy Agent Schema</button>
+                <div className="flex flex-wrap items-center gap-3">
+                  <button onClick={copyAgentWritePathCommand} className="text-[10px] font-bold uppercase tracking-widest text-emerald-400 hover:text-emerald-300">Copy CLI Command</button>
+                  <button onClick={copyAgentProposalTemplate} className="text-[10px] font-bold uppercase tracking-widest text-cyan-400 hover:text-cyan-300">Copy Starter Template</button>
+                  <button onClick={copyAgentProposalSchema} className="text-[10px] font-bold uppercase tracking-widest text-sky-400 hover:text-sky-300">Copy Agent Schema</button>
+                </div>
+              </div>
+              <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4 text-sm text-slate-300">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Official Path</div>
+                <div className="mt-2 leading-6">
+                  Agent Brief {'->'} proposal draft {'->'} local dry-run validation {'->'} remote submit or intake import {'->'} Waiting for Judgment.
+                </div>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Safe Next Proposal</div>
+                    <div className="mt-2 text-sm font-semibold text-slate-100">{safeNextProposal.title}</div>
+                    <div className="mt-2 text-xs leading-5 text-slate-400">{safeNextProposal.explanation}</div>
+                  </div>
+                  <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Dry-run command</div>
+                    <pre className="mt-2 whitespace-pre-wrap rounded border border-slate-800 bg-[#06090b] p-3 text-[11px] leading-5 text-slate-300">python scripts/agent_write_path.py{"\n"}  --brief agent-brief.json {"\n"}  --input proposal-draft.json {"\n"}  --dry-run</pre>
+                  </div>
+                </div>
+                <div className="mt-3 text-xs leading-5 text-slate-500">
+                  If packet_version_seen is stale, export a fresh Agent Brief, rebuild the bundle, and submit again with a new client_request_id.
+                </div>
               </div>
               <label className="flex cursor-pointer items-center justify-between rounded-xl border border-slate-800 bg-slate-950/30 px-4 py-3 text-sm text-slate-300 transition hover:border-slate-700 hover:bg-slate-900/40">
                 <span>Import a verified proposal bundle file</span>

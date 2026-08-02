@@ -1,0 +1,152 @@
+# Agent Write-Path
+
+Prosper now has one official first-party path for coding agents to write into a packet room:
+
+1. Export the Agent Brief from a project or shared packet room.
+2. Build a proposal bundle against that brief.
+3. Validate the bundle locally with `scripts/agent_write_path.py`.
+4. Either submit the validated bundle to the remote room endpoint or import it into the Agent Proposal Intake gateway.
+5. Let a human reviewer accept, reject, or defer the waiting bundle.
+
+This is intentionally supervised. Agents can propose work, but they cannot write accepted truth directly into the packet.
+
+## Files
+
+- Helper script: `D:\Hearth\prosper2\scripts\agent_write_path.py`
+- Example bundle: `D:\Hearth\prosper2\docs\agent-systems\example-proposal-bundle.json`
+
+## Example
+
+```bash
+python scripts/agent_write_path.py \
+  --brief agent-brief.json \
+  --input docs/agent-systems/example-proposal-bundle.json \
+  --output out/proposal-bundle.json \
+  --dry-run
+```
+
+Then run without `--dry-run` to write the canonical bundle file.
+
+## Fastest starter path
+
+If you want the helper to generate a contract-aligned starter bundle from the current Agent Brief:
+
+```bash
+python scripts/agent_write_path.py \
+  --brief agent-brief.json \
+  --input docs/agent-systems/example-proposal-bundle.json \
+  --print-template
+```
+
+This prints a minimal bundle template using:
+
+- the current `room_id`
+- the current `packet_version`
+- the current room goal
+- the current `safe_next_proposal`
+
+Use that output as the starting point for a real proposal bundle instead of guessing the contract by hand.
+
+## What success looks like
+
+The official path is:
+
+`Agent Brief -> valid Proposal Bundle -> remote submit -> Waiting for Judgment`
+
+On success, the remote endpoint returns a structured payload including:
+
+- `room_id`
+- `bundle_id`
+- `packet_version_seen`
+- `staged_count`
+- `fingerprint`
+- `message`
+
+That response means the bundle is staged for review. It does not mean packet truth changed.
+
+The helper also prints a `brief_summary` block so an agent or operator can verify:
+
+- which room it is targeting
+- which packet version it saw
+- what the packet goal is
+- what the current safe next proposal is
+- which remote endpoint it resolved
+
+## Remote submit
+
+When the Agent Brief includes `remote_submission.endpoint`, or when you provide one explicitly, the helper can submit remotely:
+
+```bash
+python scripts/agent_write_path.py \
+  --brief agent-brief.json \
+  --input docs/agent-systems/example-proposal-bundle.json \
+  --submit \
+  --id-token "$PROSPER_FIREBASE_ID_TOKEN"
+```
+
+You can also override the endpoint with `--endpoint` or `PROSPER_SUBMISSION_ENDPOINT`.
+
+## Common failure: stale packet version
+
+If the room moved forward before submission, the endpoint rejects the bundle with a stale `packet_version_seen` error.
+
+The fix is practical:
+
+1. Export a fresh Agent Brief.
+2. Rebuild the bundle against the new packet version.
+3. Resubmit with a new `client_request_id`.
+
+Do not retry the old bundle unchanged. The stale error is the review boundary working as intended.
+
+The helper prints a `stale_hint` when this happens so the next move is machine-readable as well as human-readable.
+
+## What gets validated
+
+- `room_id` must match the Agent Brief room
+- `packet_version_seen` must match the current packet version
+- `client_request_id` must exist
+- `human_summary` must exist and stay compact
+- proposal types must be allowed by the brief
+- `run_step` proposals must target a run already visible in the brief
+- proposal payloads must include required fields
+- oversized or empty bundles are rejected
+
+## Minimal schema reminder
+
+Every remote bundle must include:
+
+- `bundle_id`
+- `room_id`
+- `packet_version_seen`
+- `client_request_id`
+- `agent_id`
+- `submitted_at`
+- `human_summary`
+- `proposals[]`
+
+Optional:
+
+- `execution_trace`
+
+## Current boundary
+
+Shared packet rooms now expose a real authenticated submission endpoint. Private local-only projects still use the verified local gateway path.
+
+- Shared room path:
+  `Agent Brief -> validated bundle -> remote endpoint -> Waiting for Judgment`
+- Local fallback:
+  `Agent Brief -> validated bundle file -> Agent Proposal Intake -> Waiting for Judgment`
+
+The endpoint still only stages review work. It cannot accept truth into the packet directly.
+
+## Practical loop
+
+The official supervised loop is:
+
+1. Export a fresh Agent Brief from the shared packet room
+2. Print a starter template if needed
+3. Build one compact proposal bundle
+4. Dry-run validate it locally
+5. Submit remotely
+6. Open `/review`
+7. Let a human accept, reject, or defer it into packet truth
