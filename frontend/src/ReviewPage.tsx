@@ -10,6 +10,7 @@ import {
 } from './projects/auth';
 import {
   listenToHostedProjectRooms,
+  listenToPublishedHandoffs,
   listenToProjectFeedback,
   listenToProjectRoomMembers,
   permissionsForRole,
@@ -18,6 +19,7 @@ import {
   submitProjectRoomProposalBundleRemote,
   updateProjectFeedbackStatus,
   type CloudProjectRoom,
+  type PublishedHandoff,
   type ProjectFeedback,
   type ProjectRoomMember,
   type ProjectRoomRole,
@@ -80,6 +82,28 @@ type TriageItem =
       priority: TriageInsight;
       sourceKind: 'external_feedback';
     };
+
+function compareTriageItems(
+  left: TriageItem,
+  right: TriageItem,
+  claimsById: Map<string, LocalReviewClaim>,
+  currentUid?: string | null,
+) {
+  const scoreWithClaim = (item: TriageItem) => {
+    let score = item.priority.score;
+    if (item.type === 'bundle') {
+      const claim = claimsById.get(item.bundle.id);
+      if (claim?.reviewerUid === currentUid) score += 14;
+      else if (claim) score -= 8;
+    }
+    return score;
+  };
+
+  const leftScore = scoreWithClaim(left);
+  const rightScore = scoreWithClaim(right);
+  if (rightScore !== leftScore) return rightScore - leftScore;
+  return compareDesc(left.timestamp, right.timestamp);
+}
 
 function nowIso() {
   return new Date().toISOString();
@@ -524,6 +548,7 @@ export default function ReviewPage() {
   const [hostedRoomError, setHostedRoomError] = useState<string | null>(null);
   const [selectedRoomId, setSelectedRoomId] = useState('');
   const [roomMembers, setRoomMembers] = useState<ProjectRoomMember[]>([]);
+  const [publishedHandoffs, setPublishedHandoffs] = useState<PublishedHandoff[]>([]);
   const [projectFeedback, setProjectFeedback] = useState<ProjectFeedback[]>([]);
   const [reviewMessage, setReviewMessage] = useState<string | null>(null);
   const [authEmail, setAuthEmail] = useState('');
@@ -619,6 +644,21 @@ export default function ReviewPage() {
   }, [authState.status, selectedRoomId]);
 
   useEffect(() => {
+    if (!selectedRoomId) {
+      setPublishedHandoffs([]);
+      return;
+    }
+    const unsubscribe = listenToPublishedHandoffs(
+      selectedRoomId,
+      setPublishedHandoffs,
+      (message) => setReviewMessage(message),
+    );
+    return () => {
+      unsubscribe?.();
+    };
+  }, [selectedRoomId]);
+
+  useEffect(() => {
     saveReviewClaims(reviewClaims);
   }, [reviewClaims]);
 
@@ -662,6 +702,20 @@ export default function ReviewPage() {
     () => projectFeedback.filter((item) => item.status === 'new'),
     [projectFeedback],
   );
+  const latestPublishedUpdate = useMemo(
+    () =>
+      publishedHandoffs.length > 0
+        ? [...publishedHandoffs].sort((a, b) => Date.parse(b.published_at) - Date.parse(a.published_at))[0]
+        : null,
+    [publishedHandoffs],
+  );
+  const stalePublishedUpdate = useMemo(() => {
+    if (!selectedRoom?.project || !latestPublishedUpdate) return false;
+    const latestPublishedAt = Date.parse(latestPublishedUpdate.published_at);
+    const packetUpdatedAt = Date.parse(selectedRoom.project.updated_at || selectedRoom.updated_at || '');
+    if (!Number.isFinite(latestPublishedAt) || !Number.isFinite(packetUpdatedAt)) return false;
+    return packetUpdatedAt > latestPublishedAt;
+  }, [latestPublishedUpdate, selectedRoom]);
 
   const liveTriageQueue = useMemo<TriageItem[]>(() => {
     const items: TriageItem[] = [
@@ -690,34 +744,49 @@ export default function ReviewPage() {
     });
   }, [pendingBundles, pendingFeedback, selectedRoom?.project.packet_version]);
 
+  const bundleClaimsById = useMemo(() => {
+    const map = new Map<string, LocalReviewClaim>();
+    reviewClaims
+      .filter((claim) => claim.roomId === selectedRoomId)
+      .forEach((claim) => {
+        map.set(claim.bundleId, claim);
+      });
+    return map;
+  }, [reviewClaims, selectedRoomId]);
+
+  const prioritizedTriageQueue = useMemo(
+    () => [...liveTriageQueue].sort((left, right) => compareTriageItems(left, right, bundleClaimsById, currentUser?.uid || null)),
+    [bundleClaimsById, currentUser?.uid, liveTriageQueue],
+  );
+
   const triageModeCounts = useMemo(
     () => ({
-      all: liveTriageQueue.length,
-      agent: liveTriageQueue.filter((item) => item.type === 'bundle').length,
-      feedback: liveTriageQueue.filter((item) => item.type === 'feedback').length,
-      high: liveTriageQueue.filter((item) => item.priority.level === 'high').length,
-      ready: liveTriageQueue.filter((item) => item.priority.readyToAccept).length,
-      followup: liveTriageQueue.filter((item) => item.priority.needsFollowUp).length,
+      all: prioritizedTriageQueue.length,
+      agent: prioritizedTriageQueue.filter((item) => item.type === 'bundle').length,
+      feedback: prioritizedTriageQueue.filter((item) => item.type === 'feedback').length,
+      high: prioritizedTriageQueue.filter((item) => item.priority.level === 'high').length,
+      ready: prioritizedTriageQueue.filter((item) => item.priority.readyToAccept).length,
+      followup: prioritizedTriageQueue.filter((item) => item.priority.needsFollowUp).length,
     }),
-    [liveTriageQueue],
+    [prioritizedTriageQueue],
   );
 
   const filteredTriageQueue = useMemo(() => {
     switch (triageMode) {
       case 'agent':
-        return liveTriageQueue.filter((item) => item.type === 'bundle');
+        return prioritizedTriageQueue.filter((item) => item.type === 'bundle');
       case 'feedback':
-        return liveTriageQueue.filter((item) => item.type === 'feedback');
+        return prioritizedTriageQueue.filter((item) => item.type === 'feedback');
       case 'high':
-        return liveTriageQueue.filter((item) => item.priority.level === 'high');
+        return prioritizedTriageQueue.filter((item) => item.priority.level === 'high');
       case 'ready':
-        return liveTriageQueue.filter((item) => item.priority.readyToAccept);
+        return prioritizedTriageQueue.filter((item) => item.priority.readyToAccept);
       case 'followup':
-        return liveTriageQueue.filter((item) => item.priority.needsFollowUp);
+        return prioritizedTriageQueue.filter((item) => item.priority.needsFollowUp);
       default:
-        return liveTriageQueue;
+        return prioritizedTriageQueue;
     }
-  }, [liveTriageQueue, triageMode]);
+  }, [prioritizedTriageQueue, triageMode]);
 
   useEffect(() => {
     if (filteredTriageQueue.length === 0) {
@@ -729,22 +798,12 @@ export default function ReviewPage() {
     }
   }, [filteredTriageQueue, focusedQueueItemId]);
 
-  const highestPriorityItem = useMemo(() => filteredTriageQueue[0] || liveTriageQueue[0] || null, [filteredTriageQueue, liveTriageQueue]);
+  const highestPriorityItem = useMemo(() => filteredTriageQueue[0] || prioritizedTriageQueue[0] || null, [filteredTriageQueue, prioritizedTriageQueue]);
 
   const focusedQueueItem = useMemo(
     () => filteredTriageQueue.find((item) => item.id === focusedQueueItemId) || filteredTriageQueue[0] || null,
     [filteredTriageQueue, focusedQueueItemId],
   );
-
-  const bundleClaimsById = useMemo(() => {
-    const map = new Map<string, LocalReviewClaim>();
-    reviewClaims
-      .filter((claim) => claim.roomId === selectedRoomId)
-      .forEach((claim) => {
-        map.set(claim.bundleId, claim);
-      });
-    return map;
-  }, [reviewClaims, selectedRoomId]);
 
   const resolvedFeedback = useMemo(
     () =>
@@ -772,6 +831,24 @@ export default function ReviewPage() {
     if (!focusedQueueItem) return 'No waiting work.';
     return focusedQueueItem.priority.reason;
   }, [focusedQueueItem]);
+
+  const highestPriorityClaim = useMemo(() => {
+    if (!highestPriorityItem || highestPriorityItem.type !== 'bundle') return null;
+    return bundleClaimsById.get(highestPriorityItem.bundle.id) || null;
+  }, [bundleClaimsById, highestPriorityItem]);
+
+  const highestPriorityPublishImpact = useMemo(() => {
+    if (!highestPriorityItem) return 'No publish consequence right now.';
+    if (highestPriorityItem.type === 'feedback') {
+      return 'This can change outward-facing packet truth if converted and accepted.';
+    }
+    if (highestPriorityItem.priority.touchesPublishedUpdate) {
+      return stalePublishedUpdate
+        ? 'Publish is effectively blocked until this judgment is resolved and the next update is republished.'
+        : 'If accepted, this likely changes the next published update.';
+    }
+    return 'This judgment mainly affects internal packet truth, not the current published update.';
+  }, [highestPriorityItem, stalePublishedUpdate]);
 
   const changedSinceLastOpened = useMemo(() => {
     if (!lastOpenedAt) return [];
@@ -1086,6 +1163,15 @@ export default function ReviewPage() {
     [currentUser, selectedRoomId],
   );
 
+  const handleClearClaim = useCallback(
+    (bundleId: string) => {
+      if (!selectedRoomId) return;
+      setReviewClaims((current) => current.filter((claim) => !(claim.roomId === selectedRoomId && claim.bundleId === bundleId)));
+      setReviewMessage('Local claimed review cleared.');
+    },
+    [selectedRoomId],
+  );
+
   return (
     <div className="min-h-screen bg-[#071013] text-slate-100">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-6 sm:px-6 lg:px-8">
@@ -1344,7 +1430,7 @@ export default function ReviewPage() {
                   <div className="mt-5 rounded-3xl border border-sky-500/20 bg-sky-500/8 p-4">
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                       <div className="max-w-3xl">
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-sky-200">Judge Next</div>
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-sky-200">What Needs Judgment First</div>
                         <div className="mt-2 text-lg font-semibold text-white">
                           {focusedQueueItem.type === 'bundle'
                             ? focusedQueueItem.bundle.label
@@ -1361,6 +1447,30 @@ export default function ReviewPage() {
                           <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 font-semibold uppercase tracking-[0.2em] text-slate-300">
                             Shortcuts: A accept, R reject, D defer, J/K or N/P move
                           </span>
+                        </div>
+                        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                          <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-3">
+                            <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Claimed Review</div>
+                            <div className="mt-2 text-sm font-semibold text-white">
+                              {highestPriorityClaim
+                                ? highestPriorityClaim.reviewerUid === currentUser?.uid
+                                  ? 'Claimed by you'
+                                  : `Claimed by ${highestPriorityClaim.reviewerLabel}`
+                                : 'Needs owner'}
+                            </div>
+                          </div>
+                          <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-3">
+                            <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">If Accepted</div>
+                            <div className="mt-2 text-sm font-semibold text-white">
+                              {focusedQueueItem.type === 'bundle'
+                                ? summarizeBundlePacketChanges(focusedQueueItem.bundle)
+                                : 'Creates a Proposed Open Action for packet judgment.'}
+                            </div>
+                          </div>
+                          <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-3">
+                            <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Publish Impact</div>
+                            <div className="mt-2 text-sm font-semibold text-white">{highestPriorityPublishImpact}</div>
+                          </div>
                         </div>
                       </div>
                       <div className="min-w-[240px] rounded-2xl border border-white/10 bg-slate-950/50 p-3 text-sm text-slate-300">
@@ -1434,13 +1544,17 @@ export default function ReviewPage() {
                 ) : filteredTriageQueue.length === 0 ? (
                   <div className="mt-6">
                     <EmptyCard
-                      title={liveTriageQueue.length === 0 ? 'No incoming work' : `No items in ${triageModeLabel(triageMode)}`}
+                      title={liveTriageQueue.length === 0 ? 'Queue Cleared' : `No items in ${triageModeLabel(triageMode)}`}
                       body={
                         liveTriageQueue.length === 0
-                          ? 'The triage inbox is clear. Agent Brief -> validated Proposal Bundle -> remote submit or local intake -> Waiting for Judgment. Published update feedback lands here too.'
+                          ? stalePublishedUpdate
+                            ? 'Accepted truth is current and the queue is clear, but the packet changed after the last published update. Publish the latest judged truth when you are ready.'
+                            : latestPublishedUpdate
+                              ? 'Accepted truth is current, the queue is clear, and the latest published update is aligned. This room is caught up.'
+                              : 'Accepted truth is current and the queue is clear. Publish the first outward update when this packet is ready to share.'
                           : 'Try another triage mode or return to All incoming work to see the full queue.'
                       }
-                      ctaLabel="Open Projects"
+                      ctaLabel={stalePublishedUpdate || !latestPublishedUpdate ? 'Open Projects' : undefined}
                       ctaHref="/projects"
                     />
                   </div>
@@ -1640,8 +1754,18 @@ export default function ReviewPage() {
                                       disabled={!currentPermissions.canReview || !currentUser}
                                       className="rounded-full border border-sky-500/30 bg-sky-500/15 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-sky-100 transition hover:border-sky-400/60 hover:bg-sky-500/20 disabled:cursor-not-allowed disabled:opacity-50"
                                     >
-                                      {claimedByCurrentUser ? 'Claimed by you' : 'Claim review'}
+                                      {claimedByCurrentUser ? 'Claimed by you' : ownerLabel ? 'Reassign to me' : 'Claim review'}
                                     </button>
+                                    {ownerLabel ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleClearClaim(bundle.id)}
+                                        disabled={!currentPermissions.canReview}
+                                        className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50"
+                                      >
+                                        Clear claim
+                                      </button>
+                                    ) : null}
                                   </div>
                                 </div>
                                 <textarea
