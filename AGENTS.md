@@ -1,5 +1,32 @@
 # Hearthlands Agent Constitution
 
+## Prosper Packet Room Submission
+
+When the task is supervised coding-agent work inside Prosper shared packet rooms, use the official proposal write-path instead of inventing a side channel.
+
+Operational rule:
+
+1. Export a fresh Agent Brief from Prosper Agent Setup.
+2. Generate or edit a room-bound proposal draft.
+3. Validate it with `scripts/agent_write_path.py`.
+4. Submit it into the room so it appears in `/review` as Waiting for Judgment.
+5. Never mutate accepted truth directly.
+
+Canonical helper and instructions:
+
+- `scripts/agent_write_path.py`
+- `docs/agent-systems/AGENT_WRITE_PATH.md`
+
+Preferred room-bound sequence:
+
+```bash
+python scripts/agent_write_path.py --brief "agent-brief-ROOM.json" --input "proposal-draft-ROOM.json" --print-template
+python scripts/agent_write_path.py --brief "agent-brief-ROOM.json" --input "proposal-draft-ROOM.json" --output "out/proposal-bundle-ROOM.json" --dry-run
+python scripts/agent_write_path.py --brief "agent-brief-ROOM.json" --input "proposal-draft-ROOM.json" --submit --id-token "$PROSPER_FIREBASE_ID_TOKEN"
+```
+
+If `packet_version_seen` is stale, stop, export a fresh Agent Brief, rebuild the bundle, and retry with a new `client_request_id`.
+
 ## Vessel Identity & Cross-Reference
 
 | Registry File | Vessel ID | Target Workspace | Status |
