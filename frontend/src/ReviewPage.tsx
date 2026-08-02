@@ -725,11 +725,13 @@ function EmptyCard({
   body,
   ctaLabel,
   ctaHref,
+  children,
 }: {
   title: string;
   body: string;
   ctaLabel?: string;
   ctaHref?: string;
+  children?: React.ReactNode;
 }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
@@ -741,9 +743,9 @@ function EmptyCard({
           className="mt-4 inline-flex items-center gap-2 rounded-full border border-sky-500/30 bg-sky-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-sky-100 transition hover:border-sky-400/50 hover:bg-sky-500/15"
         >
           {ctaLabel}
-          <ArrowRight className="h-3.5 w-3.5" />
         </a>
       ) : null}
+      {children ? <div className="mt-4">{children}</div> : null}
     </div>
   );
 }
@@ -878,6 +880,26 @@ export default function ReviewPage() {
     () => hostedRooms.find((room) => room.id === selectedRoomId) || null,
     [hostedRooms, selectedRoomId],
   );
+  const roomBoundCommand = useMemo(() => {
+    if (!selectedRoom) return null;
+    const roomId = selectedRoom.id || selectedRoom.project.id || 'room-id';
+    const safeId = String(roomId).replace(/[^a-zA-Z0-9_-]+/g, '-');
+    const briefFilename = `agent-brief-${safeId}.json`;
+    const draftFilename = `proposal-draft-${safeId}.json`;
+    const outputFilename = `out/proposal-bundle-${safeId}.json`;
+    const templateCommand = `python scripts/agent_write_path.py --brief "${briefFilename}" --input "${draftFilename}" --print-template`;
+    const dryRunCommand = `python scripts/agent_write_path.py --brief "${briefFilename}" --input "${draftFilename}" --output "${outputFilename}" --dry-run`;
+    const combined = [templateCommand, dryRunCommand].join('\n');
+    return {
+      briefFilename,
+      draftFilename,
+      outputFilename,
+      openAgentSetupHref: `/projects?project=${encodeURIComponent(selectedRoom.project.id)}`,
+      templateCommand,
+      dryRunCommand,
+      combined,
+    };
+  }, [selectedRoom]);
   const currentRole = roomRoleForUser(roomMembers, currentUser);
   const currentPermissions = permissionsForRole(currentRole);
 
@@ -1753,7 +1775,7 @@ export default function ReviewPage() {
                       </p>
                       <div className="mt-3">
                         <a
-                          href="/projects"
+                          href={roomBoundCommand?.openAgentSetupHref || '/projects'}
                           className="inline-flex items-center gap-2 rounded-full border border-fuchsia-500/30 bg-fuchsia-500/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-fuchsia-100 transition hover:border-fuchsia-400/60 hover:bg-fuchsia-500/15"
                         >
                           Open Agent Setup
@@ -2123,16 +2145,47 @@ export default function ReviewPage() {
                       title={liveTriageQueue.length === 0 ? 'Queue Cleared' : `No items in ${triageModeLabel(triageMode)}`}
                       body={
                         liveTriageQueue.length === 0
-                          ? stalePublishedUpdate
-                            ? 'Accepted truth is current and the queue is clear, but the packet changed after the last published update. Publish the latest judged truth when you are ready.'
-                            : latestPublishedUpdate
-                              ? 'Accepted truth is current, the queue is clear, and the latest published update is aligned. This room is caught up.'
-                              : 'Accepted truth is current and the queue is clear. Publish the first outward update when this packet is ready to share.'
+                          ? 'Accepted truth is current and the queue is clear. Keep the inbox fed by staging work via the official agent write-path.'
                           : 'Try another triage mode or return to All incoming work to see the full queue.'
                       }
                       ctaLabel={stalePublishedUpdate || !latestPublishedUpdate ? 'Open Packet Room' : undefined}
-                      ctaHref="/projects"
-                    />
+                      ctaHref={roomBoundCommand?.openAgentSetupHref || '/projects'}
+                    >
+                      {liveTriageQueue.length === 0 && (
+                        <div className="space-y-3">
+                          <div className="text-xs leading-5 text-slate-400">
+                            Keep the inbox fed through this room&apos;s official write-path. Export {roomBoundCommand?.briefFilename || 'the Agent Brief'}, generate or edit {roomBoundCommand?.draftFilename || 'the proposal draft'}, dry-run it, then submit it for judgment.
+                          </div>
+                          {roomBoundCommand ? (
+                            <pre className="whitespace-pre-wrap rounded-2xl border border-white/10 bg-slate-950/60 p-3 text-[11px] leading-5 text-slate-300">
+                              {roomBoundCommand.templateCommand}
+                              {'\n'}
+                              {roomBoundCommand.dryRunCommand}
+                            </pre>
+                          ) : null}
+                          <div className="flex flex-wrap gap-2">
+                          <a
+                            href={roomBoundCommand?.openAgentSetupHref || '/projects'}
+                            className="inline-flex items-center gap-2 rounded-full border border-sky-500/30 bg-sky-500/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-sky-100 transition hover:border-sky-400/50 hover:bg-sky-500/15"
+                          >
+                            Open Agent Setup
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!roomBoundCommand) return;
+                              window.navigator.clipboard.writeText(roomBoundCommand.combined)
+                                .then(() => setReviewMessage(`Room-bound starter path copied for ${selectedRoom?.title || 'the current room'}.`))
+                                .catch(() => setReviewMessage(`Clipboard was unavailable. Copy this path manually: ${roomBoundCommand.combined}`));
+                            }}
+                            className="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300 transition hover:border-slate-600 hover:bg-slate-800"
+                          >
+                            Copy Starter Path
+                          </button>
+                          </div>
+                        </div>
+                      )}
+                    </EmptyCard>
                   </div>
                 ) : (
                   <div className="mt-6 space-y-4">

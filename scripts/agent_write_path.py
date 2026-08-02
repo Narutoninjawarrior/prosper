@@ -94,6 +94,47 @@ def build_template_from_brief(brief: Dict[str, Any], agent_id: str | None = None
     }
 
 
+def build_agents_md_instructions(brief: Dict[str, Any]) -> str:
+    summary = summarize_brief(brief)
+    room_id = summary.get("room_id") or "room_id"
+    packet_version = summary.get("packet_version") or 1
+    room_title = summary.get("room_title") or "Shared Packet Room"
+    safe_next = summary.get("safe_next_proposal") or "Advance the packet safely"
+    endpoint = summary.get("remote_endpoint") or "<room_submission_endpoint>"
+    safe_id = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "-" for ch in str(room_id))
+    brief_filename = f"agent-brief-{safe_id}.json"
+    draft_filename = f"proposal-draft-{safe_id}.json"
+    output_filename = f"out/proposal-bundle-{safe_id}.json"
+
+    return "\n".join(
+        [
+            "## Prosper Agent Submission",
+            "",
+            f"Use Prosper as the judgment inbox for `{room_title}` (`{room_id}`).",
+            "",
+            "Before proposing work:",
+            f"- Read the latest Agent Brief from `{brief_filename}`.",
+            f"- Respect `packet_version_seen: {packet_version}` until you fetch a newer brief.",
+            f"- Stay inside the room's current safe next proposal: {safe_next}",
+            "",
+            "Official write-path:",
+            "1. Export a fresh Agent Brief from Prosper Agent Setup.",
+            f"2. Generate a starter bundle: `python scripts/agent_write_path.py --brief \"{brief_filename}\" --input \"{draft_filename}\" --print-template`",
+            f"3. Validate locally: `python scripts/agent_write_path.py --brief \"{brief_filename}\" --input \"{draft_filename}\" --output \"{output_filename}\" --dry-run`",
+            f"4. Submit remotely: `python scripts/agent_write_path.py --brief \"{brief_filename}\" --input \"{draft_filename}\" --submit --id-token \"$PROSPER_FIREBASE_ID_TOKEN\"`",
+            "",
+            "Rules:",
+            "- Propose only: `run`, `run_step`, `decision`, `scope_note`, `source`, `open_action`.",
+            "- Do not mutate accepted truth directly.",
+            "- If `packet_version_seen` is stale, fetch a new brief and regenerate the bundle with a new `client_request_id`.",
+            f"- Default remote endpoint for this room: `{endpoint}`",
+            "",
+            "Success condition:",
+            "The bundle appears in Prosper /review as Waiting for Judgment.",
+        ]
+    )
+
+
 def validate_bundle(brief: Dict[str, Any], bundle: Dict[str, Any]) -> List[str]:
     errors: List[str] = []
     write_path = brief.get("proposal_write_path", {})
@@ -195,6 +236,7 @@ def submit_bundle(endpoint: str, id_token: str, bundle: Dict[str, Any]) -> Tuple
 
 
 def build_success_result(bundle: Dict[str, Any], brief: Dict[str, Any], output: str | None = None) -> Dict[str, Any]:
+    resolved_endpoint = infer_endpoint(brief)
     result: Dict[str, Any] = {
         "ok": True,
         "mode": "validated",
@@ -205,7 +247,12 @@ def build_success_result(bundle: Dict[str, Any], brief: Dict[str, Any], output: 
         "proposal_count": len(bundle["proposals"]),
         "allowed_proposal_types": brief.get("proposal_write_path", {}).get("allowed_proposal_types", sorted(ALLOWED_TYPES)),
         "brief_summary": summarize_brief(brief),
-        "next_step": "Submit remotely or import this bundle into Agent Proposal Intake so it lands in Waiting for Judgment.",
+        "resolved_endpoint": resolved_endpoint,
+        "next_step": (
+            "Run the same command without --dry-run and with --submit so this bundle lands in Waiting for Judgment."
+            if resolved_endpoint
+            else "Remote submit is unavailable from this brief. Import the validated bundle into Agent Proposal Intake so it lands in Waiting for Judgment."
+        ),
     }
     if output:
         result["output"] = output
@@ -235,9 +282,13 @@ def main() -> int:
     parser.add_argument("--id-token", help="Firebase ID token from a shared-room member.")
     parser.add_argument("--dry-run", action="store_true", help="Validate and print a result without writing files.")
     parser.add_argument("--print-template", action="store_true", help="Print a starter bundle template derived from the Agent Brief and exit.")
+    parser.add_argument("--print-agents-md", action="store_true", help="Print a repo-native AGENTS.md snippet for this room and exit.")
     args = parser.parse_args()
 
     brief = load_json(Path(args.brief))
+    if args.print_agents_md:
+        print(build_agents_md_instructions(brief))
+        return 0
     if args.print_template:
         print(json.dumps(build_template_from_brief(brief, args.agent_id), indent=2))
         return 0
@@ -269,6 +320,7 @@ def main() -> int:
                 "error": "missing_endpoint",
                 "message": "No remote submission endpoint was provided or found in the Agent Brief.",
                 "brief_summary": summarize_brief(brief),
+                "next_step": "Open Agent Setup in the shared packet room, export a fresh Agent Brief, or provide --endpoint explicitly.",
             }, indent=2))
             return 1
 
@@ -280,6 +332,7 @@ def main() -> int:
                 "error": "missing_id_token",
                 "message": "Remote submission requires a Firebase ID token from a shared-room member.",
                 "brief_summary": summarize_brief(brief),
+                "next_step": "Sign in as a shared-room member, export a fresh Firebase ID token, then retry with --id-token or PROSPER_FIREBASE_ID_TOKEN.",
             }, indent=2))
             return 1
 
@@ -298,11 +351,17 @@ def main() -> int:
         if status >= 400 or payload.get("ok") is False:
             stale_hint = None
             message = payload.get("message") if isinstance(payload, dict) else None
+            next_step = "Fix the error, keep the room-bound brief and draft in sync, and submit again with a new client_request_id."
             if isinstance(message, str) and "packet_version_seen is stale" in message:
                 stale_hint = {
                     "refresh_brief": True,
                     "next_step": "Export a fresh Agent Brief, rebuild the bundle against the new packet version, and submit again with a new client_request_id.",
                 }
+                next_step = stale_hint["next_step"]
+            elif status in {401, 403}:
+                next_step = "Refresh the Firebase ID token for a shared-room member and retry the remote submit."
+            elif status == 404:
+                next_step = "Export a fresh Agent Brief from Agent Setup or provide the correct --endpoint for this room."
             print(json.dumps({
                 "ok": False,
                 "mode": "submit",
@@ -311,6 +370,7 @@ def main() -> int:
                 "brief_summary": summarize_brief(brief),
                 "response": payload,
                 "stale_hint": stale_hint,
+                "next_step": next_step,
             }, indent=2))
             return 1
 
@@ -323,7 +383,7 @@ def main() -> int:
             "client_request_id": bundle["client_request_id"],
             "packet_version_seen": bundle["packet_version_seen"],
             "brief_summary": summarize_brief(brief),
-            "next_step": "Bundle staged successfully. Open /review to judge it into accepted truth, rejection, or deferral.",
+            "next_step": "Bundle staged successfully. Open /review and judge it into accepted truth, rejection, or deferral.",
             "response": payload,
         }, indent=2))
         return 0

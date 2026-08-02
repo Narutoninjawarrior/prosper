@@ -7386,6 +7386,75 @@ export default function ProjectsPage() {
     return lines.join('\n');
   }, [buildAgentBriefPacket, selectedProject]);
 
+  const buildAgentWritePathFiles = useCallback(() => {
+    const roomOrProjectId = selectedHostedRoom?.id || selectedProject?.id || 'room-id';
+    const safeId = roomOrProjectId.replace(/[^a-zA-Z0-9_-]+/g, '-');
+    return {
+      roomOrProjectId,
+      briefFilename: `agent-brief-${safeId}.json`,
+      draftFilename: `proposal-draft-${safeId}.json`,
+      outputFilename: `out/proposal-bundle-${safeId}.json`,
+    };
+  }, [selectedHostedRoom?.id, selectedProject?.id]);
+
+  const buildAgentWritePathCommand = useCallback(() => {
+    const files = buildAgentWritePathFiles();
+    const templateCommand = `python scripts/agent_write_path.py --brief "${files.briefFilename}" --input "${files.draftFilename}" --print-template`;
+    const dryRunCommand = `python scripts/agent_write_path.py --brief "${files.briefFilename}" --input "${files.draftFilename}" --output "${files.outputFilename}" --dry-run`;
+    const submitCommand = remoteSubmissionSupported
+      ? `python scripts/agent_write_path.py --brief "${files.briefFilename}" --input "${files.draftFilename}" --submit --id-token "$PROSPER_FIREBASE_ID_TOKEN"`
+      : 'Remote submit is not available for this room yet. Use Agent Proposal Intake after local dry-run validation.';
+    return {
+      ...files,
+      templateCommand,
+      dryRunCommand,
+      submitCommand,
+      combined: [templateCommand, dryRunCommand, submitCommand].join('\n'),
+    };
+  }, [buildAgentWritePathFiles, remoteSubmissionSupported]);
+
+  const buildAgentRepoInstructions = useCallback(() => {
+    const files = buildAgentWritePathCommand();
+    const remoteEndpoint = remoteSubmissionEndpoint || '<room_submission_endpoint>';
+    const roomTitle = selectedHostedRoom?.title || selectedProject?.title || 'Shared Packet Room';
+    const roomId = selectedHostedRoom?.id || selectedProject?.id || 'room_id';
+    const packetVersion = selectedProject?.packet_version || 1;
+    return [
+      '## Prosper Agent Submission',
+      '',
+      `Use Prosper as the judgment inbox for \`${roomTitle}\` (\`${roomId}\`).`,
+      '',
+      'Before proposing work:',
+      `- Read the latest Agent Brief from \`${files.briefFilename}\`.`,
+      `- Respect \`packet_version_seen: ${packetVersion}\` until you export a newer brief.`,
+      `- Stay inside the room's current safe next proposal: ${safeNextProposal.title}`,
+      '',
+      'Official write-path:',
+      `1. Export a fresh Agent Brief from Prosper Agent Setup into \`${files.briefFilename}\`.`,
+      `2. Generate a starter bundle: \`${files.templateCommand}\``,
+      `3. Validate locally: \`${files.dryRunCommand}\``,
+      `4. Submit remotely: \`${files.submitCommand}\``,
+      '',
+      'Rules:',
+      '- Propose only: `run`, `run_step`, `decision`, `scope_note`, `source`, `open_action`.',
+      '- Do not mutate accepted truth directly.',
+      '- If `packet_version_seen` is stale, export a fresh brief and regenerate the bundle with a new `client_request_id`.',
+      `- Default remote endpoint for this room: \`${remoteEndpoint}\``,
+      '',
+      'Success condition:',
+      'The bundle appears in Prosper /review as Waiting for Judgment.',
+    ].join('\n');
+  }, [
+    buildAgentWritePathCommand,
+    remoteSubmissionEndpoint,
+    safeNextProposal.title,
+    selectedHostedRoom?.id,
+    selectedHostedRoom?.title,
+    selectedProject?.id,
+    selectedProject?.packet_version,
+    selectedProject?.title,
+  ]);
+
   const buildProjectHandoffMarkdown = useCallback(() => {
     if (!selectedProject) return '';
 
@@ -8177,22 +8246,34 @@ export default function ProjectsPage() {
   }, [safeNextProposal, selectedHostedRoom?.id, selectedProject?.id, selectedProject?.packet_version]);
 
   const copyAgentWritePathCommand = useCallback(() => {
-    const command = [
-      'python scripts/agent_write_path.py \\',
-      '  --brief agent-brief.json \\',
-      '  --input proposal-draft.json \\',
-      '  --dry-run',
-    ].join('\n');
+    const command = buildAgentWritePathCommand().combined;
     navigator.clipboard
       .writeText(command)
       .then(() => {
-        alert('Agent write-path command copied to clipboard.');
+        alert('Room-bound agent write-path copied to clipboard.');
       })
       .catch(() => {
         downloadTextArtifact('agent-write-path-command.txt', command, 'text/plain;charset=utf-8');
         alert('Clipboard access was unavailable, so the command was downloaded instead.');
       });
-  }, []);
+  }, [buildAgentWritePathCommand]);
+
+  const handleCopyAgentRepoInstructions = useCallback(async () => {
+    const content = buildAgentRepoInstructions();
+    try {
+      await navigator.clipboard.writeText(content);
+      setCloudActionMessage('AGENTS.md snippet copied for this room.');
+    } catch {
+      downloadTextArtifact('AGENTS.prosper-room.md', content, 'text/markdown;charset=utf-8');
+      setCloudActionMessage('Clipboard was unavailable, so the AGENTS.md snippet was downloaded instead.');
+    }
+  }, [buildAgentRepoInstructions]);
+
+  const handleExportAgentRepoInstructions = useCallback(() => {
+    const content = buildAgentRepoInstructions();
+    const files = buildAgentWritePathFiles();
+    downloadTextArtifact(`AGENTS.prosper-${files.roomOrProjectId}.md`, content, 'text/markdown;charset=utf-8');
+  }, [buildAgentRepoInstructions, buildAgentWritePathFiles]);
 
   const handleCopySharedRoomContract = useCallback(async () => {
     const contract = buildSharedRoomContract();
@@ -9370,7 +9451,13 @@ export default function ProjectsPage() {
                       onClick={copyAgentWritePathCommand}
                       className="rounded border border-emerald-800 bg-emerald-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-emerald-200 transition-colors hover:bg-emerald-900/40"
                     >
-                      Copy CLI Command
+                      Copy Starter Path
+                    </button>
+                    <button
+                      onClick={handleCopyAgentRepoInstructions}
+                      className="rounded border border-amber-800 bg-amber-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-amber-200 transition-colors hover:bg-amber-900/40"
+                    >
+                      Copy AGENTS.md Snippet
                     </button>
                     <button
                       onClick={copyAgentProposalTemplate}
@@ -9387,7 +9474,7 @@ export default function ProjectsPage() {
                     </button>
                   </div>
                 </div>
-                <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                   <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
                     <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Room Id</div>
                     <div className="mt-2 break-all text-xs leading-5 text-slate-200">{selectedHostedRoom?.id || 'No shared room selected yet.'}</div>
@@ -9406,6 +9493,19 @@ export default function ProjectsPage() {
                       {remoteSubmissionSupported ? 'Enabled' : 'Not available yet'}
                     </div>
                     <div className="mt-2 text-xs leading-5 text-slate-400">{remoteSubmissionStatusLine}</div>
+                  </div>
+                  <div className="mt-3 rounded border border-slate-800 bg-slate-950/50 p-3">
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Run This Next</div>
+                    <pre className="mt-2 whitespace-pre-wrap rounded border border-slate-800 bg-[#06090b] p-3 text-[11px] leading-5 text-slate-300">
+                      {buildAgentWritePathCommand().templateCommand}
+                      {'\n'}
+                      {buildAgentWritePathCommand().dryRunCommand}
+                      {'\n'}
+                      {buildAgentWritePathCommand().submitCommand}
+                    </pre>
+                    <div className="mt-2 text-xs leading-5 text-slate-400">
+                      Export {buildAgentWritePathCommand().briefFilename}, generate or edit {buildAgentWritePathCommand().draftFilename}, dry-run it, then submit into this room when the bundle is valid.
+                    </div>
                   </div>
                 </div>
               </div>
@@ -9527,6 +9627,12 @@ export default function ProjectsPage() {
                         Export Brief Markdown
                       </button>
                       <button
+                        onClick={handleExportAgentRepoInstructions}
+                        className="rounded border border-amber-800 bg-amber-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-amber-200 transition-colors hover:bg-amber-900/40"
+                      >
+                        Export AGENTS.md Snippet
+                      </button>
+                      <button
                         onClick={handleCopySharedRoomExport}
                         className="rounded border border-fuchsia-800 bg-fuchsia-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-fuchsia-200 transition-colors hover:bg-fuchsia-900/40"
                       >
@@ -9543,6 +9649,15 @@ export default function ProjectsPage() {
                   <div className="mt-3 text-xs leading-5 text-slate-400">
                     The Agent Brief is the official read path for a coding agent. Load it first, build a valid proposal bundle against the current packet version, then use the remote submission endpoint or local intake to stage work for judgment.
                   </div>
+                  <div className="mt-3 rounded border border-amber-900/30 bg-amber-950/10 p-3">
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-amber-300">Repo-Native Instructions</div>
+                    <div className="mt-2 text-xs leading-5 text-slate-400">
+                      Drop this snippet into the repo&apos;s AGENTS.md so a fresh coding-agent session can find the official Prosper submission path without extra setup.
+                    </div>
+                    <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap rounded border border-slate-800 bg-[#06090b] p-3 text-[11px] leading-5 text-slate-300">
+                      {buildAgentRepoInstructions()}
+                    </pre>
+                  </div>
                   <div className="mt-3 grid gap-3 md:grid-cols-3">
                     <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
                       <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Read</div>
@@ -9550,7 +9665,7 @@ export default function ProjectsPage() {
                     </div>
                     <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
                       <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Write</div>
-                      <div className="mt-2 text-xs leading-5 text-slate-300">Valid Proposal Bundle with room_id, packet_version_seen, client_request_id, and supported proposal types.</div>
+                      <div className="mt-2 text-xs leading-5 text-slate-300">Valid Proposal Bundle with room_id, packet_version_seen, client_request_id, supported proposal types, and room-bound starter filenames.</div>
                     </div>
                     <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
                       <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Result</div>
@@ -14347,7 +14462,8 @@ export default function ProjectsPage() {
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold uppercase tracking-widest text-slate-400">JSON Payload</label>
                 <div className="flex flex-wrap items-center gap-3">
-                  <button onClick={copyAgentWritePathCommand} className="text-[10px] font-bold uppercase tracking-widest text-emerald-400 hover:text-emerald-300">Copy CLI Command</button>
+                  <button onClick={copyAgentWritePathCommand} className="text-[10px] font-bold uppercase tracking-widest text-emerald-400 hover:text-emerald-300">Copy Starter Path</button>
+                  <button onClick={handleCopyAgentRepoInstructions} className="text-[10px] font-bold uppercase tracking-widest text-amber-400 hover:text-amber-300">Copy AGENTS.md Snippet</button>
                   <button onClick={copyAgentProposalTemplate} className="text-[10px] font-bold uppercase tracking-widest text-cyan-400 hover:text-cyan-300">Copy Starter Template</button>
                   <button onClick={copyAgentProposalSchema} className="text-[10px] font-bold uppercase tracking-widest text-sky-400 hover:text-sky-300">Copy Agent Schema</button>
                 </div>
@@ -14365,7 +14481,10 @@ export default function ProjectsPage() {
                   </div>
                   <div className="rounded border border-slate-800 bg-slate-950/50 p-3">
                     <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Dry-run command</div>
-                    <pre className="mt-2 whitespace-pre-wrap rounded border border-slate-800 bg-[#06090b] p-3 text-[11px] leading-5 text-slate-300">python scripts/agent_write_path.py{"\n"}  --brief agent-brief.json {"\n"}  --input proposal-draft.json {"\n"}  --dry-run</pre>
+                    <pre className="mt-2 whitespace-pre-wrap rounded border border-slate-800 bg-[#06090b] p-3 text-[11px] leading-5 text-slate-300">{buildAgentWritePathCommand().dryRunCommand}</pre>
+                    <div className="mt-2 text-[10px] leading-5 text-slate-500">
+                      Then submit with: {buildAgentWritePathCommand().submitCommand}
+                    </div>
                   </div>
                 </div>
                 <div className="mt-3 text-xs leading-5 text-slate-500">

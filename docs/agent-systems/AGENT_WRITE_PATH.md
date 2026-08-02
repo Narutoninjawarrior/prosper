@@ -3,7 +3,7 @@
 Prosper now has one official first-party path for coding agents to write into a packet room:
 
 1. Export the Agent Brief from a project or shared packet room.
-2. Build a proposal bundle against that brief.
+2. Generate or edit a room-bound proposal draft against that brief.
 3. Validate the bundle locally with `scripts/agent_write_path.py`.
 4. Either submit the validated bundle to the remote room endpoint or import it into the Agent Proposal Intake gateway.
 5. Let a human reviewer accept, reject, or defer the waiting bundle.
@@ -19,13 +19,35 @@ This is intentionally supervised. Agents can propose work, but they cannot write
 
 ```bash
 python scripts/agent_write_path.py \
-  --brief agent-brief.json \
-  --input docs/agent-systems/example-proposal-bundle.json \
-  --output out/proposal-bundle.json \
+  --brief agent-brief-room-abc123.json \
+  --input proposal-draft-room-abc123.json \
+  --print-template
+
+python scripts/agent_write_path.py \
+  --brief agent-brief-room-abc123.json \
+  --input proposal-draft-room-abc123.json \
+  --output out/proposal-bundle-room-abc123.json \
   --dry-run
 ```
 
-Then run without `--dry-run` to write the canonical bundle file.
+Then run without `--dry-run` and with `--submit` to stage it in the room.
+
+The product now treats this as a room-bound path: export a room-specific brief, fill a room-specific draft, validate it, then submit it back into that same room.
+
+## Repo-native entrypoint
+
+Prosper should also be visible from the repo, not only from the web UI.
+
+To emit a room-bound `AGENTS.md` snippet from the current Agent Brief:
+
+```bash
+python scripts/agent_write_path.py \
+  --brief agent-brief-room-abc123.json \
+  --input proposal-draft-room-abc123.json \
+  --print-agents-md
+```
+
+Drop that output into the repo's `AGENTS.md` so a fresh coding-agent session can find the official write-path without a custom explanation.
 
 ## Fastest starter path
 
@@ -33,8 +55,8 @@ If you want the helper to generate a contract-aligned starter bundle from the cu
 
 ```bash
 python scripts/agent_write_path.py \
-  --brief agent-brief.json \
-  --input docs/agent-systems/example-proposal-bundle.json \
+  --brief agent-brief-room-abc123.json \
+  --input proposal-draft-room-abc123.json \
   --print-template
 ```
 
@@ -71,6 +93,7 @@ The helper also prints a `brief_summary` block so an agent or operator can verif
 - what the packet goal is
 - what the current safe next proposal is
 - which remote endpoint it resolved
+- what the exact next step should be if validation passed
 
 ## Remote submit
 
@@ -78,13 +101,15 @@ When the Agent Brief includes `remote_submission.endpoint`, or when you provide 
 
 ```bash
 python scripts/agent_write_path.py \
-  --brief agent-brief.json \
-  --input docs/agent-systems/example-proposal-bundle.json \
+  --brief agent-brief-room-abc123.json \
+  --input proposal-draft-room-abc123.json \
   --submit \
   --id-token "$PROSPER_FIREBASE_ID_TOKEN"
 ```
 
 You can also override the endpoint with `--endpoint` or `PROSPER_SUBMISSION_ENDPOINT`.
+
+Success and failure output now include a direct `next_step` so an operator or coding agent can recover without guessing.
 
 ## Common failure: stale packet version
 
@@ -99,6 +124,12 @@ The fix is practical:
 Do not retry the old bundle unchanged. The stale error is the review boundary working as intended.
 
 The helper prints a `stale_hint` when this happens so the next move is machine-readable as well as human-readable.
+
+Other failure modes now also include a plain `next_step`, for example:
+
+- export a fresh Agent Brief from Agent Setup
+- refresh the Firebase ID token for the shared-room member
+- correct the remote endpoint for the current room
 
 ## What gets validated
 
