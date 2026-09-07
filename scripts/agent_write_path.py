@@ -135,11 +135,22 @@ def build_agents_md_instructions(brief: Dict[str, Any]) -> str:
     )
 
 
-def validate_bundle(brief: Dict[str, Any], bundle: Dict[str, Any]) -> List[str]:
-    errors: List[str] = []
-    write_path = brief.get("proposal_write_path", {})
+BLOCKED_PLACEHOLDERS = {
+    "do work",
+    "tbd",
+    "todo",
+    "lorem ipsum",
+    "test summary",
+}
+
+
+def validate_bundle(brief: Dict[str, Any], bundle: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    defects: List[Dict[str, Any]] = []
+    warnings: List[Dict[str, Any]] = []
+
+    write_path = brief.get("proposal_write_path", {}) if isinstance(brief.get("proposal_write_path"), dict) else {}
     allowed_types = set(write_path.get("allowed_proposal_types", [])) or ALLOWED_TYPES
-    room_id = write_path.get("room_id") or brief.get("room_identity", {}).get("id")
+    room_id = write_path.get("room_id") or (brief.get("room_identity", {}) if isinstance(brief.get("room_identity"), dict) else {}).get("id")
     packet_version = brief.get("packet_version")
     max_proposals = int(write_path.get("max_proposals_per_bundle", 25))
     existing_run_ids = {
@@ -149,62 +160,228 @@ def validate_bundle(brief: Dict[str, Any], bundle: Dict[str, Any]) -> List[str]:
     }
 
     if not bundle.get("bundle_id"):
-        errors.append("bundle_id is required.")
+        defects.append({
+            "code": "underspecified_action",
+            "message": "bundle_id is required.",
+            "path": "bundle_id",
+            "next_step": "Provide a unique bundle_id string."
+        })
     if not bundle.get("room_id"):
-        errors.append("room_id is required.")
+        defects.append({
+            "code": "underspecified_action",
+            "message": "room_id is required.",
+            "path": "room_id",
+            "next_step": "Specify the room_id matching the exported Agent Brief."
+        })
     elif room_id and bundle["room_id"] != room_id:
-        errors.append(f'room_id must match the Agent Brief room ({room_id}).')
-    if bundle.get("packet_version_seen") is None:
-        errors.append("packet_version_seen is required.")
-    elif packet_version is not None and bundle["packet_version_seen"] != packet_version:
-        errors.append(f'packet_version_seen is stale. Agent Brief expects v{packet_version}.')
+        defects.append({
+            "code": "collision_risk",
+            "message": f"room_id '{bundle['room_id']}' must match Agent Brief room '{room_id}'.",
+            "path": "room_id",
+            "next_step": "Export a fresh Agent Brief for the target room before building the bundle."
+        })
+
+    pv_seen = bundle.get("packet_version_seen")
+    if pv_seen is None:
+        defects.append({
+            "code": "stale_context",
+            "message": "packet_version_seen is required.",
+            "path": "packet_version_seen",
+            "next_step": "Include packet_version_seen from the exported Agent Brief."
+        })
+    elif packet_version is not None and pv_seen != packet_version:
+        defects.append({
+            "code": "stale_context",
+            "message": f"packet_version_seen (v{pv_seen}) is stale. Agent Brief expects v{packet_version}.",
+            "path": "packet_version_seen",
+            "next_step": "Export a fresh Agent Brief, rebuild against the current packet version, and submit with a new client_request_id."
+        })
+
     if not bundle.get("client_request_id"):
-        errors.append("client_request_id is required.")
+        defects.append({
+            "code": "underspecified_action",
+            "message": "client_request_id is required.",
+            "path": "client_request_id",
+            "next_step": "Generate a unique client_request_id."
+        })
     if not bundle.get("agent_id"):
-        errors.append("agent_id is required.")
-    if not bundle.get("human_summary"):
-        errors.append("human_summary is required.")
-    elif len(str(bundle["human_summary"])) > 280:
-        errors.append("human_summary must stay under 280 characters.")
+        defects.append({
+            "code": "underspecified_action",
+            "message": "agent_id is required.",
+            "path": "agent_id",
+            "next_step": "Identify the submitting agent_id."
+        })
+
+    summary = bundle.get("human_summary")
+    if not summary:
+        defects.append({
+            "code": "weak_summary",
+            "message": "human_summary is required.",
+            "path": "human_summary",
+            "next_step": "Write a 1-sentence summary of the proposal for human review."
+        })
+    else:
+        summary_str = str(summary).strip()
+        if len(summary_str) < 10:
+            defects.append({
+                "code": "weak_summary",
+                "message": f"human_summary is too short ({len(summary_str)} chars). Minimum is 10.",
+                "path": "human_summary",
+                "next_step": "Provide a descriptive 1-sentence summary of intent."
+            })
+        elif len(summary_str) > 280:
+            defects.append({
+                "code": "weak_summary",
+                "message": f"human_summary must stay under 280 characters ({len(summary_str)} chars).",
+                "path": "human_summary",
+                "next_step": "Shorten human_summary under 280 chars."
+            })
+        lower_summary = summary_str.lower()
+        if any(lower_summary == p or lower_summary.startswith(p) for p in BLOCKED_PLACEHOLDERS):
+            defects.append({
+                "code": "weak_summary",
+                "message": f"human_summary contains blocked generic placeholder text: '{summary_str}'.",
+                "path": "human_summary",
+                "next_step": "Replace generic placeholder text with specific proposal intent."
+            })
+
+    trace = bundle.get("execution_trace")
+    if isinstance(trace, dict):
+        exit_code = trace.get("exit_code")
+        if isinstance(exit_code, int) and exit_code != 0:
+            warnings.append({
+                "code": "failed_attempt",
+                "message": f"execution_trace recorded non-zero exit code ({exit_code}). Staged for review with warning.",
+                "path": "execution_trace.exit_code",
+                "next_step": "Review local test/command log before judging."
+            })
 
     proposals = bundle.get("proposals", [])
     if not isinstance(proposals, list) or not proposals:
-        errors.append("proposals must contain at least one item.")
-        return errors
+        defects.append({
+            "code": "underspecified_action",
+            "message": "proposals must contain at least one item.",
+            "path": "proposals",
+            "next_step": "Add at least one proposal object to the bundle."
+        })
+        return defects, warnings
+
     if len(proposals) > max_proposals:
-        errors.append(f"proposals cannot contain more than {max_proposals} items.")
+        defects.append({
+            "code": "oversized_bundle",
+            "message": f"proposals cannot contain more than {max_proposals} items ({len(proposals)} provided).",
+            "path": "proposals",
+            "next_step": "Split large proposal bundles into smaller atomic steps."
+        })
+    elif len(proposals) > 10:
+        warnings.append({
+            "code": "oversized_bundle",
+            "message": f"Bundle contains {len(proposals)} items. Large bundles increase reviewer load and rejection risk.",
+            "path": "proposals",
+            "next_step": "Consider splitting into smaller atomic bundles."
+        })
 
     for index, proposal in enumerate(proposals):
+        item_path = f"proposals[{index}]"
         if not isinstance(proposal, dict):
-            errors.append(f"proposals[{index}] must be an object.")
+            defects.append({
+                "code": "underspecified_action",
+                "message": f"{item_path} must be an object.",
+                "path": item_path,
+                "next_step": "Ensure every proposal is a JSON object."
+            })
             continue
+
         proposal_type = proposal.get("type")
         if proposal_type not in allowed_types:
-            errors.append(f"proposals[{index}] uses an unsupported type: {proposal_type}.")
+            defects.append({
+                "code": "unsupported_operation",
+                "message": f"{item_path} uses an unsupported type: {proposal_type}.",
+                "path": f"{item_path}.type",
+                "next_step": f"Use one of allowed types: {sorted(allowed_types)}."
+            })
             continue
+
         proposal_payload = proposal.get("payload")
         if not isinstance(proposal_payload, dict):
-            errors.append(f"proposals[{index}] requires an object payload.")
+            defects.append({
+                "code": "underspecified_action",
+                "message": f"{item_path} requires an object payload.",
+                "path": f"{item_path}.payload",
+                "next_step": "Provide a dictionary payload for the proposal."
+            })
             continue
+
+        if proposal_type in {"decision", "open_action"}:
+            rationale = str(proposal_payload.get("rationale", "")).strip()
+            if not rationale:
+                defects.append({
+                    "code": "missing_rationale",
+                    "message": f"{item_path} ({proposal_type}) requires payload.rationale.",
+                    "path": f"{item_path}.payload.rationale",
+                    "next_step": "Explain the decision reasoning or open action purpose."
+                })
+
         if proposal_type in {"run", "decision", "scope_note", "source", "open_action"} and not proposal_payload.get("title"):
-            errors.append(f"proposals[{index}] requires payload.title.")
-        if proposal_type == "run_step" and not proposal.get("run_id"):
-            errors.append(f"proposals[{index}] requires run_id.")
-        elif proposal_type == "run_step" and proposal.get("run_id") not in existing_run_ids:
-            errors.append(f"proposals[{index}] references an unknown run_id.")
+            defects.append({
+                "code": "underspecified_action",
+                "message": f"{item_path} ({proposal_type}) requires payload.title.",
+                "path": f"{item_path}.payload.title",
+                "next_step": "Provide a descriptive title."
+            })
+
+        if proposal_type == "run_step":
+            run_id = proposal.get("run_id")
+            if not run_id:
+                defects.append({
+                    "code": "underspecified_action",
+                    "message": f"{item_path} requires run_id.",
+                    "path": f"{item_path}.run_id",
+                    "next_step": "Specify target run_id for the step."
+                })
+            elif run_id not in existing_run_ids:
+                defects.append({
+                    "code": "collision_risk",
+                    "message": f"{item_path} references unknown run_id '{run_id}'.",
+                    "path": f"{item_path}.run_id",
+                    "next_step": "Verify active run_ids in the exported Agent Brief."
+                })
+
         if proposal_type == "open_action":
             if not proposal_payload.get("next_action"):
-                errors.append(f"proposals[{index}] requires payload.next_action.")
+                defects.append({
+                    "code": "underspecified_action",
+                    "message": f"{item_path} requires payload.next_action.",
+                    "path": f"{item_path}.payload.next_action",
+                    "next_step": "Specify concrete next_action string."
+                })
             if not proposal_payload.get("done_when"):
-                errors.append(f"proposals[{index}] requires payload.done_when.")
-        if proposal_type == "run" and "actions" in proposal_payload:
+                defects.append({
+                    "code": "underspecified_action",
+                    "message": f"{item_path} requires payload.done_when.",
+                    "path": f"{item_path}.payload.done_when",
+                    "next_step": "Specify clear done_when criteria."
+                })
+
+        if proposal_type == "run":
             actions = proposal_payload.get("actions")
             if not isinstance(actions, list) or not actions:
-                errors.append(f"proposals[{index}] requires a non-empty actions list.")
-        if len(json.dumps(proposal_payload)) > 12000:
-            errors.append(f"proposals[{index}] payload is too large.")
+                defects.append({
+                    "code": "underspecified_action",
+                    "message": f"{item_path} (run) requires a non-empty actions list.",
+                    "path": f"{item_path}.payload.actions",
+                    "next_step": "Include action steps in payload.actions."
+                })
 
-    return errors
+        if len(json.dumps(proposal_payload)) > 12000:
+            defects.append({
+                "code": "oversized_bundle",
+                "message": f"{item_path} payload is too large (>12000 bytes).",
+                "path": f"{item_path}.payload",
+                "next_step": "Reduce proposal payload size."
+            })
+
+    return defects, warnings
 
 
 def write_bundle(path: Path, bundle: Dict[str, Any]) -> None:
@@ -295,13 +472,21 @@ def main() -> int:
 
     payload = load_json(Path(args.input))
     bundle = build_bundle(brief, payload, args.agent_id, args.summary)
-    errors = validate_bundle(brief, bundle)
+    defects, warnings = validate_bundle(brief, bundle)
 
-    if errors:
-        print(json.dumps({"ok": False, "errors": errors}, indent=2))
+    if defects:
+        first_defect = defects[0]
+        print(json.dumps({
+            "ok": False,
+            "defects": defects,
+            "warnings": warnings,
+            "message": f"Validation failed with {len(defects)} process defect(s): {first_defect['message']}",
+            "next_step": first_defect.get("next_step", "Fix the reported process defects and re-run validation.")
+        }, indent=2))
         return 1
 
     result = build_success_result(bundle, brief, args.output if (not args.dry_run and args.output) else None)
+    result["warnings"] = warnings
 
     if not args.dry_run and args.output:
         write_bundle(Path(args.output), bundle)

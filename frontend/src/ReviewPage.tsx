@@ -25,6 +25,7 @@ import {
   type ProjectRoomRole,
 } from './projects/cloud';
 import type { ProjectProposalRecord, ProjectProposalReviewState, ProjectProposalType } from './ProjectsPage';
+import { evaluateBundleDefects } from './lib/proposalPolicy';
 
 type ReviewDecision = Extract<ProjectProposalReviewState, 'accepted' | 'rejected' | 'deferred'>;
 
@@ -295,6 +296,7 @@ function deriveBundleTriageInsight(bundle: DerivedProposalBundle, activePacketVe
   const hasRunStep = waitingTypes.includes('run_step');
   const hasRun = waitingTypes.includes('run');
   const stalePacket = typeof bundle.packetVersionSeen === 'number' && bundle.packetVersionSeen < activePacketVersion;
+  const processDefects = evaluateBundleDefects(bundle.proposals, activePacketVersion);
   const touchesPublishedUpdate = waitingTypes.some((type) =>
     type === 'decision' || type === 'open_action' || type === 'scope_note' || type === 'source',
   );
@@ -307,19 +309,23 @@ function deriveBundleTriageInsight(bundle: DerivedProposalBundle, activePacketVe
   if (bundle.deferredCount > 0) score += 12;
   if (bundle.rejectedCount > 0) score += 6;
   if (stalePacket) score += 40;
+  if (processDefects.length > 0) score += processDefects.length * 15;
 
-  const readyToAccept = !stalePacket && bundle.waitingCount > 0 && bundle.waitingCount <= 2 && !hasRunStep;
-  const needsFollowUp = stalePacket || bundle.deferredCount > 0 || (hasRunStep && !hasRun) || bundle.waitingCount >= 4;
+  const readyToAccept = !stalePacket && processDefects.length === 0 && bundle.waitingCount > 0 && bundle.waitingCount <= 2 && !hasRunStep;
+  const needsFollowUp = stalePacket || processDefects.length > 0 || bundle.deferredCount > 0 || (hasRunStep && !hasRun) || bundle.waitingCount >= 4;
 
-  const reason = stalePacket
-    ? `Submitted against packet v${bundle.packetVersionSeen}; active packet is v${activePacketVersion}. Review this first to avoid stale truth.`
-    : bundle.deferredCount > 0
-      ? 'This bundle already has deferred work tied to it and needs a fresh call.'
-      : readyToAccept
-        ? 'Current packet version matches and the proposed change is small enough for a clean judgment pass.'
-        : waitingTypes.includes('decision') || waitingTypes.includes('open_action')
-          ? 'This bundle can directly change packet decisions or open actions.'
-          : 'This bundle changes packet context and should be judged before the next publish cycle.';
+  const primaryDefect = processDefects[0];
+  const reason = primaryDefect
+    ? `Process defect [${primaryDefect.code}]: ${primaryDefect.message}`
+    : stalePacket
+      ? `Submitted against packet v${bundle.packetVersionSeen}; active packet is v${activePacketVersion}. Review this first to avoid stale truth.`
+      : bundle.deferredCount > 0
+        ? 'This bundle already has deferred work tied to it and needs a fresh call.'
+        : readyToAccept
+          ? 'Current packet version matches and the proposed change is small enough for a clean judgment pass.'
+          : waitingTypes.includes('decision') || waitingTypes.includes('open_action')
+            ? 'This bundle can directly change packet decisions or open actions.'
+            : 'This bundle changes packet context and should be judged before the next publish cycle.';
 
   const level: TriagePriorityLevel = score >= 70 ? 'high' : score >= 35 ? 'medium' : 'low';
 

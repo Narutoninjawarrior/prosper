@@ -2,6 +2,7 @@ import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import { requireAuth } from './lib/auth';
 import { applyBodyLimit, applyRateLimit } from './lib/edgeGuard';
+import { validateBundleWithPolicy, ProposalDefect } from './lib/proposalPolicy';
 
 const db = admin.firestore();
 
@@ -48,15 +49,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
-function buildDeterministicFingerprint(value: unknown) {
-  const normalized = JSON.stringify(value);
-  let hash = 2166136261;
-  for (let index = 0; index < normalized.length; index += 1) {
-    hash ^= normalized.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return `fp_${(hash >>> 0).toString(16).padStart(8, '0')}`;
-}
+
 
 function buildProposalPayloadSummary(payload: Record<string, unknown>) {
   const parts = [
@@ -455,131 +448,32 @@ function validateProposalBundle(
     existingClientRequestIds: string[];
     existingRunIds: string[];
   }
-): { ok: true; value: ProposalBundleV1; fingerprint: string } | { ok: false; errors: string[] } {
-  const errors: string[] = [];
-  if (!isRecord(payload)) {
-    return { ok: false, errors: ['Proposal bundle must be a JSON object.'] };
+): { ok: true; value: ProposalBundleV1; defects: []; warnings: ProposalDefect[]; fingerprint: string } | { ok: false; defects: ProposalDefect[]; warnings: ProposalDefect[] } {
+  const result = validateBundleWithPolicy(payload, options);
+  if (!result.ok) {
+    return result;
   }
-
-  const bundleId = typeof payload.bundle_id === 'string' && payload.bundle_id.trim() ? payload.bundle_id.trim() : '';
-  const roomId = typeof payload.room_id === 'string' && payload.room_id.trim() ? payload.room_id.trim() : '';
-  const clientRequestId =
-    typeof payload.client_request_id === 'string' && payload.client_request_id.trim() ? payload.client_request_id.trim() : '';
-  const agentId = typeof payload.agent_id === 'string' && payload.agent_id.trim() ? payload.agent_id.trim() : '';
-  const submittedAt =
-    typeof payload.submitted_at === 'string' && payload.submitted_at.trim() ? payload.submitted_at.trim() : nowIso();
-  const humanSummary =
-    typeof payload.human_summary === 'string' && payload.human_summary.trim() ? payload.human_summary.trim() : '';
-  const packetVersionSeen =
-    typeof payload.packet_version_seen === 'number' && Number.isFinite(payload.packet_version_seen)
-      ? Math.floor(payload.packet_version_seen)
-      : NaN;
-  const rawProposals = Array.isArray(payload.proposals) ? payload.proposals : [];
-
-  if (!bundleId) errors.push('bundle_id is required.');
-  if (!roomId) errors.push('room_id is required.');
-  if (roomId && roomId !== options.roomId) {
-    errors.push('room_id does not match the targeted shared packet room.');
-  }
-  if (!clientRequestId) errors.push('client_request_id is required.');
-  if (clientRequestId && options.existingClientRequestIds.includes(clientRequestId)) {
-    errors.push('client_request_id has already been used for this packet.');
-  }
-  if (!agentId) errors.push('agent_id is required.');
-  if (!humanSummary) errors.push('human_summary is required.');
-  if (humanSummary.length > 280) errors.push('human_summary must stay under 280 characters.');
-  if (!Number.isFinite(packetVersionSeen)) errors.push('packet_version_seen must be a finite number.');
-  if (Number.isFinite(packetVersionSeen) && packetVersionSeen !== options.packetVersion) {
-    errors.push(`packet_version_seen is stale. Active packet version is v${options.packetVersion}.`);
-  }
-  if (rawProposals.length === 0) errors.push('proposals must contain at least one item.');
-  if (rawProposals.length > 25) errors.push('proposals cannot contain more than 25 items in one bundle.');
-
-  const executionTrace = parseExecutionTrace(payload.execution_trace);
-  if (payload.execution_trace !== undefined && !executionTrace) {
-    errors.push('execution_trace must be a valid object when provided.');
-  }
-
-  const proposals: ProposalBundleItemInput[] = [];
-  rawProposals.forEach((proposal, index) => {
-    if (!isRecord(proposal)) {
-      errors.push(`proposals[${index}] must be an object.`);
-      return;
-    }
-    const type = proposal.type;
-    const proposalType: ProposalType | null =
-      type === 'run' ||
-      type === 'run_step' ||
-      type === 'decision' ||
-      type === 'scope_note' ||
-      type === 'source' ||
-      type === 'open_action'
-        ? type
-        : null;
-    if (!proposalType) {
-      errors.push(`proposals[${index}] uses an unsupported type.`);
-      return;
-    }
-
-    const itemPayload = sanitizeProposalPayload(proposal.payload);
-    const runId = typeof proposal.run_id === 'string' && proposal.run_id.trim() ? proposal.run_id.trim() : undefined;
-    if (proposalType === 'run_step' && !runId) {
-      errors.push(`proposals[${index}] requires run_id for run_step.`);
-    } else if (proposalType === 'run_step' && runId && !options.existingRunIds.includes(runId)) {
-      errors.push(`proposals[${index}] references an unknown run_id.`);
-    }
-    if (
-      (proposalType === 'decision' ||
-        proposalType === 'open_action' ||
-        proposalType === 'run' ||
-        proposalType === 'scope_note' ||
-        proposalType === 'source') &&
-      typeof itemPayload.title !== 'string'
-    ) {
-      errors.push(`proposals[${index}] requires payload.title.`);
-    }
-    if (proposalType === 'open_action') {
-      if (typeof itemPayload.next_action !== 'string' || !String(itemPayload.next_action).trim()) {
-        errors.push(`proposals[${index}] requires payload.next_action.`);
-      }
-      if (typeof itemPayload.done_when !== 'string' || !String(itemPayload.done_when).trim()) {
-        errors.push(`proposals[${index}] requires payload.done_when.`);
-      }
-    }
-    if (proposalType === 'run') {
-      const actions = itemPayload.actions;
-      if (!Array.isArray(actions) || actions.length === 0) {
-        errors.push(`proposals[${index}] requires a non-empty actions list for a run.`);
-      }
-    }
-    const payloadLength = JSON.stringify(itemPayload).length;
-    if (payloadLength > 12000) {
-      errors.push(`proposals[${index}] payload is too large.`);
-    }
-
-    proposals.push({
-      type: proposalType,
-      run_id: runId,
-      payload: itemPayload,
-    });
-  });
-
-  if (errors.length > 0) {
-    return { ok: false, errors };
-  }
+  const rawPayload = result.value;
+  const executionTrace = parseExecutionTrace(rawPayload.execution_trace);
+  const rawProposals = Array.isArray(rawPayload.proposals) ? rawPayload.proposals : [];
+  const proposals: ProposalBundleItemInput[] = rawProposals.map((prop: any) => ({
+    type: prop.type,
+    run_id: typeof prop.run_id === 'string' && prop.run_id.trim() ? prop.run_id.trim() : undefined,
+    payload: sanitizeProposalPayload(prop.payload),
+  }));
 
   const validated: ProposalBundleV1 = {
-    bundle_id: bundleId,
-    room_id: roomId,
-    packet_version_seen: packetVersionSeen,
-    client_request_id: clientRequestId,
-    agent_id: agentId,
-    submitted_at: submittedAt,
-    human_summary: humanSummary,
+    bundle_id: String(rawPayload.bundle_id).trim(),
+    room_id: String(rawPayload.room_id).trim(),
+    packet_version_seen: Number(rawPayload.packet_version_seen),
+    client_request_id: String(rawPayload.client_request_id).trim(),
+    agent_id: String(rawPayload.agent_id).trim(),
+    submitted_at: typeof rawPayload.submitted_at === 'string' ? rawPayload.submitted_at.trim() : nowIso(),
+    human_summary: String(rawPayload.human_summary).trim(),
     execution_trace: executionTrace,
     proposals,
   };
-  return { ok: true, value: validated, fingerprint: buildDeterministicFingerprint(validated) };
+  return { ok: true, value: validated, defects: [], warnings: result.warnings, fingerprint: result.fingerprint };
 }
 
 export const submitProjectProposalBundle = functions.https.onRequest(async (req, res) => {
@@ -653,7 +547,11 @@ export const submitProjectProposalBundle = functions.https.onRequest(async (req,
       });
 
       if (!validation.ok) {
-        throw new functions.https.HttpsError('invalid-argument', validation.errors.join(' '));
+        const primaryMessage = validation.defects.map((d) => d.message).join(' ');
+        throw new functions.https.HttpsError('invalid-argument', primaryMessage, {
+          defects: validation.defects,
+          warnings: validation.warnings,
+        });
       }
 
       const bundle = validation.value;

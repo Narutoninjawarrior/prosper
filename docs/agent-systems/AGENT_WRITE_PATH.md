@@ -131,16 +131,36 @@ Other failure modes now also include a plain `next_step`, for example:
 - refresh the Firebase ID token for the shared-room member
 - correct the remote endpoint for the current room
 
+## Proposal Policy Envelopes & Process Defect Codes
+
+Proposal bundles are evaluated against a declarative **Proposal Policy Envelope** before landing in `/review`. Validation returns machine-readable, structured **Process Defect Codes** inspired by ProcBench:
+
+| Defect Code | Trigger Condition | Agent Recovery Action |
+| --- | --- | --- |
+| `stale_context` | `packet_version_seen` is outdated relative to active brief. | Export a fresh Agent Brief, rebuild proposal against active version, and submit with a new `client_request_id`. |
+| `missing_rationale` | `decision` or `open_action` missing `payload.rationale`. | Include clean reasoning in `payload.rationale`. |
+| `underspecified_action` | `open_action` missing `next_action`/`done_when`, or missing `title`. | Specify explicit `next_action`, `done_when`, and non-empty `title`. |
+| `oversized_bundle` | Proposals > 25 (or policy limit) or payload > 12 KB. | Split into smaller, reviewable atomic bundles. |
+| `unsupported_operation` | Proposal type not in allowed list (`run`, `run_step`, `decision`, `scope_note`, `source`, `open_action`). | Use allowed proposal types specified in the Agent Brief. |
+| `collision_risk` | `client_request_id` already used or unknown `run_id`. | Generate a new `client_request_id` or fix `run_id`. |
+| `weak_summary` | `human_summary` < 10 chars, > 280 chars, or contains generic placeholders (e.g. `do work`, `tbd`, `todo`, `advance the packet safely`). | Write a clear, specific 1-sentence summary of the intent for human review. |
+| `failed_attempt` | `execution_trace` exit code != 0. | Resolve local test/command failures before submitting for human judgment. |
+
+> [!IMPORTANT]
+> **Why Silent Failure is Worse than Rejected Work:**
+> Silent failures, hidden errors, or bypassing policy checks obscure agent drift. A structured policy failure allows agents to self-correct automatically. All accepted truth still strictly requires explicit human judgment.
+
 ## What gets validated
 
 - `room_id` must match the Agent Brief room
 - `packet_version_seen` must match the current packet version
-- `client_request_id` must exist
-- `human_summary` must exist and stay compact
+- `client_request_id` must exist and be unique
+- `human_summary` must exist, stay compact (10-280 chars), and avoid generic placeholders
+- `execution_trace` must have exit code 0 when provided
 - proposal types must be allowed by the brief
-- `run_step` proposals must target a run already visible in the brief
-- proposal payloads must include required fields
-- oversized or empty bundles are rejected
+- `run_step` proposals must target an active `run_id`
+- `decision` and `open_action` proposals must include a non-empty rationale
+- oversized or empty bundles are rejected with structured defect details
 
 ## Minimal schema reminder
 

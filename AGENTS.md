@@ -1,6 +1,6 @@
 # Hearthlands Agent Constitution
 
-## Prosper Packet Room Submission
+## Prosper Packet Room Submission & Proposal Policies
 
 When the task is supervised coding-agent work inside Prosper shared packet rooms, use the official proposal write-path instead of inventing a side channel.
 
@@ -8,7 +8,7 @@ Operational rule:
 
 1. Export a fresh Agent Brief from Prosper Agent Setup.
 2. Generate or edit a room-bound proposal draft.
-3. Validate it with `scripts/agent_write_path.py`.
+3. Validate it locally with `scripts/agent_write_path.py` against declarative **Proposal Policy Envelopes**.
 4. Submit it into the room so it appears in `/review` as Waiting for Judgment.
 5. Never mutate accepted truth directly.
 
@@ -25,7 +25,14 @@ python scripts/agent_write_path.py --brief "agent-brief-ROOM.json" --input "prop
 python scripts/agent_write_path.py --brief "agent-brief-ROOM.json" --input "proposal-draft-ROOM.json" --submit --id-token "$PROSPER_FIREBASE_ID_TOKEN"
 ```
 
-If `packet_version_seen` is stale, stop, export a fresh Agent Brief, rebuild the bundle, and retry with a new `client_request_id`.
+Proposal Policy Enforcement & Defect Recovery:
+- **`stale_context`**: If `packet_version_seen` is stale, export a fresh Agent Brief, rebuild against the active version, and submit with a new `client_request_id`.
+- **`weak_summary`**: Summaries under 10 chars, over 280 chars, or containing blocked placeholders (`do work`, `tbd`, `todo`, `advance the packet safely`) are rejected.
+- **`missing_rationale`**: Decisions and open actions must include clear reasoning in `payload.rationale`.
+- **`underspecified_action`**: Open actions require `next_action`, `done_when`, and non-empty `title`.
+- **`failed_attempt`**: Local execution traces with non-zero exit codes are blocked ex-ante before reaching human review.
+
+> **Principle:** Silent failure or bypassing validation is worse than rejected work. Structured defect codes enable agents to fix issues and re-submit cleanly without corrupting project truth. All accepted truth requires human judgment.
 
 ## Vessel Identity & Cross-Reference
 
